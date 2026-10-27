@@ -1,121 +1,125 @@
-# Bài 01 – Hello ESP32: Nháy LED & Serial Monitor
+# Lesson 01 – Hello ESP32: Blink & Serial Monitor
 
-## Mục tiêu
-- Kết nối ESP32 với máy Mac và nhận diện được cổng nạp
-- Hiểu cấu trúc chương trình Arduino: `setup()` và `loop()`
-- Nạp code, nháy LED onboard
-- Dùng Serial Monitor để xem thông tin chip
+## Goals
+- Connect the ESP32 to your Mac and find its upload port
+- Understand the structure of an Arduino program: `setup()` and `loop()`
+- Upload code and blink the onboard LED
+- Use the Serial Monitor to read chip information
 
-## Chuẩn bị
-- Board ESP32-D (ESP32 Dev Module) cổng Type-C
-- Cáp USB C-C **có truyền dữ liệu** (nhiều cáp chỉ sạc, không có dây data)
-- VS Code + extension PlatformIO (đã có sẵn trong project này)
+## You need
+- ESP32-D board (ESP32 Dev Module) with a Type-C port
+- A USB C-C cable **that carries data** (many cables are charge-only)
+- VS Code + the PlatformIO extension (already set up in this project)
 
-## 1. Làm quen board
+## 1. Meet the board
 
 ```
-            ┌─────────────────────┐
-            │   ┌─────────────┐   │
-            │   │  ESP32-WROOM │   │  ← module chính (CPU 2 nhân + WiFi + BT)
-            │   │  (anten PCB) │   │
-            │   └─────────────┘   │
-   EN  ○    │                     │    ○ BOOT (GPIO0)
- (reset)    │   ● LED nguồn (đỏ)  │
-            │   ● LED GPIO2 (xanh)│
-            │   [chip USB-UART]   │  ← CH340 hoặc CP2102
-            └────────[Type-C]─────┘
+            ┌──────────────────────┐
+            │   ┌──────────────┐   │
+            │   │ ESP32-WROOM  │   │  ← main module (dual-core CPU + WiFi + BT)
+            │   │ (PCB antenna)│   │
+            │   └──────────────┘   │
+   EN  ○    │                      │    ○ BOOT (GPIO0)
+ (reset)    │   ● Power LED (red)  │
+            │   ● GPIO2 LED (blue) │
+            │   [USB-UART chip]    │  ← CH340 or CP2102
+            └────────[Type-C]──────┘
 ```
 
-- **EN**: nút reset – khởi động lại chương trình
-- **BOOT**: giữ nút này khi bật/reset để vào chế độ nạp code (thường tự động, không cần)
-- **LED GPIO2**: LED mà ta sẽ điều khiển trong bài này
-- **Chip USB-UART**: chuyển USB sang Serial để máy tính nói chuyện với ESP32
+- **EN**: reset button – restarts the program
+- **BOOT**: hold it while powering up/resetting to enter upload mode (usually automatic, not needed)
+- **GPIO2 LED**: the LED we control in this lesson
+- **USB-UART chip**: converts USB to Serial so the computer can talk to the ESP32
 
-## 2. Kết nối với máy Mac
+## 2. Connect to your Mac
 
-1. Cắm cáp vào board → LED nguồn đỏ phải sáng.
-2. Mở Terminal, chạy:
+1. Plug the cable into the board → the red power LED must light up.
+2. Open Terminal and run:
    ```bash
    ls /dev/cu.*
    ```
-   Phải thấy một cổng mới như `/dev/cu.usbserial-XXXX`, `/dev/cu.wchusbserial-XXXX` hoặc `/dev/cu.SLAB_USBtoUART`.
+   You should see a new port such as `/dev/cu.usbserial-XXXX`, `/dev/cu.wchusbserial-XXXX` or `/dev/cu.SLAB_USBtoUART`.
 
-### Nếu không thấy cổng / LED đỏ không sáng
-| Hiện tượng | Nguyên nhân thường gặp | Cách xử lý |
-|------------|------------------------|------------|
-| LED đỏ **không sáng** với cáp C-C | Nhiều board ESP32 Type-C giá rẻ thiếu điện trở CC 5.1kΩ nên sạc/cáp C-C không cấp nguồn | Dùng cáp **USB-A → Type-C** (qua hub/adapter USB-A) |
-| LED sáng nhưng không có cổng | Cáp chỉ sạc, không có data | Đổi cáp khác |
-| LED sáng nhưng không có cổng (cáp tốt) | Thiếu driver chip USB | Xem tên chip trên board: **CH340** → cài driver WCH CH34x; **CP2102** → cài driver Silicon Labs |
+### No port / red LED stays off
+| Symptom | Common cause | Fix |
+|---------|--------------|-----|
+| Red LED **off** with a C-C cable | Many cheap ESP32 Type-C boards lack the 5.1kΩ CC resistors, so C-C chargers/cables don't power them | Use a **USB-A → Type-C** cable (via a USB-A hub/adapter) |
+| LED on but no port | Charge-only cable | Try another cable |
+| LED on but no port (good cable) | Missing USB chip driver | Check the chip name on the board: **CH340** → install the WCH CH34x driver; **CP2102** → install the Silicon Labs driver |
 
-## 3. Hiểu code
+## 3. Understand the code
 
-Mở file [main.cpp](main.cpp):
+Open [main.cpp](main.cpp):
 
 ```cpp
-void setup() {   // chạy MỘT lần khi ESP32 khởi động / reset
-  Serial.begin(115200);       // mở cổng Serial tốc độ 115200 baud
-  pinMode(LED_PIN, OUTPUT);   // đặt GPIO2 là ngõ ra
+void setup() {   // runs ONCE when the ESP32 boots / resets
+  Serial.begin(115200);       // open Serial at 115200 baud
+  pinMode(LED_PIN, OUTPUT);   // make GPIO2 an output
 }
 
-void loop() {    // chạy LẶP LẠI mãi mãi
-  digitalWrite(LED_PIN, HIGH);  // xuất 3.3V → LED sáng
-  delay(500);                   // chờ 500ms
-  digitalWrite(LED_PIN, LOW);   // xuất 0V → LED tắt
+void loop() {    // runs AGAIN and AGAIN forever
+  digitalWrite(LED_PIN, HIGH);  // output 3.3V → LED on
+  delay(500);                   // wait 500ms
+  digitalWrite(LED_PIN, LOW);   // output 0V → LED off
   delay(500);
 }
 ```
 
-`Serial.printf(...)` in chữ ra máy tính – công cụ debug quan trọng nhất bạn sẽ dùng mọi bài.
+`Serial.printf(...)` prints text to the computer – the most important debugging tool you'll use in every lesson.
 
-## 4. Nạp code
+## 4. Upload the code
 
-Project dùng **môi trường riêng cho từng bài** (khai báo trong `platformio.ini`). Bài này là `lesson01` và đã được đặt mặc định.
+The project uses **one environment per lesson** (declared in `platformio.ini`). This lesson is `lesson01`.
 
-### Cách A – Dùng VS Code (khuyên dùng)
-1. Thanh trạng thái phía dưới VS Code: bấm vào chỗ chọn môi trường, chọn `env:lesson01`.
-2. Bấm biểu tượng **→ (Upload)** ở thanh dưới.
-3. Bấm biểu tượng **🔌 (Serial Monitor)** để xem kết quả.
+### Option A – VS Code (recommended)
+1. In the VS Code status bar at the bottom, click the environment picker and choose `env:lesson01`.
+2. Click the **→ (Upload)** icon in the bottom bar.
+3. Click the **🔌 (Serial Monitor)** icon to see the output.
 
-### Cách B – Dùng Terminal
+### Option B – Terminal
 ```bash
-~/.platformio/penv/bin/pio run -e lesson01 -t upload     # build + nạp
-~/.platformio/penv/bin/pio device monitor                 # mở Serial Monitor (Ctrl+C để thoát)
+~/.platformio/penv/bin/pio run -e lesson01 -t upload     # build + upload
+~/.platformio/penv/bin/pio device monitor                 # open Serial Monitor (Ctrl+C to quit)
 ```
 
-### Nếu nạp lỗi `Failed to connect to ESP32: Wrong boot mode detected`
-1. Bấm Upload.
-2. Khi thấy dòng `Connecting.....`, **nhấn giữ nút BOOT** khoảng 1–2 giây rồi thả.
+### Upload fails with `Failed to connect to ESP32: Wrong boot mode detected`
+1. Click Upload.
+2. When you see `Connecting.....`, **hold the BOOT button** for 1–2 seconds, then release.
 
-Nếu lỗi `Unable to verify flash chip connection` sau dòng `Changing baud rate...`: chip USB không chạy nổi tốc độ cao. Project đã đặt `upload_speed = 460800` (921600 bị lỗi trên board thử nghiệm); nếu vẫn lỗi hạ tiếp xuống `115200`.
+If it fails with `Unable to verify flash chip connection` after `Changing baud rate...`: the USB chip can't keep up with the high speed. The project uses `upload_speed = 460800` (921600 failed on the test board); if it still fails, drop to `115200`.
 
-## 5. Kết quả mong đợi
-- LED xanh trên board nháy 1 lần/giây.
-- Serial Monitor hiện (nhấn nút **EN** để xem lại từ đầu):
+### Upload fails with `port is busy`
+Another program has the port open – usually a Serial Monitor in another terminal. Close it with `Ctrl+C`, then upload again. `lsof | grep usbserial` shows who holds the port.
+
+## 5. Expected result
+- The blue LED on the board blinks.
+- The Serial Monitor shows (press **EN** to see it from the start):
   ```
   === Hello ESP32! ===
   Chip model   : ESP32-D0WD-V3 (rev 3)
-  So nhan CPU  : 2
-  Xung CPU     : 240 MHz
+  CPU cores    : 2
+  CPU clock    : 240 MHz
   Flash        : 4 MB
-  RAM trong    : ~300000 bytes
+  Free RAM     : ~300000 bytes
   MAC address  : XX:XX:XX:XX:XX:XX
-  [0] LED BAT
-  [0] LED TAT
-  [1] LED BAT
+  [0] LED ON
+  [0] LED OFF
+  [1] LED ON
   ...
   ```
 
-> Nếu LED không nháy nhưng Serial vẫn in chữ: board của bạn có thể không có LED ở GPIO2. Không sao – bài 05 sẽ nối LED ngoài.
+> If the LED doesn't blink but Serial prints text: your board may not have an LED on GPIO2. No problem – lesson 05 wires an external LED.
 
-## 6. Bài tập
-1. Đổi LED nháy nhanh hơn (100ms) rồi chậm hơn (2s).
-2. Nháy theo mã SOS: 3 ngắn – 3 dài – 3 ngắn.
-3. Chỉ in ra Serial mỗi khi `counter` chia hết cho 10.
-4. Thử đổi `BAUD_RATE` thành 9600 nhưng **không** sửa `monitor_speed` → quan sát chữ lỗi. Giải thích vì sao.
+## 6. Exercises
+1. Make the LED blink faster (100ms), then slower (2s).
+2. Blink SOS in Morse code: 3 short – 3 long – 3 short. (Solution: [exercise-sos/main.cpp](exercise-sos/main.cpp), env `lesson01_sos`.)
+3. Print to Serial only when `counter` is a multiple of 10.
+4. Change `BAUD_RATE` to 9600 but **don't** change `monitor_speed` → look at the garbled text. Explain why.
 
-## Kiến thức cần nhớ
-- `setup()` chạy 1 lần, `loop()` chạy lặp vô hạn.
-- ESP32 dùng mức logic **3.3V** (khác Arduino Uno 5V) – không cấp 5V trực tiếp vào chân GPIO.
-- Tốc độ baud trong code và trong Serial Monitor phải giống nhau.
+## Key takeaways
+- `setup()` runs once, `loop()` runs forever.
+- The ESP32 uses **3.3V** logic (unlike the 5V Arduino Uno) – never feed 5V straight into a GPIO pin.
+- The baud rate in code and in the Serial Monitor must match.
+- Code is stored in flash: it keeps running after power loss until you upload something else.
 
-➡️ Bài tiếp theo: **02 – Nút bấm (Digital Input)** dùng chính nút BOOT trên board.
+➡️ Next lesson: **02 – Button (Digital Input)** using the board's own BOOT button.

@@ -10,5 +10,5 @@
 # macOS
 .DS_Store
 
-# Video quay màn hình cho Short – không lưu trong git
+# Screen recordings for the Shorts – not stored in git
 lession/*/recordings/
