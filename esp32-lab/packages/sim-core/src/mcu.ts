@@ -39,8 +39,12 @@ export interface McuModel {
   readonly pads: readonly string[];
   readonly electrical: PadElectrical;
   drive(pad: string): PadDrive;
-  /** Latest circuit voltages at every pad, delivered after each solve. */
-  setInputs(inputs: ReadonlyMap<string, PadInput>, t: SimTime): void;
+  /**
+   * Latest circuit voltages at every pad, delivered after each solve. Return true if this
+   * changed the chip's own pad drives (e.g. its reset pin went low and every pad let go), so
+   * the circuit is solved again.
+   */
+  setInputs(inputs: ReadonlyMap<string, PadInput>, t: SimTime): boolean | void;
   /** Run firmware until `t`, stopping early as soon as any pad drive changes. */
   runUntil(t: SimTime): McuStep;
   /** The circuit destroyed a pad's output stage (sustained overcurrent). */

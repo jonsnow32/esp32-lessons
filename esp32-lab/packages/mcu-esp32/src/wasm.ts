@@ -55,12 +55,17 @@ export class Esp32Wasm {
     return [ptr, data.length];
   }
 
-  boot(fw: Firmware): Esp32Mcu {
+  /** Create a freshly reset SoC running `fw`; returns its handle. */
+  createSoc(fw: Firmware): number {
     const args = [fw.elf, fw.bin, fw.bootloader, fw.partitions].map((d) => this.copyIn(d));
     const soc = this.x.soc_new(...(args.flat() as [number, number, number, number, number, number, number, number]));
     for (const [ptr, len] of args) if (len) this.x.dealloc(ptr, len);
     if (soc === 0) throw new Error(`ESP32 boot failed: ${new TextDecoder().decode(this.scratch(this.x.last_error_len()))}`);
-    return new Esp32Mcu(this.x, this, soc);
+    return soc;
+  }
+
+  boot(fw: Firmware): Esp32Mcu {
+    return new Esp32Mcu(this.x, this, fw);
   }
 }
 
@@ -69,6 +74,9 @@ function gpioNumber(pad: string): number | undefined {
   const m = /^GPIO(\d+)$/.exec(pad);
   return m ? Number(m[1]) : undefined;
 }
+
+/** The chip-enable pin: LOW holds the whole chip in reset, the rising edge boots it. */
+const EN = 'EN';
 
 export class Esp32Mcu implements McuModel {
   readonly pads: readonly string[];
@@ -79,22 +87,40 @@ export class Esp32Mcu implements McuModel {
   private levels = new Map<string, 0 | 1>();
   private serialListeners: ((port: number, bytes: Uint8Array) => void)[] = [];
   private damaged = new Set<string>();
+  private soc: number;
+  /** Chip held in reset by EN being LOW: no code runs and every pad is high-impedance. */
+  private inReset = false;
+  /** Kernel time at which the current SoC instance came out of reset (its cycle 0). */
+  private bootedAt: SimTime = 0;
+  /** Number of times EN has rebooted the chip. */
+  resets = 0;
 
   constructor(
     private readonly x: Exports,
     private readonly wasm: Esp32Wasm,
-    private readonly soc: number,
-    pads: readonly string[] = Array.from({ length: 40 }, (_, n) => `GPIO${n}`).filter((p) => ![20, 24, 28, 29, 30, 31].includes(gpioNumber(p)!)),
+    private readonly firmware: Firmware,
+    pads: readonly string[] = [
+      ...Array.from({ length: 40 }, (_, n) => `GPIO${n}`).filter((p) => ![20, 24, 28, 29, 30, 31].includes(gpioNumber(p)!)),
+      EN,
+    ],
   ) {
     this.pads = pads;
+    this.soc = this.boot();
+  }
+
+  private boot(): number {
+    const soc = this.wasm.createSoc(this.firmware);
     // The circuit models the board's own pull-ups (BOOT, EN), so the chip must not assume them
     this.x.soc_set_board_pull_ups(soc, 0, 0);
+    this.soc = soc;
+    this.levels.clear();
     this.refreshDrives();
+    return soc;
   }
 
   /** Virtual time in ns. */
   get now(): SimTime {
-    return this.x.soc_cycles(this.soc) / CYCLES_PER_NS;
+    return this.bootedAt + this.x.soc_cycles(this.soc) / CYCLES_PER_NS;
   }
 
   private refreshDrives(): void {
@@ -111,11 +137,28 @@ export class Esp32Mcu implements McuModel {
   }
 
   drive(pad: string): PadDrive {
-    if (this.damaged.has(pad)) return { output: 'z', pull: 'none', strength: 2 };
+    if (this.inReset || this.damaged.has(pad)) return { output: 'z', pull: 'none', strength: 2 };
     return this.drives.get(pad) ?? { output: 'z', pull: 'none', strength: 2 };
   }
 
-  setInputs(inputs: ReadonlyMap<string, PadInput>, _t: SimTime): void {
+  setInputs(inputs: ReadonlyMap<string, PadInput>, t: SimTime): boolean {
+    // EN: below VIL the chip is in reset; above VIH it runs. Floating EN keeps the last state.
+    const en = inputs.get(EN);
+    if (en && !en.floating) {
+      if (!this.inReset && en.volts <= 0.25 * VDD) {
+        this.inReset = true;
+        return true; // every pad just let go
+      }
+      if (this.inReset && en.volts >= 0.75 * VDD) {
+        this.inReset = false;
+        this.x.soc_free(this.soc);
+        this.boot();
+        this.bootedAt = t;
+        this.resets++;
+        return true;
+      }
+    }
+    if (this.inReset) return false;
     for (const [pad, input] of inputs) {
       const n = gpioNumber(pad);
       if (n === undefined) continue;
@@ -131,11 +174,12 @@ export class Esp32Mcu implements McuModel {
         this.x.soc_set_pad_input(this.soc, n, level);
       }
     }
+    return false;
   }
 
   runUntil(t: SimTime): McuStep {
-    if (this.halted) return { t, padsChanged: false };
-    const code = this.x.soc_run_until(this.soc, Math.ceil(t * CYCLES_PER_NS));
+    if (this.halted || this.inReset) return { t, padsChanged: false };
+    const code = this.x.soc_run_until(this.soc, Math.ceil((t - this.bootedAt) * CYCLES_PER_NS));
     this.flushSerial();
     if (code === 2) {
       this.halted = new TextDecoder().decode(this.wasm.scratch(this.x.last_error_len()));

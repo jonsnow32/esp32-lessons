@@ -165,18 +165,13 @@ self.onmessage = async (ev: MessageEvent<ToWorker>) => {
         break;
       case 'press':
         held.add(m.part);
-        // The EN button holds the chip in reset; releasing it reboots the firmware
-        if (m.part === 'board.en') running = false;
+        // EN needs no special case: the button pulls the chip's EN pad low in the circuit
         kernel?.press(m.part);
         publish(0);
         break;
       case 'release':
         held.delete(m.part);
         kernel?.release(m.part);
-        if (m.part === 'board.en') {
-          reset();
-          running = true;
-        }
         publish(0);
         break;
       case 'serial-in':

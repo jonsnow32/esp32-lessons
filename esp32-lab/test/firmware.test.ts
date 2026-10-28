@@ -61,4 +61,27 @@ describe.skipIf(!existsSync(wasmPath))('real firmware on the emulated ESP32', ()
     expect(b.serial()).not.toContain('Press #2');
     expect(b.k.observables('board.led').current as number).toBeGreaterThan(0.0002);
   });
+
+  it('holding EN keeps the chip in reset (pads let go); releasing it reboots the firmware', async () => {
+    const b = await boardWith('lesson01');
+    if (!b) return;
+    b.k.advanceTo(1.05 * S);
+    expect(b.k.observables('board.led').current as number).toBeGreaterThan(0.0002);
+    // EN pulled to GND through the button: chip in reset, GPIO2 high-impedance, LED dark
+    b.k.press('board.en');
+    b.k.advanceTo(1.06 * S);
+    expect(b.k.observables('mcu.GPIO2').output).toBe('z');
+    expect(b.k.observables('board.led').current as number).toBeLessThan(1e-6);
+    b.k.advanceTo(1.3 * S);
+    expect(b.k.observables('board.led').current as number).toBeLessThan(1e-6);
+    b.k.release('board.en');
+    b.k.advanceTo(1.31 * S);
+    expect(b.mcu.resets).toBeGreaterThan(0);
+    // Boots again: banner a second time, LED on again after setup's delay(1000)
+    b.k.advanceTo(2.0 * S);
+    expect(b.k.observables('board.led').current as number).toBeLessThan(1e-6);
+    b.k.advanceTo(2.36 * S);
+    expect(b.serial().split('=== Hello ESP32! ===').length - 1).toBe(2);
+    expect(b.k.observables('board.led').current as number).toBeGreaterThan(0.0002);
+  });
 });

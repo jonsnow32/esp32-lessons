@@ -301,9 +301,9 @@ export class SimKernel {
       const net = this.netlist.net(keyOf.pad(pad))!;
       inputs.set(pad, { volts: this.voltages[net] ?? 0, floating: this.floating[net] ?? true });
     }
-    this.opts.mcu.setInputs(inputs, this.now);
+    if (this.opts.mcu.setInputs(inputs, this.now) === true) this.dirty = true;
     // A part destroyed by this operating point changed the circuit; damage only happens once per
-    // part, so this terminates
+    // part (and the MCU only enters or leaves reset once per edge), so this terminates
     if (this.dirty) this.solve();
   }
 
