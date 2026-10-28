@@ -32,14 +32,14 @@ UI thread (Svelte)                     Sim Worker (Web Worker)
 | `packages/project-model` | Serialisable `Project`, `BoardDef`, `BreadboardDef`, placement, migrations | M0 ✅ |
 | `packages/sim-core` | `SimKernel`, `Netlist`, MNA solver, `McuModel` interface, `ScriptedMcu`, pad/supply builtins | M0 ✅ |
 | `packages/lesson-engine` | Evaluates declarative lesson checks | M0 ✅ |
-| `packages/mcu-esp32` | ESP32 pad capabilities; later the `McuModel` wrapping `esp32-wasm` | data only |
+| `packages/mcu-esp32` | ESP32 pad capabilities; `Esp32Mcu`: the WASM emulator as an `McuModel` | M3 ✅ |
 | `parts/*` | One package per part (`resistor`, `led`, `pushbutton`) | M0 ✅ |
 | `boards/*`, `breadboards/*`, `lessons/*` | Pure JSON definitions | M0 ✅ |
 | `crates/xtensa-core` | Xtensa LX6 decoder, objdump-syntax disassembler, interpreter | M1 ✅ |
 | `crates/esp32-soc` | Memory map + flash MMU, two cores, interrupt matrix, peripherals, ROM HLE, direct boot | M2 ✅ |
 | `crates/esp32-cli` | Headless tools: `disasm-check`, `run` | M1–M2 ✅ |
-| `crates/esp32-wasm` | Browser binding | M3 |
-| `packages/app` | Svelte UI | M3 |
+| `crates/esp32-wasm` | Browser binding: plain C-ABI exports, no wasm-bindgen (`scripts/build-wasm.sh`) | M3 ✅ |
+| `packages/app` | Svelte workbench; simulation in a Web Worker | M3 ✅ (first version) |
 
 ## The pad boundary
 
@@ -275,5 +275,12 @@ delay()-based ones (lesson 01) run ~9× faster. A decoded-instruction cache is t
 - **M2** ✅ – `esp32-soc`: the unmodified lesson 01, 02, 03 and 03_blocking builds boot on
   both cores, print exactly what the Serial Monitor shows, blink GPIO2 with correct timing and
   react to the BOOT button with real debounce behaviour.
-- **M3** – WASM ↔ sim-core ↔ Svelte UI (port the prototype's UX); lessons 01–03 end to end.
+- **M3** ✅ (first version) – decoded-instruction cache (23 → 62 MIPS); emulator as a 160 KB
+  WASM module; `Esp32Mcu` re-solves the circuit on every pad edge; Svelte workbench with the
+  kernel + emulator in a Web Worker paced to wall-clock time (lesson 01 runs at 1.0× real
+  time in Chrome). Drag parts onto the breadboard, wire holes and header pins, press the board's
+  BOOT/EN buttons, edit part props, live per-part current/brightness, net highlighting on hover,
+  lesson checklist evaluated live, Serial Monitor (TX and RX). `vite dev` serves `.pio/build/*`
+  so whatever `pio run` built is selectable. Still to do: board/breadboard selection beyond the
+  one of each, undo, multimeter/scope instruments, nicer part artwork, touch-friendly dragging.
 - **M4** – LEDC, ADC, touch, I2C; potentiometer and SSD1306 parts; lessons 04–09.

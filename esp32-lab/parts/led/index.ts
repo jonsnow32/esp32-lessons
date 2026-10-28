@@ -78,5 +78,28 @@ function create(props: LedProps, _env: PartEnv): PartBehavior {
   };
 }
 
-export const led: PartModule<LedProps> = { manifest: manifest as PartModule['manifest'], create };
+const FILL: Record<LedColor, string> = {
+  red: '#e5484d',
+  yellow: '#f5d90a',
+  green: '#30a46c',
+  blue: '#3e63dd',
+  white: '#f1f3f5',
+};
+
+function view(props: LedProps, obs: Record<string, unknown>): string {
+  const color = FILL[props.color] ?? FILL.red;
+  const glow = Math.min(1, Number(obs.brightness ?? 0));
+  const dead = obs.damaged === true;
+  const body = dead ? '#3a3a3a' : color;
+  return `
+    <line x1="0" y1="0" x2="0" y2="-0.9" stroke="#9aa0a6" stroke-width="0.09"/>
+    <line x1="1" y1="0" x2="1" y2="-0.75" stroke="#9aa0a6" stroke-width="0.09"/>
+    ${glow > 0.01 && !dead ? `<circle cx="0.5" cy="-1.35" r="${0.9 + glow * 0.6}" fill="${color}" opacity="${0.15 + glow * 0.45}" filter="url(#glow)"/>` : ''}
+    <path d="M0.05,-0.85 L0.05,-1.45 A0.45,0.45 0 0 1 0.95,-1.45 L0.95,-0.85 Z" fill="${body}" fill-opacity="${dead ? 1 : 0.55 + glow * 0.45}" stroke="${dead ? '#111' : '#00000055'}" stroke-width="0.05"/>
+    <rect x="-0.05" y="-0.9" width="1.1" height="0.12" rx="0.04" fill="${body}" opacity="0.9"/>
+    ${dead ? `<g class="smoke"><circle cx="0.4" cy="-2" r="0.35" fill="#888" opacity="0.5"/><circle cx="0.7" cy="-2.6" r="0.45" fill="#999" opacity="0.35"/></g>` : ''}
+    <text x="-0.25" y="0.55" font-size="0.45" fill="#666">+</text>`;
+}
+
+export const led: PartModule<LedProps> = { manifest: manifest as PartModule['manifest'], create, view };
 export default led;

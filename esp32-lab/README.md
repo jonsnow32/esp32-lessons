@@ -7,6 +7,10 @@ Virtual ESP32 workbench: plug parts into a breadboard, wire them to a board and 
 - Adding parts: [docs/PART_AUTHORING.md](docs/PART_AUTHORING.md)
 
 ```bash
+# The workbench in the browser (build the emulator once, and the lessons with `pio run`)
+./scripts/build-wasm.sh            # needs rustup's wasm32-unknown-unknown target
+pnpm -C packages/app dev           # http://localhost:5173
+
 pnpm install
 pnpm test        # netlist, circuit solver, parts, lesson checks
 pnpm typecheck
@@ -20,6 +24,5 @@ cargo run --release -p esp32-cli -- run ../.pio/build/lesson02 --seconds 4 --pre
   ../.pio/build/lesson01/firmware.elf | cargo run -q -p esp32-cli -- disasm-check
 ```
 
-Status: **M2**. The circuit core (M0), the Xtensa LX6 CPU (M1) and the ESP32 SoC (M2) are done:
-the unmodified lesson firmware boots, prints its Serial output and drives GPIO2. Next is M3:
-WASM build, wiring the SoC's pads to the circuit simulator, and the Svelte workbench.
+Status: **M3 (first version)**. The unmodified lesson firmware runs on the emulated ESP32 in the
+browser, its pins drive the circuit simulator, and parts on the breadboard respond physically.

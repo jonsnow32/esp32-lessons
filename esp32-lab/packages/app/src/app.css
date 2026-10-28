@@ -1,0 +1,6 @@
+:root { font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif; color: #1c2024; background: #fbfaf7; }
+body { margin: 0; }
+button, select, input { font: inherit; font-size: 13px; padding: 4px 10px; border: 1px solid #d9d9e0; border-radius: 6px; background: #fff; }
+button { cursor: pointer; }
+button:hover { background: #f4f4f5; }
+code { font-size: 11px; }

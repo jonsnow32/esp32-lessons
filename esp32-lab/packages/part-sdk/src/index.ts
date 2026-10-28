@@ -120,9 +120,16 @@ export interface PartBehavior {
 
 export type PartProps = Record<string, number | string | boolean>;
 
+/**
+ * SVG markup for the part, unrotated, in breadboard-pitch units with the first terminal at
+ * (0, 0). Pure function of props and the latest observables: no logic, no events.
+ */
+export type PartView<P extends PartProps = PartProps> = (props: P, obs: Record<string, Observable>) => string;
+
 export interface PartModule<P extends PartProps = PartProps> {
   manifest: PartManifest;
   create(props: P, env: PartEnv): PartBehavior;
+  view?: PartView<P>;
 }
 
 /** Fill in defaults from the manifest for any prop the project did not set. */

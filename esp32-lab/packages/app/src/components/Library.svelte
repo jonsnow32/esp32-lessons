@@ -1,0 +1,56 @@
+<script lang="ts">
+  // Parts to drag onto the breadboard. Everything listed comes from the component catalog.
+  import { PARTS } from '../lib/catalog';
+  import { LESSONS } from '../lib/catalog';
+  import { lab } from '../lib/lab.svelte';
+
+  let { dragType = $bindable<string | null>(null) } = $props();
+
+  let lesson = $derived(LESSONS.find((l) => l.id === lab.lessonId));
+  /** Part types the current lesson's checks ask for get a "this lesson" badge. */
+  let wanted = $derived(new Set(JSON.stringify(lesson ?? {}).match(/"type":"(\w+)"/g)?.map((m) => m.slice(8, -1)) ?? []));
+
+  /** Frame each part's drawing (pitch units) for its library icon. */
+  const ICON_BOX: Record<string, string> = { led: '-1 -2.6 3 3.4', resistor: '-0.4 -1.6 4.8 3.2', pushbutton: '-0.6 -0.6 3.2 4.2' };
+
+  function preview(type: string): string {
+    const m = PARTS[type]!;
+    const props: Record<string, unknown> = {};
+    for (const [k, s] of Object.entries(m.manifest.props)) props[k] = s.default;
+    return m.view?.(props as never, {}) ?? '';
+  }
+</script>
+
+<section>
+  <h2>Linh kiện</h2>
+  <p class="hint">Kéo thả vào breadboard. Kéo từ một lỗ tới lỗ khác để nối dây.</p>
+  {#each Object.entries(PARTS) as [type, m] (type)}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="item" onpointerdown={(e) => { e.preventDefault(); dragType = type; }}>
+      <svg viewBox={ICON_BOX[type] ?? '-1 -3 6 6.5'} width="44" height="44">{@html preview(type)}</svg>
+      <div>
+        <div class="name">{m.manifest.name}</div>
+        <div class="meta">{m.manifest.category}{#if wanted.has(type)} · <span class="badge">Bài này</span>{/if}</div>
+      </div>
+    </div>
+  {/each}
+  <h2>Board</h2>
+  <div class="item static"><div class="name">ESP32 DevKit V1 (30 chân)</div></div>
+  <h2>Breadboard</h2>
+  <div class="item static"><div class="name">Half+ 400 lỗ</div></div>
+  <div class="keys">
+    <b>Phím tắt</b><br />R: xoay · Del: xoá · Esc: huỷ<br />Rê chuột lên lỗ: xem các điểm cùng mạch
+  </div>
+</section>
+
+<style>
+  section { padding: 12px; overflow: auto; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #6f6e77; margin: 14px 0 6px; }
+  .hint, .keys { font-size: 12px; color: #6f6e77; }
+  .keys { margin-top: 18px; line-height: 1.6; }
+  .item { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid #e4e2dd; border-radius: 8px; margin-bottom: 6px; background: #fff; cursor: grab; }
+  .item.static { cursor: default; color: #555; }
+  .name { font-size: 13px; font-weight: 600; }
+  .meta { font-size: 11px; color: #8b8d98; }
+  .badge { color: #f76b15; font-weight: 600; }
+</style>

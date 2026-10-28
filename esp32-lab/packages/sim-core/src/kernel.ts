@@ -39,6 +39,11 @@ export interface KernelOptions {
   breadboards: Record<string, BreadboardDef>;
   parts: PartRegistry;
   mcu: McuModel;
+  /**
+   * Virtual time to start at. Rewiring a running board builds a new kernel around the same
+   * MCU, which keeps running: the new kernel continues from the MCU's current time.
+   */
+  startTime?: SimTime;
 }
 
 export interface Diagnostic {
@@ -113,6 +118,8 @@ export class SimKernel {
 
   constructor(private readonly opts: KernelOptions) {
     this.random = prng(opts.project.seed ?? 1);
+    this.now = opts.startTime ?? 0;
+    this.lastSolve = this.now;
     this.build();
   }
 

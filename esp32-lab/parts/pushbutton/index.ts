@@ -65,5 +65,13 @@ function create(props: PushbuttonProps, env: PartEnv): PartBehavior {
   };
 }
 
-export const pushbutton: PartModule<PushbuttonProps> = { manifest: manifest as unknown as PartModule['manifest'], create };
+function view(_props: PushbuttonProps, obs: Record<string, unknown>): string {
+  const pressed = obs.pressed === true;
+  return `
+    <rect x="-0.3" y="-0.3" width="2.6" height="3.6" rx="0.2" fill="#2b2d31" stroke="#111" stroke-width="0.05"/>
+    ${[0, 2].map((x) => [0, 3].map((y) => `<circle cx="${x}" cy="${y}" r="0.12" fill="#c8c8c8"/>`).join('')).join('')}
+    <circle cx="1" cy="1.5" r="${pressed ? 0.75 : 0.85}" fill="${pressed ? '#5b5f66' : '#80858d'}" stroke="#1a1a1a" stroke-width="0.06"/>`;
+}
+
+export const pushbutton: PartModule<PushbuttonProps> = { manifest: manifest as unknown as PartModule['manifest'], create, view };
 export default pushbutton;

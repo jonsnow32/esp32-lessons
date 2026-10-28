@@ -96,6 +96,9 @@ export interface BoardPart {
   connect: Record<string, BoardNode>;
   /** Shown in the UI, e.g. "BOOT" for the GPIO0 button. */
   label?: string;
+  /** Where the UI draws it on the board, in pitches; omitted for parts that are not shown. */
+  x?: number;
+  y?: number;
 }
 
 export interface BoardDef {
