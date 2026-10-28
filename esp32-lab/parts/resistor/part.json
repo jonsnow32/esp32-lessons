@@ -3,16 +3,55 @@
   "version": "0.1.0",
   "name": "Resistor (1/4 W)",
   "category": "passive",
-  "tags": ["through-hole"],
+  "tags": [
+    "through-hole"
+  ],
   "terminals": [
-    { "name": "a", "dx": 0, "dy": 0 },
-    { "name": "b", "dx": 4, "dy": 0 }
+    {
+      "name": "a",
+      "dx": 0,
+      "dy": 0
+    },
+    {
+      "name": "b",
+      "dx": 4,
+      "dy": 0
+    }
   ],
   "props": {
     "resistance": {
-      "type": "number", "default": 220, "unit": "Ω", "min": 1, "max": 10000000,
-      "options": [100, 220, 330, 470, 1000, 2200, 4700, 10000, 47000, 100000]
+      "type": "number",
+      "default": 220,
+      "unit": "Ω",
+      "min": 1,
+      "max": 10000000,
+      "options": [
+        100,
+        220,
+        330,
+        470,
+        1000,
+        2200,
+        4700,
+        10000,
+        47000,
+        100000
+      ]
     }
   },
-  "ratings": { "powerMax": 0.25, "overstressTime": 2000000000 }
+  "ratings": {
+    "powerMax": 0.25,
+    "overstressTime": 2000000000
+  },
+  "learn": {
+    "summary": "Điện trở cản bớt dòng điện. Theo định luật Ohm, dòng qua nó bằng điện áp hai đầu chia cho giá trị điện trở (I = U ÷ R). Điện trở không có chiều, cắm xuôi hay ngược đều như nhau.",
+    "howToPlug": [
+      "Hai chân cắm vào hai hàng (cột) khác nhau, nếu không thì nó bị nối tắt và không có tác dụng.",
+      "Nối tiếp với LED để hạn dòng: GPIO → điện trở → LED → GND."
+    ],
+    "tips": [
+      "Các vạch màu cho biết giá trị: đỏ-đỏ-nâu = 220 Ω, nâu-đen-cam = 10 kΩ.",
+      "10 kΩ thường dùng làm điện trở kéo lên/kéo xuống cho nút nhấn."
+    ]
+  }
 }

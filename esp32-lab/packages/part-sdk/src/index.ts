@@ -54,6 +54,12 @@ export interface PartManifest {
   internalShorts?: [string, string][];
   props: Record<string, PropSchema>;
   ratings?: Ratings;
+  /** Beginner card shown when the part is selected (UI language: Vietnamese). */
+  learn?: {
+    summary: string;
+    howToPlug: string[];
+    tips?: string[];
+  };
 }
 
 // ---------------------------------------------------------------------------

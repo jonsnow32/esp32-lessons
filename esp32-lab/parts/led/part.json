@@ -3,18 +3,53 @@
   "version": "0.1.0",
   "name": "LED 5 mm",
   "category": "output",
-  "tags": ["through-hole", "diode"],
+  "tags": [
+    "through-hole",
+    "diode"
+  ],
   "terminals": [
-    { "name": "anode", "dx": 0, "dy": 0, "label": "+ (long leg)" },
-    { "name": "cathode", "dx": 1, "dy": 0, "label": "− (flat side)" }
+    {
+      "name": "anode",
+      "dx": 0,
+      "dy": 0,
+      "label": "+ (long leg)"
+    },
+    {
+      "name": "cathode",
+      "dx": 1,
+      "dy": 0,
+      "label": "− (flat side)"
+    }
   ],
   "props": {
-    "color": { "type": "enum", "default": "red", "options": ["red", "yellow", "green", "blue", "white"] }
+    "color": {
+      "type": "enum",
+      "default": "red",
+      "options": [
+        "red",
+        "yellow",
+        "green",
+        "blue",
+        "white"
+      ]
+    }
   },
   "ratings": {
     "currentMax": 0.03,
     "currentAbsMax": 0.1,
     "reverseVoltageMax": 5,
     "overstressTime": 50000000
+  },
+  "learn": {
+    "summary": "Đèn LED chỉ cho dòng điện đi theo một chiều: từ chân dài (+, anode) sang chân ngắn (−, cathode). Có dòng thì sáng, dòng càng lớn càng sáng, nhưng quá khoảng 30 mA là cháy.",
+    "howToPlug": [
+      "Chân dài (+) hướng về phía có điện áp cao (chân GPIO hoặc 3,3 V).",
+      "Chân ngắn (−), phía vành bị vát phẳng, hướng về GND.",
+      "Luôn nối tiếp một điện trở 220–330 Ω để giới hạn dòng."
+    ],
+    "tips": [
+      "LED đỏ cần khoảng 1,8 V, LED xanh dương/trắng cần khoảng 3 V.",
+      "Dòng ≈ (3,3 V − điện áp LED) ÷ điện trở. Ví dụ (3,3 − 1,8) ÷ 220 ≈ 6,8 mA."
+    ]
   }
 }

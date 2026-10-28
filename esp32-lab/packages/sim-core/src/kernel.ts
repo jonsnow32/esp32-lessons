@@ -28,6 +28,7 @@ import {
 } from '@esp32lab/project-model';
 import { padBehavior, supplyBehavior } from './builtins';
 import type { McuModel, PadInput } from './mcu';
+import { edgeCurrents, terminalCurrents, type Edge, type FlowEdge } from './flow';
 import { bindContext, solve, type Stamper } from './mna';
 import { GROUND_KEY, Netlist, UnionFind } from './netlist';
 
@@ -108,6 +109,8 @@ export class SimKernel {
   readonly breadboards = new Map<string, ExpandedBreadboard>();
 
   private instances = new Map<string, Instance>();
+  /** Physical connections the netlist was built from (for current-flow display). */
+  private edges: Edge[] = [];
   private queue: { t: SimTime; seq: number; part: string; tag: string }[] = [];
   private seq = 0;
   private dirty = true;
@@ -146,6 +149,10 @@ export class SimKernel {
     const { project, board, breadboards, parts, mcu } = this.opts;
     const uf = new UnionFind();
     const manifests = new Map<string, PartManifest>();
+    const link = (a: string, b: string, kind: Edge['kind'], id?: string) => {
+      uf.union(a, b);
+      if (a !== b) this.edges.push({ kind, a, b, id });
+    };
 
     // Breadboards: each metal strip merges its holes
     for (const bb of project.breadboards) {
@@ -157,12 +164,13 @@ export class SimKernel {
       const expanded = expandBreadboard(def);
       this.breadboards.set(bb.id, expanded);
       for (const strip of expanded.strips) {
-        for (const hole of strip) uf.union(keyOf.hole(bb.id, strip[0]!), keyOf.hole(bb.id, hole));
+        // Neighbouring holes, so current can be drawn along the metal clip
+        for (let k = 1; k < strip.length; k++) link(keyOf.hole(bb.id, strip[k - 1]!), keyOf.hole(bb.id, strip[k]!), 'strip');
       }
     }
 
     // Board: header pins, supplies, MCU pads, onboard parts
-    for (const pin of board.pins) uf.union(keyOf.boardPin(pin.name), boardNodeKey(pin.connect));
+    for (const pin of board.pins) link(keyOf.boardPin(pin.name), boardNodeKey(pin.connect), 'pin');
     for (const supply of board.supplies) {
       this.addInstance(`board.supply.${supply.net}`, supplyBehavior(supply), { out: keyOf.net(supply.net), gnd: GROUND_KEY });
     }
@@ -184,7 +192,7 @@ export class SimKernel {
       for (const t of module.manifest.terminals) {
         keys[t.name] = keyOf.terminal(id, t.name);
         const node = part.connect[t.name];
-        if (node) uf.union(keys[t.name]!, boardNodeKey(node));
+        if (node) link(keys[t.name]!, boardNodeKey(node), 'onboard', id);
       }
       manifests.set(id, module.manifest);
       this.addInstance(id, module.create(resolveProps(module.manifest, part.props), this.env(id)), keys);
@@ -203,7 +211,7 @@ export class SimKernel {
         const bb = this.breadboards.get(part.placement.bb);
         const placed = bb && resolvePlacement(bb, module.manifest, part.placement.hole, part.placement.rot);
         if (placed?.ok) {
-          for (const [t, hole] of Object.entries(placed.holes)) uf.union(keys[t]!, keyOf.hole(part.placement.bb, hole));
+          for (const [t, hole] of Object.entries(placed.holes)) link(keys[t]!, keyOf.hole(part.placement.bb, hole), 'leg', part.id);
         } else {
           this.diagnostics.push({
             severity: 'error',
@@ -219,10 +227,10 @@ export class SimKernel {
 
     // In-part shorts (pushbutton legs) behave like zero-length wires
     for (const [id, manifest] of manifests) {
-      for (const [a, b] of manifest.internalShorts ?? []) uf.union(keyOf.terminal(id, a), keyOf.terminal(id, b));
+      for (const [a, b] of manifest.internalShorts ?? []) link(keyOf.terminal(id, a), keyOf.terminal(id, b), 'internal', id);
     }
 
-    for (const wire of project.wires) uf.union(endpointKey(wire.a), endpointKey(wire.b));
+    for (const wire of project.wires) link(endpointKey(wire.a), endpointKey(wire.b), 'wire', wire.id);
     // Terminals nothing connects to (pads not brought out to a header...) still get their own net
     for (const inst of this.instances.values()) for (const key of Object.values(inst.keys)) uf.add(key);
 
@@ -351,6 +359,38 @@ export class SimKernel {
   isFloating(key: string): boolean {
     const net = this.netlist.net(key);
     return net === undefined || (this.floating[net] ?? true);
+  }
+
+  /** Current into every terminal of every part at the present operating point (A). */
+  terminalCurrents(): Map<string, Record<string, number>> {
+    const out = new Map<string, Record<string, number>>();
+    for (const inst of this.instances.values()) {
+      const v = (t: string) => this.voltages[inst.nets[t]!] ?? 0;
+      out.set(inst.id, terminalCurrents(inst.behavior, v, Object.keys(inst.keys)));
+    }
+    return out;
+  }
+
+  /** Terminal currents plus the current along every wire, strip segment, leg and pin. */
+  flows(): { terminals: Map<string, Record<string, number>>; edges: FlowEdge[] } {
+    const terminals = this.terminalCurrents();
+    // A part drawing I at a terminal takes I out of the node there
+    const injected = new Map<string, number>();
+    for (const [id, currents] of terminals) {
+      const keys = this.instances.get(id)!.keys;
+      for (const [t, i] of Object.entries(currents)) injected.set(keys[t]!, (injected.get(keys[t]!) ?? 0) - i);
+    }
+    return { terminals, edges: edgeCurrents(this.edges, injected) };
+  }
+
+  /** Voltage and floating flag at every key of the netlist. */
+  keyVoltages(): Map<string, { v: number; floating: boolean }> {
+    const out = new Map<string, { v: number; floating: boolean }>();
+    for (let net = 0; net < this.netlist.netCount; net++) {
+      const state = { v: this.voltages[net] ?? 0, floating: this.floating[net] ?? true };
+      for (const key of this.netlist.keysOf(net)) out.set(key, state);
+    }
+    return out;
   }
 
   /** Part id → terminal → netlist key, for lesson checks that walk the circuit. */

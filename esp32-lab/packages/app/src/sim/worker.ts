@@ -1,14 +1,17 @@
 // Simulation worker: the circuit kernel plus the ESP32 emulator, paced against wall-clock time.
 // The UI only sends edits and interactions and draws the state this posts back.
 
+import { explain } from '@esp32lab/explain';
 import { evaluateStep, type Lesson } from '@esp32lab/lesson-engine';
 import { Esp32Mcu, Esp32Wasm } from '@esp32lab/mcu-esp32';
 import { MS, S } from '@esp32lab/part-sdk';
 import type { Project } from '@esp32lab/project-model';
 import { ScriptedMcu, SimKernel, type McuModel } from '@esp32lab/sim-core';
-import { ESP32_PAD_NAMES } from '@esp32lab/mcu-esp32';
+import { ESP32_PAD_NAMES, ESP32_PADS } from '@esp32lab/mcu-esp32';
 import { BOARDS, BREADBOARDS, LESSONS, PARTS } from '../lib/catalog';
-import type { FirmwareFiles, FromWorker, StepResult, ToWorker } from './protocol';
+import type { FirmwareFiles, FlowView, FromWorker, StepResult, ToWorker } from './protocol';
+
+const MANIFESTS = Object.fromEntries(Object.entries(PARTS).map(([k, m]) => [k, m.manifest]));
 
 const post = (m: FromWorker) => (self as unknown as Worker).postMessage(m);
 
@@ -67,9 +70,21 @@ function evaluateLesson(): StepResult[] {
 }
 
 function publish(rate: number): void {
-  if (!kernel) return;
+  if (!kernel || !project) return;
   const observables: Record<string, Record<string, unknown>> = {};
   for (const id of kernel.terminals().keys()) observables[id] = kernel.observables(id);
+  const { terminals, edges } = kernel.flows();
+  const flows: FlowView[] = edges
+    .filter((e) => Math.abs(e.amps) > 1e-6 && e.kind !== 'onboard')
+    .map((e) => ({ kind: e.kind, id: e.id, a: e.a, b: e.b, amps: e.amps }));
+  const terminalCurrents: Record<string, Record<string, number>> = {};
+  for (const [id, c] of terminals) if (!id.startsWith('mcu.') && !id.startsWith('board.supply')) terminalCurrents[id] = c;
+  const voltages: Record<string, number | null> = {};
+  for (const [key, s] of kernel.keyVoltages()) {
+    if (key.startsWith('h:') || key.startsWith('bp:') || key.startsWith('p:')) voltages[key] = s.floating ? null : Math.round(s.v * 1000) / 1000;
+  }
+  const board = BOARDS[project.board.type]!;
+  const notes = explain({ kernel, project, board, pads: ESP32_PADS, manifests: MANIFESTS });
   post({
     type: 'state',
     t: kernel.now,
@@ -79,6 +94,10 @@ function publish(rate: number): void {
     diagnostics: kernel.diagnostics.slice(-20),
     halted: mcu instanceof Esp32Mcu ? mcu.halted : null,
     steps: evaluateLesson(),
+    flows,
+    terminalCurrents,
+    voltages,
+    notes,
   });
 }
 

@@ -4,7 +4,20 @@
   import type { ExpandedBreadboard } from '@esp32lab/project-model';
   import { keyOf } from '@esp32lab/sim-core';
 
-  let { id, bb, net, here }: { id: string; bb: ExpandedBreadboard; net: Set<string>; here: string | null } = $props();
+  let {
+    id,
+    bb,
+    net,
+    here,
+    fillFor = () => null,
+  }: {
+    id: string;
+    bb: ExpandedBreadboard;
+    net: Set<string>;
+    here: string | null;
+    /** Overlay colour for a hole (voltage view), or null for the normal look. */
+    fillFor?: (key: string) => string | null;
+  } = $props();
 
   let cols = $derived(bb.def.columns);
   let top = $derived(Math.min(...bb.def.rails.map((r) => r.y), 0) - 1.2);
@@ -50,5 +63,5 @@
 {#each [...bb.holes.values()] as h (h.name)}
   {@const key = keyOf.hole(id, h.name)}
   <rect x={h.x - 0.21} y={h.y - 0.21} width="0.42" height="0.42" rx="0.07"
-    fill={here === h.name ? '#f76b15' : net.has(key) ? '#12a594' : 'url(#bb-hole)'} />
+    fill={here === h.name ? '#f76b15' : net.has(key) ? '#12a594' : (fillFor(key) ?? 'url(#bb-hole)')} />
 {/each}

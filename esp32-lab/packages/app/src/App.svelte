@@ -1,4 +1,5 @@
 <script lang="ts">
+  import ExplainPanel from './components/ExplainPanel.svelte';
   import Inspector from './components/Inspector.svelte';
   import LessonPanel from './components/LessonPanel.svelte';
   import Library from './components/Library.svelte';
@@ -46,6 +47,7 @@
   <div class="center"><Workbench bind:dragType /></div>
   <aside class="right">
     <Inspector />
+    <ExplainPanel />
     <LessonPanel />
     <SerialMonitor />
   </aside>

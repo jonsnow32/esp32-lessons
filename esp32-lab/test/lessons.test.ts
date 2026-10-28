@@ -89,3 +89,14 @@ describe('lesson templates', () => {
     expect(k.observables('led1').current as number).toBeGreaterThan(0.005);
   });
 });
+
+describe('series checks and onboard parts', () => {
+  it("the board's own LED does not pass the external-LED step", () => {
+    const reversed = structuredClone(l1.template);
+    reversed.parts.find((p) => p.id === 'led1')!.placement = { bb: 'bb1', hole: 'e10', rot: 180 };
+    const { k } = kernel(reversed);
+    k.solve();
+    const step = l1.steps.find((s) => s.id === 'external-led-d2')!;
+    expect(evaluateStep(step, { kernel: k, serial: '' }).results[0]!.pass).toBe(false);
+  });
+});

@@ -6,7 +6,8 @@ import { SCHEMA_VERSION, type Endpoint, type PartInstance, type Project, type Ro
 import { endpointKey, keyOf, ScriptedMcu, SimKernel } from '@esp32lab/sim-core';
 import wasmUrl from '../../../mcu-esp32/wasm/esp32.wasm?url';
 import { BOARDS, BREADBOARDS, LESSONS, PARTS } from './catalog';
-import type { FirmwareFiles, FromWorker, StepResult, ToWorker } from '../sim/protocol';
+import type { Note } from '@esp32lab/explain';
+import type { FirmwareFiles, FlowView, FromWorker, StepResult, ToWorker } from '../sim/protocol';
 import { resolvePlacement } from '@esp32lab/project-model';
 import { breadboard } from './geometry';
 
@@ -44,6 +45,14 @@ class Lab {
   halted = $state<string | null>(null);
   serial = $state('');
   error = $state<string | null>(null);
+  flows = $state<FlowView[]>([]);
+  terminalCurrents = $state<Record<string, Record<string, number>>>({});
+  voltages = $state<Record<string, number | null>>({});
+  notes = $state<Note[]>([]);
+  /** Keys / part ids to emphasise on the bench (hovered explanation note). */
+  emphasis = $state<string[]>([]);
+  /** How the bench shows the solved circuit. */
+  overlay = $state<'current' | 'voltage' | 'off'>('current');
   /** Static netlist for hover highlighting (no simulation). */
   netKernel = $derived.by(() => this.buildNetKernel(this.project));
 
@@ -83,6 +92,10 @@ class Lab {
       this.diagnostics = m.diagnostics;
       this.steps = m.steps;
       this.halted = m.halted;
+      this.flows = m.flows;
+      this.terminalCurrents = m.terminalCurrents;
+      this.voltages = m.voltages;
+      this.notes = m.notes;
     } else if (m.type === 'serial') {
       this.serial = (this.serial + m.text).slice(-20000);
     } else {
@@ -256,6 +269,13 @@ class Lab {
     if (!k) return new Set();
     const net = k.netlist.net(endpointKey(e));
     return new Set(net === undefined ? [] : k.netlist.keysOf(net));
+  }
+
+  /** All netlist keys on the same net as a key. */
+  netOfKey(key: string): Set<string> {
+    const k = this.netKernel;
+    const net = k?.netlist.net(key);
+    return new Set(net === undefined || !k ? [] : k.netlist.keysOf(net));
   }
 
   /** Strip-mates: keys joined to this hole by metal only (not via wires). */

@@ -1,9 +1,19 @@
 // Messages between the UI thread and the simulation worker.
 
+import type { Note } from '@esp32lab/explain';
 import type { CheckResult } from '@esp32lab/lesson-engine';
 import type { Observable } from '@esp32lab/part-sdk';
 import type { Project } from '@esp32lab/project-model';
-import type { Diagnostic } from '@esp32lab/sim-core';
+import type { Diagnostic, EdgeKind } from '@esp32lab/sim-core';
+
+/** Current along one physical connection: positive = from `a` to `b` (netlist keys). */
+export interface FlowView {
+  kind: EdgeKind;
+  id?: string;
+  a: string;
+  b: string;
+  amps: number;
+}
 
 export interface FirmwareFiles {
   env: string;
@@ -46,6 +56,13 @@ export type FromWorker =
       diagnostics: Diagnostic[];
       halted: string | null;
       steps: StepResult[];
+      /** Edges carrying more than 1 µA. */
+      flows: FlowView[];
+      /** Current into each terminal of each user/onboard part (A). */
+      terminalCurrents: Record<string, Record<string, number>>;
+      /** Voltage per netlist key (holes, pins, terminals); null = floating. */
+      voltages: Record<string, number | null>;
+      notes: Note[];
     }
   | { type: 'serial'; text: string }
   | { type: 'error'; message: string };

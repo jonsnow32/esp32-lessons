@@ -189,7 +189,30 @@ ELF it runs, ships a template project, and lists steps/exercises with declarativ
 
 Planned: `signal` (a pad toggles with a period in a range, measured from the pad trace).
 
-## ESP32 emulator (Rust → WASM)
+## Seeing and explaining the circuit
+
+For beginners the bench shows what the solver knows, and says it in words.
+
+- **Current flow** (`sim-core/src/flow.ts`). Terminal currents come from re-stamping every
+  part into a recording context at the solved voltages (Σ g·Δv + sources: generic for every
+  part; ideal voltage sources are not covered). `SimKernel.build()` records each physical
+  connection it unions (wire, strip segment between neighbouring holes, leg in hole, header
+  pin, onboard link, in-part short). Per connected component a BFS spanning tree plus KCL
+  gives every connection's current and direction (`SimKernel.flows()`). Parallel wires form
+  cycles; the tree routes everything through one of them, which is good enough for drawing.
+  `SimKernel.keyVoltages()` gives the voltage and floating flag at every key.
+- **Workbench overlays**: `Dòng điện` animates dots from + to − along every conductor
+  carrying more than 1 µA (speed ∝ log current); `Điện áp` colours holes and wires on a
+  0 V → 3.3 V → 5 V scale (floating = grey); the probe chip shows V / mA / brightness for the
+  hole, pin, wire or part under the pointer (or last tapped).
+- **Explanations** (`packages/explain`): `explain()` turns the live state into Vietnamese
+  notes (error / warn / ok / info) with the parts and keys to highlight: current paths
+  ("D2 → r1 … → led1 … → GND · 6,1 mA"), pin states and why an input reads what it reads
+  (pull-up, floating), LED off and the reason (loose leg, reversed, no voltage), overcurrent
+  on LEDs and on ESP32 pins, overloaded resistors, button state, loose parts, supply shorts,
+  strapping and flash pins. Parts carry a beginner card (`learn` in `part.json`).
+- Lesson `series` checks ignore parts soldered on the board unless a step sets
+  `onboard: true`, so the board's own LED can't pass "wire an LED".
 
 Order of work is set by what Arduino-ESP32 needs to reach `setup()`:
 

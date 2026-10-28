@@ -14,7 +14,8 @@
   import type { Endpoint, Rotation } from '@esp32lab/project-model';
   import { ESP32_PADS } from '@esp32lab/mcu-esp32';
   import { PARTS } from '../lib/catalog';
-  import { board, breadboard, endpointAt, endpointPos, holePos, sameEndpoint, type Pt } from '../lib/geometry';
+  import { board, breadboard, endpointAt, endpointPos, holePos, pinPos, sameEndpoint, terminalPos, type Pt } from '../lib/geometry';
+  import { endpointKey } from '@esp32lab/sim-core';
   import { lab } from '../lib/lab.svelte';
   import BoardView from './BoardView.svelte';
   import BreadboardView from './BreadboardView.svelte';
@@ -149,10 +150,8 @@
       if (!pan.moved) lab.selection = null;
       pan = null;
     }
-    if (ev.pointerType === 'touch') {
-      pointer = null;
-      hover = null;
-    }
+    // On touch, keep the last tapped point under the probe; just forget the pointer
+    if (ev.pointerType === 'touch') pointer = null;
   }
 
   // --- Zoom ---------------------------------------------------------------------------------
@@ -258,6 +257,128 @@
     return [pin, pad, c?.adc, c?.touch, c?.dac, c?.inputOnly ? 'input only' : '', c?.strapping ? 'strapping' : '', c?.note].filter(Boolean).join(' · ');
   }
 
+  // --- Seeing the circuit: current dots, voltage colours, probe -----------------------------
+
+  /** Where a netlist key is drawn, if it is something visible (hole, header pin, part leg). */
+  function keyPos(key: string): Pt | undefined {
+    const [kind, a, c] = key.split(':');
+    if (kind === 'h') return holePos(lab.project, a!, c!);
+    if (kind === 'bp') return pinPos(lab.project, a!);
+    if (kind === 'p') {
+      const part = lab.part(a!);
+      return part ? terminalPos(lab.project, part, c!) : undefined;
+    }
+    return undefined;
+  }
+
+  /** 0 V blue → 3.3 V red → 5 V purple; floating grey. */
+  function voltColor(v: number | null | undefined): string {
+    if (v === null || v === undefined) return '#b9bbc6';
+    if (v > 3.6) return '#8e4ec6';
+    const t = Math.max(0, Math.min(1, v / 3.3));
+    const mix = (x: number, y: number) => Math.round(x + (y - x) * t);
+    return `rgb(${mix(62, 229)},${mix(99, 72)},${mix(221, 77)})`;
+  }
+
+  function fmtV(v: number | null | undefined): string {
+    return v === null || v === undefined ? 'thả nổi (không xác định)' : `${v.toFixed(2).replace('.', ',')} V`;
+  }
+  function fmtA(i: number): string {
+    const a = Math.abs(i);
+    return a >= 1e-3 ? `${(a * 1000).toFixed(2).replace('.', ',')} mA` : `${(a * 1e6).toFixed(0)} µA`;
+  }
+
+  /** Dot speed grows with log(current): 1 µA crawls, 10 mA races. */
+  function flowDuration(amps: number): number {
+    const speed = 1 + 2 * Math.log10(Math.max(1, Math.abs(amps) / 1e-6)); // pitches / s
+    return 0.62 / speed;
+  }
+
+  interface Stream { d: string; dur: number; key: string }
+
+  /** Animated current paths: wires, strip segments, internal shorts and through parts. */
+  let streams = $derived.by((): Stream[] => {
+    if (lab.overlay !== 'current') return [];
+    const out: Stream[] = [];
+    for (const f of lab.flows) {
+      const [from, to] = f.amps > 0 ? [f.a, f.b] : [f.b, f.a];
+      const pa = keyPos(from);
+      const pb = keyPos(to);
+      if (!pa || !pb || (pa.x === pb.x && pa.y === pb.y)) continue;
+      const d = f.kind === 'wire' ? wirePath(pa, pb) : `M${pa.x},${pa.y} L${pb.x},${pb.y}`;
+      out.push({ d, dur: flowDuration(f.amps), key: `${f.kind}:${f.id ?? ''}:${f.a}:${f.b}` });
+    }
+    // Through two-terminal parts and closed switches: from the terminal current enters to the
+    // one it leaves
+    for (const part of lab.project.parts) {
+      const c = lab.terminalCurrents[part.id];
+      if (!c) continue;
+      const enter = Object.entries(c).filter(([, i]) => i > 1e-6).sort((x, y) => y[1] - x[1])[0];
+      const leave = Object.entries(c).filter(([, i]) => i < -1e-6).sort((x, y) => x[1] - y[1])[0];
+      if (!enter || !leave) continue;
+      const pa = terminalPos(lab.project, part, enter[0]);
+      const pb = terminalPos(lab.project, part, leave[0]);
+      if (!pa || !pb) continue;
+      out.push({ d: `M${pa.x},${pa.y} L${pb.x},${pb.y}`, dur: flowDuration(enter[1]), key: `part:${part.id}` });
+    }
+    return out;
+  });
+
+  /** Highlight for a hovered explanation: its parts and the nets of its keys. */
+  let emphasisNet = $derived.by(() => {
+    const keys = new Set<string>();
+    for (const k of lab.emphasis) if (k.includes(':')) for (const x of lab.netOfKey(k)) keys.add(x);
+    return keys;
+  });
+
+  function holeFill(key: string): string | null {
+    if (emphasisNet.has(key)) return '#f5a524';
+    if (lab.overlay !== 'voltage') return null;
+    const v = lab.voltages[key];
+    return v === undefined || v === null ? null : voltColor(v);
+  }
+
+  let hoverPart = $state<string | null>(null);
+  let hoverWire = $state<string | null>(null);
+
+  /** What the probe chip says about whatever is under the pointer (or was last tapped). */
+  let probe = $derived.by((): string | null => {
+    if (hoverPart) {
+      const part = lab.part(hoverPart);
+      const o = lab.observables[hoverPart] ?? {};
+      const c = lab.terminalCurrents[hoverPart] ?? {};
+      const i = Math.max(0, ...Object.values(c));
+      const bits = [`${hoverPart}: ${fmtA(i)}`];
+      if (part) {
+        const terms = Object.keys(c);
+        if (terms.length === 2) {
+          const [t1, t2] = terms as [string, string];
+          const v1 = lab.voltages[`p:${part.id}:${t1}`];
+          const v2 = lab.voltages[`p:${part.id}:${t2}`];
+          if (v1 != null && v2 != null) bits.push(`chênh ${Math.abs(v1 - v2).toFixed(2).replace('.', ',')} V`);
+        }
+      }
+      if (typeof o.brightness === 'number') bits.push(`sáng ${Math.round(o.brightness * 100)}%`);
+      if (o.pressed === true) bits.push('đang nhấn');
+      return bits.join(' · ');
+    }
+    if (hoverWire) {
+      const f = lab.flows.find((x) => x.kind === 'wire' && x.id === hoverWire);
+      const w = lab.project.wires.find((x) => x.id === hoverWire);
+      const v = w ? lab.voltages[endpointKey(w.a)] : undefined;
+      return `Dây: ${fmtV(v)} · ${f ? fmtA(f.amps) : 'không có dòng'}`;
+    }
+    if (hover) {
+      const key = endpointKey(hover);
+      const net = lab.netOf(hover);
+      const pinOnNet = [...net].find((k) => k.startsWith('bp:'));
+      const where = hover.kind === 'board' ? hover.pin.replace(/\.[LR]$/, '') : hover.kind === 'hole' ? `Lỗ ${hover.hole}` : key;
+      const tail = pinOnNet && pinOnNet !== key ? ` · cùng mạch với ${pinOnNet.slice(3).replace(/\.[LR]$/, '')}` : '';
+      return `${where}: ${fmtV(lab.voltages[key])}${tail}`;
+    }
+    return null;
+  });
+
   let b = $derived(board(lab.project));
   /** Loupe: shown above a finger that is dragging, magnifying what it covers. */
   let loupe = $derived(pointerType === 'touch' && dragging && pointer ? pointer : null);
@@ -288,7 +409,7 @@
         {@const bb = breadboard(inst.type)}
         {#if bb}
           <g transform="translate({inst.x},{inst.y})">
-            <BreadboardView id={inst.id} {bb} net={hoverNet} here={hereHole && hereHole.bb === inst.id ? hereHole.hole : null} />
+            <BreadboardView id={inst.id} {bb} net={hoverNet} here={hereHole && hereHole.bb === inst.id ? hereHole.hole : null} fillFor={holeFill} />
           </g>
         {/if}
       {/each}
@@ -308,7 +429,9 @@
           <g transform="translate({at.x},{at.y}) rotate({rot})" class="part" filter="url(#lift)"
             opacity={moving?.id === part.id && moving.moved ? 0 : 1}
             class:selected={lab.selection?.kind === 'part' && lab.selection.id === part.id}
-            onpointerdown={(e) => startMove(e, part.id)}>
+            class:emph={lab.emphasis.includes(part.id)}
+            onpointerenter={() => (hoverPart = part.id)} onpointerleave={() => (hoverPart = null)}
+            onpointerdown={(e) => { hoverPart = part.id; startMove(e, part.id); }}>
             {@html partView(part.type, part.props ?? {}, lab.observables[part.id] ?? {})}
           </g>
           {#if part.type === 'pushbutton'}
@@ -330,16 +453,30 @@
         {#if a && z}
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <g class="wire" class:selected={lab.selection?.kind === 'wire' && lab.selection.id === w.id}
-            onpointerdown={(e) => { e.stopPropagation(); lab.selection = { kind: 'wire', id: w.id }; }}>
+            onpointerenter={() => (hoverWire = w.id)} onpointerleave={() => (hoverWire = null)}
+            onpointerdown={(e) => { e.stopPropagation(); hoverWire = w.id; lab.selection = { kind: 'wire', id: w.id }; }}>
             <!-- Wide transparent stroke: easy to tap -->
             <path d={wirePath(a, z)} stroke="transparent" stroke-width="1" fill="none" />
             <path d={wirePath(a, z)} stroke="#00000045" stroke-width="0.44" fill="none" stroke-linecap="round" transform="translate(0.06,0.1)" />
             <path d={wirePath(a, z)} stroke={w.color} stroke-width="0.3" fill="none" stroke-linecap="round" />
             <path d={wirePath(a, z)} stroke="#ffffff" stroke-opacity="0.3" stroke-width="0.08" fill="none" stroke-linecap="round" transform="translate(-0.04,-0.06)" />
+            {#if lab.overlay === 'voltage'}
+              <path d={wirePath(a, z)} stroke={voltColor(lab.voltages[endpointKey(w.a)])} stroke-width="0.14" fill="none" stroke-linecap="round" />
+            {/if}
             {#each [a, z] as p}<rect x={p.x - 0.18} y={p.y - 0.18} width="0.36" height="0.36" rx="0.06" fill="#3a3d42" />{/each}
           </g>
         {/if}
       {/each}
+
+      <!-- Current: dots moving from + to − along every conductor that carries current -->
+      <g class="streams" pointer-events="none">
+        {#each streams as st (st.key)}
+          <path d={st.d} class="stream-glow" />
+          <!-- Dark rim under a bright core: readable on every wire colour -->
+          <path d={st.d} class="stream rim" style="animation-duration: {st.dur}s" />
+          <path d={st.d} class="stream" style="animation-duration: {st.dur}s" />
+        {/each}
+      </g>
 
       {#if wireFrom && pointer}
         {@const a = endpointPos(lab.project, wireFrom)}
@@ -364,6 +501,23 @@
       </g>
     {/if}
   </svg>
+
+  <div class="overlay-bar">
+    <div class="seg" role="group" aria-label="Hiển thị">
+      <button class:on={lab.overlay === 'current'} onclick={() => (lab.overlay = 'current')}>Dòng điện</button>
+      <button class:on={lab.overlay === 'voltage'} onclick={() => (lab.overlay = 'voltage')}>Điện áp</button>
+      <button class:on={lab.overlay === 'off'} onclick={() => (lab.overlay = 'off')}>Tắt</button>
+    </div>
+    {#if lab.overlay === 'current'}
+      <div class="legend"><span class="dot"></span> chấm chạy theo chiều dòng điện, từ + về − (GND). Càng nhanh = dòng càng lớn.</div>
+    {:else if lab.overlay === 'voltage'}
+      <div class="legend"><span class="scale"></span> 0 V → 3,3 V · <span class="chip" style="background:#8e4ec6"></span> 5 V · <span class="chip" style="background:#b9bbc6"></span> thả nổi</div>
+    {/if}
+  </div>
+
+  {#if probe}
+    <div class="probe" class:touch={pointerType === 'touch'}>🔎 {probe}</div>
+  {/if}
 
   <div class="zoom">
     <button onclick={() => zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 0.8)} aria-label="Phóng to">+</button>
@@ -408,6 +562,114 @@
   }
   .bad {
     filter: grayscale(1) opacity(0.55);
+  }
+  .stream {
+    fill: none;
+    stroke: #fff6c2;
+    stroke-width: 0.2;
+    stroke-linecap: round;
+    stroke-dasharray: 0.02 0.6;
+    animation: flow linear infinite;
+  }
+  .stream.rim {
+    stroke: #3b2a00;
+    stroke-opacity: 0.75;
+    stroke-width: 0.32;
+  }
+  .stream-glow {
+    fill: none;
+    stroke: #ffd43b;
+    stroke-opacity: 0.18;
+    stroke-width: 0.34;
+    stroke-linecap: round;
+  }
+  @keyframes flow {
+    to {
+      stroke-dashoffset: -0.62;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .stream {
+      animation: none;
+      stroke-dasharray: none;
+      stroke-opacity: 0.7;
+    }
+  }
+  .part.emph {
+    filter: drop-shadow(0 0 0.35px #f5a524) drop-shadow(0 0 0.35px #f5a524) drop-shadow(0 0 0.35px #f5a524);
+  }
+  .overlay-bar {
+    position: absolute;
+    left: 12px;
+    top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: none;
+  }
+  .seg {
+    display: inline-flex;
+    pointer-events: auto;
+    box-shadow: 0 1px 3px #0002;
+    border-radius: 8px;
+    width: max-content;
+  }
+  .seg button {
+    border-radius: 0;
+    margin-left: -1px;
+  }
+  .seg button:first-child {
+    border-radius: 8px 0 0 8px;
+  }
+  .seg button:last-child {
+    border-radius: 0 8px 8px 0;
+  }
+  .seg button.on {
+    background: #1c2024;
+    color: #fff;
+    border-color: #1c2024;
+  }
+  .legend {
+    font-size: 12px;
+    color: #4b4d57;
+    background: #ffffffd9;
+    padding: 4px 8px;
+    border-radius: 6px;
+    max-width: 330px;
+  }
+  .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ffd43b;
+    box-shadow: 0 0 4px #f5a524;
+  }
+  .scale {
+    display: inline-block;
+    width: 48px;
+    height: 8px;
+    border-radius: 4px;
+    background: linear-gradient(90deg, #3e63dd, #e5484d);
+  }
+  .chip {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+  }
+  .probe {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    background: #1c2024;
+    color: #fff;
+    font: 13px ui-monospace, 'JetBrains Mono', monospace;
+    padding: 6px 10px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px #0003;
+    pointer-events: none;
+    max-width: calc(100% - 90px);
   }
   .zoom {
     position: absolute;

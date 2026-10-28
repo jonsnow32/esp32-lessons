@@ -17,6 +17,11 @@ export interface PartStep {
   /** Terminal the path must enter / leave by (polarity of an LED). Omit for either way round. */
   enter?: string;
   exit?: string;
+  /**
+   * Allow parts soldered on the board (its LED, BOOT button) to satisfy this step. Off by
+   * default: "wire an LED" must not be passed by the board's own LED.
+   */
+  onboard?: boolean;
 }
 
 export type Check =
@@ -84,7 +89,7 @@ function findSeries(kernel: SimKernel, fromKey: string, steps: PartStep[], toKey
     if (i === steps.length) return currentNet === net(toKey) ? [] : null;
     const step = steps[i]!;
     for (const [id, { type, keys }] of parts) {
-      if (type !== step.type || used.has(id)) continue;
+      if (type !== step.type || used.has(id) || (id.startsWith('board.') && !step.onboard)) continue;
       for (const [enter, enterKey] of Object.entries(keys)) {
         if ((step.enter && enter !== step.enter) || net(enterKey) !== currentNet) continue;
         for (const [exit, exitKey] of Object.entries(keys)) {
