@@ -1,0 +1,56 @@
+{
+  "id": "photoresistor",
+  "version": "0.1.0",
+  "name": "Quang trở LDR (GL5528)",
+  "category": "sensor",
+  "tags": [
+    "through-hole",
+    "analog",
+    "light"
+  ],
+  "terminals": [
+    {
+      "name": "a",
+      "dx": 0,
+      "dy": 0
+    },
+    {
+      "name": "b",
+      "dx": 1,
+      "dy": 0
+    }
+  ],
+  "props": {
+    "light": {
+      "type": "number",
+      "default": 300,
+      "unit": " lux",
+      "options": [
+        0,
+        1,
+        10,
+        50,
+        100,
+        300,
+        1000,
+        10000
+      ]
+    }
+  },
+  "ratings": {
+    "powerMax": 0.1,
+    "overstressTime": 2000000000
+  },
+  "learn": {
+    "summary": "Quang trở (LDR) là điện trở thay đổi theo ánh sáng: trời tối thì rất lớn (hàng trăm kΩ đến 1 MΩ), càng sáng càng nhỏ (vài kΩ). Nó không có chiều, cắm xuôi hay ngược đều được.",
+    "howToPlug": [
+      "Ghép với một điện trở 10 kΩ thành cầu phân áp: 3,3 V → LDR → điểm giữa → 10 kΩ → GND.",
+      "Nối điểm giữa vào chân ADC1 (ví dụ GPIO34) và đọc bằng analogRead().",
+      "Chọn quang trở rồi đổi \"light\" để giả lập phòng tối hay đèn bàn."
+    ],
+    "tips": [
+      "Phòng tối ~1 lux, phòng làm việc ~300 lux, nắng gắt trên 10 000 lux.",
+      "Mắc như trên thì càng sáng điện áp đọc được càng cao. Đổi chỗ LDR và 10 kΩ thì ngược lại."
+    ]
+  }
+}

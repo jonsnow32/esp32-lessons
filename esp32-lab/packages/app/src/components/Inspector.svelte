@@ -11,7 +11,8 @@
     if (typeof v !== 'number') return String(v);
     if (key === 'current') return `${(v * 1000).toFixed(2)} mA`;
     if (key === 'power') return `${(v * 1000).toFixed(1)} mW`;
-    if (key === 'brightness') return `${Math.round(v * 100)} %`;
+    if (key === 'resistance') return v >= 1000 ? `${(v / 1000).toFixed(2)} kΩ` : `${v.toFixed(0)} Ω`;
+    if (key === 'brightness' || key === 'red' || key === 'green' || key === 'blue' || key === 'loudness') return `${Math.round(v * 100)} %`;
     return v.toFixed(3);
   }
 </script>
@@ -30,6 +31,12 @@
           <select value={String(part.props?.[key] ?? schema.default)} onchange={(e) => lab.setProp(part.id, key, Number(e.currentTarget.value))}>
             {#each schema.options as o}<option value={String(o)}>{o >= 1000 ? `${o / 1000}k` : o} {schema.unit ?? ''}</option>{/each}
           </select>
+        {:else if schema.type === 'number'}
+          <span class="range">
+            <input type="range" min={schema.min ?? 0} max={schema.max ?? 100} step="1" value={Number(part.props?.[key] ?? schema.default)}
+              oninput={(e) => lab.setProp(part.id, key, Number(e.currentTarget.value), true)} />
+            <output>{part.props?.[key] ?? schema.default}{schema.unit ?? ''}</output>
+          </span>
         {:else if schema.type === 'boolean'}
           <input type="checkbox" checked={Boolean(part.props?.[key] ?? schema.default)} onchange={(e) => lab.setProp(part.id, key, e.currentTarget.checked)} />
         {/if}
@@ -65,6 +72,9 @@
   h2 { font-size: 14px; margin: 0 0 8px; }
   .type { font-weight: 400; color: #8b8d98; font-size: 12px; }
   label { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin: 4px 0; }
+  .range { display: flex; align-items: center; gap: 6px; }
+  .range input { width: 120px; }
+  .range output { font-family: ui-monospace, monospace; font-size: 12px; min-width: 3.5em; text-align: right; }
   dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; margin: 8px 0; }
   dt { color: #8b8d98; } dd { margin: 0; font-family: ui-monospace, monospace; }
   .bad { color: #e5484d; font-weight: 700; }

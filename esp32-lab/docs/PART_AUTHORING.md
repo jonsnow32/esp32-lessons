@@ -57,10 +57,26 @@ Rules:
 - **Damage**: use `Overstress` for "too much for too long" and an absolute limit for instant
   failure. Model the failed state electrically (a burnt LED is open circuit).
 
-See `parts/led/index.ts` (nonlinear + damage) and `parts/pushbutton/index.ts` (switch + contact
-bounce) for complete examples.
+- **Diodes and LEDs** use `Junction` from the SDK (`Junction.fit(vf, i, n)` from a datasheet
+  point, then `junction.stamp(ctx, anode, cathode)`): it does the companion model and `pnjlim`.
 
-## 3. Test it
+See `parts/led/index.ts` (nonlinear + damage), `parts/pushbutton/index.ts` (switch + contact
+bounce), `parts/rgb-led/index.ts` (several junctions in one part) and `parts/buzzer/index.ts`
+(a smooth nonlinear load that needs no step limiting) for complete examples.
+
+## 3. In the workbench
+
+Optional fields on the `PartModule`:
+
+- `view` + `defs`: the SVG drawing. Leads drawn as straight lines must not use bounding-box
+  gradients (a horizontal line has zero height and paints nothing); use `gradientUnits="userSpaceOnUse"`.
+- `icon`: viewBox (pitch units) framing the view in the parts library.
+- `control`: a clickable spot. `{ kind: 'press' }` sends press/release while held (push button);
+  `{ kind: 'toggle', prop }` flips a boolean prop or steps an enum prop (slide switch). Anything
+  the user sets that must survive a circuit rebuild belongs in a prop, not in behavior state.
+- Number props without `options` get a slider in the inspector (the potentiometer's knob).
+
+## 4. Test it
 
 Add a case to `test/` that builds a small project around the part and checks the physics against
 the datasheet (current, voltage, timing). Run `pnpm test`.

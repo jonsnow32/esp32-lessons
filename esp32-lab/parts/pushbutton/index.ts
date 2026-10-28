@@ -95,5 +95,13 @@ function view(_props: PushbuttonProps, obs: Record<string, unknown>): string {
     ${pressed ? '' : '<path d="M0.55,1.2 A0.55,0.55 0 0 1 1.05,0.9" fill="none" stroke="#fff" stroke-opacity="0.25" stroke-width="0.07" stroke-linecap="round"/>'}`;
 }
 
-export const pushbutton: PartModule<PushbuttonProps> = { manifest: manifest as unknown as PartModule['manifest'], create, view, defs };
+export const pushbutton: PartModule<PushbuttonProps> = {
+  manifest: manifest as unknown as PartModule['manifest'],
+  create,
+  view,
+  defs,
+  icon: '-0.6 -0.6 3.2 4.2',
+  // The cap presses the button; the rest of the body drags it
+  control: { kind: 'press', cx: 1, cy: 1.5, r: 0.85 },
+};
 export default pushbutton;

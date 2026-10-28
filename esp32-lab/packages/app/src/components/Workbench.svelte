@@ -14,7 +14,7 @@
   import type { Endpoint, Rotation } from '@esp32lab/project-model';
   import { ESP32_PADS } from '@esp32lab/mcu-esp32';
   import { PARTS } from '../lib/catalog';
-  import { board, breadboard, endpointAt, endpointPos, holePos, pinPos, sameEndpoint, terminalPos, type Pt } from '../lib/geometry';
+  import { board, breadboard, endpointAt, endpointPos, holePos, onBreadboard, partAnchor, pinPos, sameEndpoint, terminalPos, type Pt } from '../lib/geometry';
   import { endpointKey } from '@esp32lab/sim-core';
   import { lab } from '../lib/lab.svelte';
   import BoardView from './BoardView.svelte';
@@ -29,6 +29,8 @@
   let hover = $state<Endpoint | null>(null);
   let wireFrom = $state<Endpoint | null>(null);
   let moving = $state<{ id: string; type: string; rot: Rotation; moved: boolean } | null>(null);
+  /** Rotation of a new part being dragged in from the library (R while dragging turns it). */
+  let dragRot = $state<Rotation>(0);
   let pan: { start: Pt; view: typeof view; moved: boolean } | null = null;
   let downAt: Pt | null = null;
 
@@ -54,15 +56,23 @@
 
   let dragging = $derived(!!dragType || !!moving || !!wireFrom);
 
-  /** Anchor hole for a part being placed or moved: the hole under the pointer. */
+  /**
+   * Where a part being placed or moved would go: the hole under the pointer (its first leg), or,
+   * away from the breadboard, a spot on the bench.
+   */
   let ghost = $derived.by(() => {
     const type = dragType ?? moving?.type;
     if (!type || !pointer || (moving && !moving.moved)) return null;
     const e = endpointAt(lab.project, pointer);
-    const rot = moving?.rot ?? 0;
-    if (!e || e.kind !== 'hole') return { type, at: pointer, ok: false, hole: null as null | { bb: string; hole: string } };
-    const ok = lab.canPlace(type, e.bb, e.hole, rot, moving?.id);
-    return { type, at: holePos(lab.project, e.bb, e.hole)!, ok, hole: { bb: e.bb, hole: e.hole } };
+    const rot = moving?.rot ?? dragRot;
+    if (e?.kind === 'hole') {
+      const ok = lab.canPlace(type, e.bb, e.hole, rot, moving?.id);
+      return { type, at: holePos(lab.project, e.bb, e.hole)!, ok, hole: { bb: e.bb, hole: e.hole }, bench: false };
+    }
+    if (!e && !onBreadboard(lab.project, pointer)) {
+      return { type, at: { x: Math.round(pointer.x), y: Math.round(pointer.y) }, ok: true, hole: null, bench: true };
+    }
+    return { type, at: pointer, ok: false, hole: null as null | { bb: string; hole: string }, bench: false };
   });
 
   let hoverNet = $derived(hover ? lab.netOf(hover) : new Set<string>());
@@ -97,10 +107,11 @@
     pointerType = ev.pointerType;
     if (ev.pointerType === 'touch') touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     const part = lab.part(id);
-    if (!part?.placement) return;
+    const rot = part?.placement?.rot ?? part?.bench?.rot;
+    if (!part || rot === undefined) return;
     pointer = toWorld(ev.clientX, ev.clientY);
     downAt = pointer;
-    moving = { id, type: part.type, rot: part.placement.rot, moved: false };
+    moving = { id, type: part.type, rot, moved: false };
   }
 
   function onWindowMove(ev: PointerEvent) {
@@ -133,11 +144,14 @@
     const p = toWorld(ev.clientX, ev.clientY);
     const over = inside(ev);
     if (dragType) {
-      if (over && ghost?.ok && ghost.hole) lab.addPart(dragType, ghost.hole.bb, ghost.hole.hole, 0);
+      if (over && ghost?.ok && ghost.hole) lab.addPart(dragType, ghost.hole.bb, ghost.hole.hole, dragRot);
+      else if (over && ghost?.bench) lab.addPartOnBench(dragType, ghost.at.x, ghost.at.y, dragRot);
       dragType = null;
+      dragRot = 0;
     }
     if (moving) {
-      if (moving.moved && ghost?.ok && ghost.hole) lab.movePart(moving.id, ghost.hole.bb, ghost.hole.hole);
+      if (moving.moved && ghost?.ok && ghost.hole) lab.movePart(moving.id, ghost.hole.bb, ghost.hole.hole, moving.rot);
+      else if (moving.moved && over && ghost?.bench) lab.benchPart(moving.id, ghost.at.x, ghost.at.y, moving.rot);
       else if (!moving.moved) lab.selection = { kind: 'part', id: moving.id };
       moving = null;
     }
@@ -211,14 +225,31 @@
   }
 
   function onKey(ev: KeyboardEvent) {
-    if ((ev.target as HTMLElement).closest('input, select, textarea')) return;
+    // Keys typed in the code editor (contenteditable) or a form field are not bench commands
+    if ((ev.target as HTMLElement).closest('input, select, textarea, [contenteditable]')) return;
+    if (ev.ctrlKey || ev.metaKey) {
+      const k = ev.key.toLowerCase();
+      if (k === 'z' || k === 'y') {
+        ev.preventDefault();
+        if (k === 'y' || ev.shiftKey) lab.redo();
+        else lab.undo();
+      }
+      return;
+    }
     if (ev.key === 'Delete' || ev.key === 'Backspace') lab.deleteSelected();
-    if (ev.key === 'r' || ev.key === 'R') lab.rotateSelected();
+    if (ev.key === 'r' || ev.key === 'R') {
+      // While dragging, R turns the part in hand; otherwise the selected part
+      const next = (r: Rotation) => ((r + 90) % 360) as Rotation;
+      if (moving?.moved) moving = { ...moving, rot: next(moving.rot) };
+      else if (dragType) dragRot = next(dragRot);
+      else lab.rotateSelected();
+    }
     if (ev.key === '+' || ev.key === '=') zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 0.8);
     if (ev.key === '-') zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 1.25);
     if (ev.key === '0') fit();
     if (ev.key === 'Escape') {
       dragType = null;
+      dragRot = 0;
       wireFrom = null;
       moving = null;
       lab.selection = null;
@@ -420,9 +451,10 @@
       </g>
 
       {#each lab.project.parts as part (part.id)}
-        {@const at = part.placement ? holePos(lab.project, part.placement.bb, part.placement.hole) : undefined}
-        {#if at}
-          {@const rot = part.placement?.rot ?? 0}
+        {@const anchor = partAnchor(lab.project, part)}
+        {#if anchor}
+          {@const at = anchor.at}
+          {@const rot = anchor.rot}
           <!-- While moving, the part is hidden but stays in the DOM: on touch screens the finger's
                events keep going to the element the drag started on -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -434,14 +466,20 @@
             onpointerdown={(e) => { hoverPart = part.id; startMove(e, part.id); }}>
             {@html partView(part.type, part.props ?? {}, lab.observables[part.id] ?? {})}
           </g>
-          {#if part.type === 'pushbutton'}
-            <!-- The cap presses the button; the rest of the body drags it -->
+          {@const ctl = PARTS[part.type]?.control}
+          {#if ctl}
+            <!-- The part's control (button cap, switch lever) acts on it; the rest of the body drags it -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <g transform="translate({at.x},{at.y}) rotate({rot})">
-              <circle cx="1" cy="1.5" r="0.85" fill="transparent" class="press"
-                onpointerdown={(e) => { e.stopPropagation(); capture(e); lab.press(part.id); }}
-                onpointerup={(e) => { e.stopPropagation(); lab.release(part.id); }}
-                onpointercancel={() => lab.release(part.id)} />
+              {#if ctl.kind === 'press'}
+                <circle cx={ctl.cx} cy={ctl.cy} r={ctl.r} fill="transparent" class="press"
+                  onpointerdown={(e) => { e.stopPropagation(); capture(e); lab.press(part.id); }}
+                  onpointerup={(e) => { e.stopPropagation(); lab.release(part.id); }}
+                  onpointercancel={() => lab.release(part.id)} />
+              {:else}
+                <circle cx={ctl.cx} cy={ctl.cy} r={ctl.r} fill="transparent" class="press"
+                  onpointerdown={(e) => { e.stopPropagation(); lab.toggleProp(part.id, ctl.prop); }} />
+              {/if}
             </g>
           {/if}
         {/if}
@@ -468,6 +506,16 @@
         {/if}
       {/each}
 
+      <!-- Legs of parts on the bench: drag from one to run a wire (the svg handler finds the leg) -->
+      {#each lab.project.parts.filter((q) => !q.placement && q.bench) as part (part.id)}
+        {#each PARTS[part.type]?.manifest.terminals ?? [] as t (t.name)}
+          {@const p = terminalPos(lab.project, part, t.name)}
+          {#if p}
+            <circle cx={p.x} cy={p.y} r="0.3" class="leg" class:on={hoverNet.has(`p:${part.id}:${t.name}`)}><title>{t.label ?? t.name}</title></circle>
+          {/if}
+        {/each}
+      {/each}
+
       <!-- Current: dots moving from + to − along every conductor that carries current -->
       <g class="streams" pointer-events="none">
         {#each streams as st (st.key)}
@@ -484,7 +532,7 @@
       {/if}
 
       {#if ghost}
-        <g transform="translate({ghost.at.x},{ghost.at.y}) rotate({moving?.rot ?? 0})" opacity="0.8" class:bad={!ghost.ok} pointer-events="none">
+        <g transform="translate({ghost.at.x},{ghost.at.y}) rotate({moving?.rot ?? dragRot})" opacity="0.8" class:bad={!ghost.ok} pointer-events="none">
           {@html partView(ghost.type, moving ? (lab.part(moving.id)?.props ?? {}) : {}, {})}
         </g>
       {/if}
@@ -523,6 +571,8 @@
     <button onclick={() => zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 0.8)} aria-label="Phóng to">+</button>
     <button onclick={() => zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 1.25)} aria-label="Thu nhỏ">−</button>
     <button onclick={fit} aria-label="Vừa màn hình">⤢</button>
+    <button onclick={() => lab.undo()} disabled={!lab.canUndo} aria-label="Hoàn tác (Ctrl+Z)" title="Hoàn tác (Ctrl+Z)">↶</button>
+    <button onclick={() => lab.redo()} disabled={!lab.canRedo} aria-label="Làm lại (Ctrl+Y)" title="Làm lại (Ctrl+Y / Ctrl+Shift+Z)">↷</button>
   </div>
 </div>
 
@@ -670,6 +720,16 @@
     box-shadow: 0 2px 8px #0003;
     pointer-events: none;
     max-width: calc(100% - 90px);
+  }
+  .leg {
+    fill: #ffffff01;
+    stroke: #f76b15;
+    stroke-width: 0;
+    cursor: crosshair;
+  }
+  .leg:hover,
+  .leg.on {
+    stroke-width: 0.1;
   }
   .zoom {
     position: absolute;

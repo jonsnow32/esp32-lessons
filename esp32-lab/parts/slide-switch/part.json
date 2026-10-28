@@ -1,0 +1,56 @@
+{
+  "id": "slide-switch",
+  "version": "0.1.0",
+  "name": "Công tắc gạt SPDT (SS12D00)",
+  "category": "input",
+  "tags": [
+    "through-hole",
+    "switch"
+  ],
+  "terminals": [
+    {
+      "name": "a",
+      "dx": 0,
+      "dy": 0,
+      "label": "Chân trái"
+    },
+    {
+      "name": "common",
+      "dx": 1,
+      "dy": 0,
+      "label": "Chân giữa (chung)"
+    },
+    {
+      "name": "b",
+      "dx": 2,
+      "dy": 0,
+      "label": "Chân phải"
+    }
+  ],
+  "props": {
+    "position": {
+      "type": "enum",
+      "default": "a",
+      "options": [
+        "a",
+        "b"
+      ]
+    }
+  },
+  "ratings": {
+    "currentMax": 0.5,
+    "overstressTime": 2000000000
+  },
+  "learn": {
+    "summary": "Công tắc gạt giữ nguyên vị trí sau khi gạt (khác nút nhấn tự nhả). Chân giữa luôn được nối với một trong hai chân ngoài: gạt sang trái nối giữa–trái, gạt sang phải nối giữa–phải.",
+    "howToPlug": [
+      "Chân giữa nối vào chân GPIO.",
+      "Một chân ngoài nối GND, chân ngoài kia nối 3,3 V: GPIO đọc LOW hoặc HIGH tuỳ vị trí, không cần điện trở kéo.",
+      "Bấm vào cần gạt trên breadboard để gạt sang bên kia."
+    ],
+    "tips": [
+      "Chỉ nối chân giữa và một chân ngoài thì nó thành công tắc bật/tắt đơn giản; khi đó dùng INPUT_PULLUP như với nút nhấn.",
+      "Loại nhỏ SS12D00 chỉ chịu dòng tín hiệu (~0,5 A), không dùng để đóng cắt tải lớn."
+    ]
+  }
+}

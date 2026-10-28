@@ -33,7 +33,7 @@ UI thread (Svelte)                     Sim Worker (Web Worker)
 | `packages/sim-core` | `SimKernel`, `Netlist`, MNA solver, `McuModel` interface, `ScriptedMcu`, pad/supply builtins | M0 ✅ |
 | `packages/lesson-engine` | Evaluates declarative lesson checks | M0 ✅ |
 | `packages/mcu-esp32` | ESP32 pad capabilities; `Esp32Mcu`: the WASM emulator as an `McuModel` | M3 ✅ |
-| `parts/*` | One package per part (`resistor`, `led`, `pushbutton`) | M0 ✅ |
+| `parts/*` | One package per part: `resistor`, `led`, `pushbutton` (M0); `rgb-led`, `potentiometer`, `photoresistor`, `diode`, `slide-switch`, `buzzer` (common DC parts) | M0 ✅ |
 | `boards/*`, `breadboards/*`, `lessons/*` | Pure JSON definitions | M0 ✅ |
 | `crates/xtensa-core` | Xtensa LX6 decoder, objdump-syntax disassembler, interpreter | M1 ✅ |
 | `crates/esp32-soc` | Memory map + flash MMU, two cores, interrupt matrix, peripherals, ROM HLE, direct boot | M2 ✅ |
@@ -341,5 +341,5 @@ delay()-based ones (lesson 01) run ~9× faster. A decoded-instruction cache is t
   BOOT/EN buttons, edit part props, live per-part current/brightness, net highlighting on hover,
   lesson checklist evaluated live, Serial Monitor (TX and RX). `vite dev` serves `.pio/build/*`
   so whatever `pio run` built is selectable. Still to do: board/breadboard selection beyond the
-  one of each, undo, multimeter/scope instruments, nicer part artwork, touch-friendly dragging.
+  one of each, multimeter/scope instruments, nicer part artwork, touch-friendly dragging.
 - **M4** – LEDC, ADC, touch, I2C; potentiometer and SSD1306 parts; lessons 04–09.

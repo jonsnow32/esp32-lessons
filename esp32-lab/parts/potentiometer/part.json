@@ -1,0 +1,66 @@
+{
+  "id": "potentiometer",
+  "version": "0.1.0",
+  "name": "Potentiometer (biến trở)",
+  "category": "input",
+  "tags": [
+    "through-hole",
+    "analog"
+  ],
+  "terminals": [
+    {
+      "name": "a",
+      "dx": 0,
+      "dy": 0,
+      "label": "Chân 1 (đầu trái)"
+    },
+    {
+      "name": "wiper",
+      "dx": 1,
+      "dy": 0,
+      "label": "Chân giữa (con chạy)"
+    },
+    {
+      "name": "b",
+      "dx": 2,
+      "dy": 0,
+      "label": "Chân 3 (đầu phải)"
+    }
+  ],
+  "props": {
+    "resistance": {
+      "type": "number",
+      "default": 10000,
+      "unit": "Ω",
+      "options": [
+        1000,
+        10000,
+        100000
+      ]
+    },
+    "position": {
+      "type": "number",
+      "default": 50,
+      "unit": "%",
+      "min": 0,
+      "max": 100
+    }
+  },
+  "ratings": {
+    "powerMax": 0.125,
+    "overstressTime": 2000000000
+  },
+  "learn": {
+    "summary": "Biến trở là một điện trở có con chạy ở giữa. Hai chân ngoài luôn có đủ giá trị (ví dụ 10 kΩ); xoay núm thì con chạy trượt dọc lớp than, chia điện áp giữa hai đầu thành một điện áp bất kỳ ở chân giữa.",
+    "howToPlug": [
+      "Chân 1 (trái) nối GND, chân 3 (phải) nối 3,3 V. Nối ngược lại cũng được, chỉ là xoay núm sẽ cho kết quả ngược chiều.",
+      "Chân giữa nối vào một chân ADC1 (ví dụ GPIO34) để đọc bằng analogRead().",
+      "Chọn biến trở rồi kéo thanh trượt \"position\" để xoay núm."
+    ],
+    "tips": [
+      "Mắc như trên thì điện áp chân giữa ≈ 3,3 V × vị trí núm: 0 % là 0 V, 50 % là khoảng 1,65 V, 100 % là 3,3 V.",
+      "Đừng nối chân giữa thẳng vào 3,3 V hay GND khi chân ngoài cũng đang nối nguồn: vặn hết cỡ sẽ thành ngắn mạch qua một đoạn điện trở rất nhỏ.",
+      "Dùng ADC1 (GPIO32–39) vì ADC2 không dùng được khi bật WiFi."
+    ]
+  }
+}

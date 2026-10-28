@@ -131,6 +131,11 @@ export interface PartInstance {
   props?: PartProps;
   /** Plugged into a breadboard (anchor = first terminal), or null when only wired by terminals. */
   placement: { bb: string; hole: string; rot: Rotation } | null;
+  /**
+   * Where an unplugged part lies on the bench: world position of its first terminal, in pitches.
+   * Wires reach its legs through `{ kind: 'part' }` endpoints.
+   */
+  bench?: { x: number; y: number; rot: Rotation };
 }
 
 export interface Wire {

@@ -74,4 +74,16 @@ describe('explain', () => {
     expect(n[0]!.text).toContain('Chập mạch: 3V3');
     expect(texts(n)).toContain('r9 chưa nối vào mạch');
   });
+
+  it('spots a part whose legs share one breadboard strip', () => {
+    // Buzzer turned to run down column 5: + in a5, − in d5, both on the a–e clip of column 5
+    const p = project([{ id: 'bz1', type: 'buzzer', props: {}, placement: { bb: 'bb1', hole: 'a5', rot: 0 } }], [
+      wire('w1', pin('D18'), hole('e5')),
+    ]);
+    const n = notesFor(p, (m) => m.set('GPIO18', { output: 'high' }));
+    expect(texts(n)).toContain('bz1 bị nối tắt: chân + (chân dài) và chân −');
+    // A push button's own legs a1–a2 are joined inside it: not a mistake
+    const ok = notesFor(project([{ id: 'sw1', type: 'pushbutton', props: {}, placement: { bb: 'bb1', hole: 'e5', rot: 0 } }], [wire('w1', pin('D18'), hole('a5'))]));
+    expect(texts(ok)).not.toContain('nối tắt');
+  });
 });

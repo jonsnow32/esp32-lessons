@@ -1,4 +1,4 @@
-import { Overstress, pnjlim, VT, type PartBehavior, type PartEnv, type PartModule } from '@esp32lab/part-sdk';
+import { Junction, Overstress, type PartBehavior, type PartEnv, type PartModule } from '@esp32lab/part-sdk';
 import manifest from './part.json';
 
 export type LedColor = 'red' | 'yellow' | 'green' | 'blue' | 'white';
@@ -19,24 +19,14 @@ export const FORWARD_VOLTAGE: Record<LedColor, number> = {
 
 const I_REF = 0.02;
 const EMISSION = 2; // ideality factor n
-const N_VT = EMISSION * VT;
-const G_MIN = 1e-12; // keeps the matrix regular when the LED is off
-
-/** Shockley diode current and its derivative. */
-function diode(vd: number, is: number): { i: number; g: number } {
-  const e = Math.exp(vd / N_VT);
-  return { i: is * (e - 1), g: (is * e) / N_VT };
-}
 
 function create(props: LedProps, _env: PartEnv): PartBehavior {
   const vf = FORWARD_VOLTAGE[props.color] ?? FORWARD_VOLTAGE.red;
   // Saturation current chosen so I(vf) = 20 mA
-  const is = I_REF / Math.exp(vf / N_VT);
-  const vCrit = N_VT * Math.log(N_VT / (Math.SQRT2 * is));
+  const junction = Junction.fit(vf, I_REF, EMISSION);
   const { currentMax, currentAbsMax, reverseVoltageMax, overstressTime } = manifest.ratings;
   const overstress = new Overstress(overstressTime);
 
-  let vdLast = 0;
   let current = 0;
   let damaged = false;
 
@@ -46,20 +36,12 @@ function create(props: LedProps, _env: PartEnv): PartBehavior {
     },
     stampNonlinear(ctx) {
       // A destroyed LED is modelled as open circuit (the usual failure mode)
-      if (damaged) return;
-      const vRaw = ctx.v('anode') - ctx.v('cathode');
-      const vd = pnjlim(vRaw, vdLast, N_VT, vCrit);
-      if (vd !== vRaw) ctx.limited();
-      vdLast = vd;
-      const { i, g } = diode(vd, is);
-      // Companion model: I(v) ≈ g·v + (i − g·vd)
-      ctx.conductance('anode', 'cathode', g + G_MIN);
-      ctx.current('anode', 'cathode', i - g * vd);
+      if (!damaged) junction.stamp(ctx, 'anode', 'cathode');
     },
     onSolved(op) {
       if (damaged) return;
       const vd = op.v('anode') - op.v('cathode');
-      current = diode(vd, is).i;
+      current = junction.current(vd);
       if (
         current > currentAbsMax ||
         -vd > reverseVoltageMax ||
@@ -127,5 +109,5 @@ function view(props: LedProps, obs: Record<string, unknown>): string {
     ${dead ? `<g opacity="0.55"><circle cx="0.3" cy="-3.6" r="0.4" fill="#8a8a8a"/><circle cx="0.8" cy="-4.2" r="0.55" fill="#a0a0a0"/><circle cx="0.4" cy="-4.9" r="0.45" fill="#b5b5b5"/></g>` : ''}`;
 }
 
-export const led: PartModule<LedProps> = { manifest: manifest as PartModule['manifest'], create, view, defs };
+export const led: PartModule<LedProps> = { manifest: manifest as PartModule['manifest'], create, view, defs, icon: '-1 -2.6 3 3.4' };
 export default led;

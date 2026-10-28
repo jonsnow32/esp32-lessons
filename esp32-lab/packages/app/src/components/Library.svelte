@@ -10,9 +10,6 @@
   /** Part types the current lesson's checks ask for get a "this lesson" badge. */
   let wanted = $derived(new Set(JSON.stringify(lesson ?? {}).match(/"type":"(\w+)"/g)?.map((m) => m.slice(8, -1)) ?? []));
 
-  /** Frame each part's drawing (pitch units) for its library icon. */
-  const ICON_BOX: Record<string, string> = { led: '-1 -2.6 3 3.4', resistor: '-0.4 -1.6 4.8 3.2', pushbutton: '-0.6 -0.6 3.2 4.2' };
-
   function preview(type: string): string {
     const m = PARTS[type]!;
     const props: Record<string, unknown> = {};
@@ -27,7 +24,7 @@
   {#each Object.entries(PARTS) as [type, m] (type)}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="item" onpointerdown={(e) => { e.preventDefault(); dragType = type; }}>
-      <svg viewBox={ICON_BOX[type] ?? '-1 -3 6 6.5'} width="44" height="44">{@html preview(type)}</svg>
+      <svg viewBox={m.icon ?? '-1 -3 6 6.5'} width="44" height="44">{@html preview(type)}</svg>
       <div>
         <div class="name">{m.manifest.name}</div>
         <div class="meta">{m.manifest.category}{#if wanted.has(type)} · <span class="badge">Bài này</span>{/if}</div>
@@ -39,7 +36,7 @@
   <h2>Breadboard</h2>
   <div class="item static"><div class="name">Half+ 400 lỗ</div></div>
   <div class="keys">
-    <b>Thao tác</b><br />R: xoay · Del: xoá · Esc: huỷ · +/− / 0: zoom<br />Kéo chỗ trống: di chuyển bàn<br />Rê chuột hoặc chạm vào lỗ: xem các điểm cùng mạch
+    <b>Thao tác</b><br />R: xoay · Del: xoá · Esc: huỷ · +/− / 0: zoom<br />Ctrl+Z: hoàn tác · Ctrl+Y: làm lại<br />Kéo linh kiện ra ngoài breadboard: dây tự nối từ lỗ cũ tới chân; kéo từ chân để nối dây<br />Kéo chỗ trống: di chuyển bàn<br />Rê chuột hoặc chạm vào lỗ: xem các điểm cùng mạch
   </div>
 </section>
 

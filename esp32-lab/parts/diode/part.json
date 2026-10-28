@@ -1,0 +1,46 @@
+{
+  "id": "diode",
+  "version": "0.1.0",
+  "name": "Diode chỉnh lưu",
+  "category": "passive",
+  "tags": [
+    "through-hole",
+    "diode"
+  ],
+  "terminals": [
+    {
+      "name": "anode",
+      "dx": 0,
+      "dy": 0,
+      "label": "Anode (+)"
+    },
+    {
+      "name": "cathode",
+      "dx": 4,
+      "dy": 0,
+      "label": "Cathode (−, phía vạch)"
+    }
+  ],
+  "props": {
+    "model": {
+      "type": "enum",
+      "default": "1N4148",
+      "options": [
+        "1N4148",
+        "1N4007"
+      ]
+    }
+  },
+  "learn": {
+    "summary": "Diode là \"van một chiều\" cho dòng điện: chỉ cho dòng đi từ anode sang cathode (phía có vạch), và luôn \"ăn\" mất khoảng 0,6–0,9 V khi dẫn. Chiều ngược lại gần như không có dòng.",
+    "howToPlug": [
+      "Đầu có vạch là cathode (−), hướng về phía điện áp thấp hơn.",
+      "Mắc ngược song song với cuộn dây relay hay động cơ (vạch về phía +) để dập điện áp ngược khi tắt.",
+      "Mắc nối tiếp ở đường nguồn để chống cắm ngược cực."
+    ],
+    "tips": [
+      "1N4148: diode tín hiệu nhỏ, nhanh, tới khoảng 200 mA. 1N4007: diode nguồn, chịu 1 A.",
+      "Nối tiếp một diode với nguồn 3,3 V thì phía sau chỉ còn khoảng 2,6 V."
+    ]
+  }
+}

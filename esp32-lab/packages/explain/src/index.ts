@@ -180,6 +180,12 @@ export function explain(ctx: ExplainContext): Note[] {
       return `${id} (LED ${LED_COLOR[String(p.color)] ?? ''}, ${volts(drop)}, sáng ${b}%)`;
     }
     if (type === 'pushbutton') return `${id} (đang nhấn)`;
+    if (type === 'potentiometer') return `${id} (biến trở ${ohms(Number(p.resistance))}, núm ${p.position} %, sụt ${volts(drop)})`;
+    if (type === 'photoresistor') return `${id} (quang trở ${ohms(Math.round(Number(kernel.observables(id).resistance)))}, sụt ${volts(drop)})`;
+    if (type === 'diode') return `${id} (diode ${p.model}, sụt ${volts(drop)})`;
+    if (type === 'rgb-led') return `${id} (LED RGB, ${volts(drop)})`;
+    if (type === 'buzzer') return `${id} (còi, ${volts(drop)})`;
+    if (type === 'slide-switch') return `${id} (công tắc gạt về ${p.position})`;
     return id;
   }
 
@@ -189,7 +195,20 @@ export function explain(ctx: ExplainContext): Note[] {
     const legs = Object.keys(keys);
     const loose = legs.filter((t) => !connectedBeyond(keys[t]!, p.id));
     const obs = kernel.observables(p.id);
-    if (!p.placement) continue;
+    if (!p.placement && !p.bench) continue;
+    // Two legs in one breadboard strip are joined by its metal clip: the part is bypassed
+    const joined = new Set((ctx.manifests[p.type]?.internalShorts ?? []).map(([a, b]) => [a, b].sort().join('|')));
+    const shorted = legs.flatMap((t, i) => legs.slice(i + 1).filter((u) => !joined.has([t, u].sort().join('|')) && net(keys[t]!) !== undefined && net(keys[t]!) === net(keys[u]!)).map((u) => [t, u]));
+    if (shorted.length) {
+      const label = (t: string) => ctx.manifests[p.type]?.terminals.find((d) => d.name === t)?.label ?? t;
+      const [t, u] = shorted[0]!;
+      notes.push({
+        level: 'warn',
+        text: `${p.id} bị nối tắt: chân ${label(t!)} và chân ${label(u!)} nằm cùng một cột (cùng thanh kim loại của breadboard), nên dòng điện đi vòng qua thanh kim loại chứ không qua linh kiện. Xoay (R) hoặc dời linh kiện để mỗi chân nằm ở một cột riêng; linh kiện có chân cách 3 lỗ như còi thì cắm vắt ngang rãnh giữa.`,
+        highlight: [p.id],
+      });
+      continue;
+    }
     if (loose.length === legs.length) {
       notes.push({ level: 'info', text: `${p.id} chưa nối vào mạch: các chân chỉ cắm vào breadboard, chưa có dây hay linh kiện nào cùng hàng.`, highlight: [p.id] });
       continue;
@@ -223,6 +242,22 @@ export function explain(ctx: ExplainContext): Note[] {
           : `${p.id} đang nhả: cặp chân trái và cặp chân phải không thông nhau (các chân cùng phía luôn thông).`,
         highlight: [p.id],
       });
+    } else if (p.type === 'potentiometer') {
+      if (!loose.includes('wiper')) notes.push({ level: 'info', text: `${p.id}: núm ở ${p.props?.position ?? 50} %, chân giữa đang có ${volts(v(keys.wiper!))}. Kéo thanh "position" để xoay núm.`, highlight: [p.id] });
+    } else if (p.type === 'photoresistor') {
+      notes.push({ level: 'info', text: `${p.id}: ở ${p.props?.light ?? 300} lux quang trở có ${ohms(Math.round(Number(obs.resistance)))}. Tối hơn thì lớn hơn, sáng hơn thì nhỏ hơn.`, highlight: [p.id] });
+    } else if (p.type === 'buzzer' && !obs.damaged && !obs.sounding) {
+      const vp = v(keys.plus!);
+      const vm = v(keys.minus!);
+      if (vm - vp > 1) notes.push({ level: 'warn', text: `${p.id} đang cắm ngược: chân − có ${volts(vm)}, cao hơn chân + (${volts(vp)}). Còi chủ động chỉ kêu khi chân + (chân dài) ở phía điện áp cao. Chọn còi rồi nhấn R hai lần để xoay 180°.`, highlight: [p.id] });
+    } else if (p.type === 'rgb-led' && !obs.damaged && Number(obs.current ?? 0) < I_MIN) {
+      const vc = v(keys.common!);
+      const cathode = (p.props?.common ?? 'cathode') !== 'anode';
+      const backwards = ['red', 'green', 'blue'].some((ch) => (cathode ? vc - v(keys[ch]!) : v(keys[ch]!) - vc) > 1.5);
+      if (backwards)
+        notes.push({ level: 'warn', text: `${p.id} không sáng vì phân cực ngược: loại chung ${cathode ? 'cathode thì chân chung (dài nhất) phải nối GND' : 'anode thì chân chung (dài nhất) phải nối 3,3 V'}. Kiểm tra lại, hoặc đổi "common" trong bảng thuộc tính nếu LED của bạn là loại kia.`, highlight: [p.id] });
+    } else if (p.type === 'slide-switch') {
+      notes.push({ level: 'info', text: `${p.id} đang gạt về phía ${p.props?.position ?? 'a'}: chân giữa nối với chân ${p.props?.position === 'b' ? 'phải (b)' : 'trái (a)'}. Bấm vào cần gạt để đổi.`, highlight: [p.id] });
     }
   }
 

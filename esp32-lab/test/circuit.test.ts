@@ -125,4 +125,20 @@ describe('digital inputs', () => {
     expect(mcu.read('GPIO18')).toBe(0);
     expect(mcu.edges.filter((e) => e.pad === 'GPIO18')).toHaveLength(1);
   });
+
+  it('a part on the bench works through wires to its legs, like the same part plugged in', () => {
+    // ledOnD18 with the LED pulled out: leads from its old holes b9/b10 to its legs
+    const p = ledOnD18();
+    const led = p.parts.find((x) => x.id === 'led1')!;
+    led.placement = null;
+    led.bench = { x: 20, y: -10, rot: 0 };
+    p.wires.push(
+      wire('l1', hole('c9'), { kind: 'part', part: 'led1', terminal: 'anode' }),
+      wire('l2', hole('c10'), { kind: 'part', part: 'led1', terminal: 'cathode' }),
+    );
+    const { k } = kernel(p, (mcu) => mcu.set('GPIO18', { output: 'high' }));
+    k.advanceTo(1 * MS);
+    expect(k.observables('led1').current).toBeGreaterThan(0.005);
+    expect(k.observables('led1').current).toBeLessThan(0.007);
+  });
 });

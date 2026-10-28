@@ -52,7 +52,7 @@ const defs = `
     <stop offset="0" stop-color="#fff" stop-opacity="0.45"/><stop offset="0.4" stop-color="#fff" stop-opacity="0"/>
     <stop offset="1" stop-color="#000" stop-opacity="0.3"/>
   </linearGradient>
-  <linearGradient id="res-lead" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eef0f3"/><stop offset="1" stop-color="#868c94"/></linearGradient>`;
+  <linearGradient id="res-lead" gradientUnits="userSpaceOnUse" x1="0" y1="-0.06" x2="0" y2="0.06"><stop offset="0" stop-color="#eef0f3"/><stop offset="1" stop-color="#868c94"/></linearGradient>`;
 
 /** Axial 1/4 W resistor: leads into holes 4 pitches apart, dog-bone body, colour bands. */
 function view(props: ResistorProps, obs: Record<string, unknown>): string {
@@ -69,5 +69,5 @@ function view(props: ResistorProps, obs: Record<string, unknown>): string {
     <path d="${body}" fill="url(#res-shade)"/>`;
 }
 
-export const resistor: PartModule<ResistorProps> = { manifest: manifest as PartModule['manifest'], create, view, defs };
+export const resistor: PartModule<ResistorProps> = { manifest: manifest as PartModule['manifest'], create, view, defs, icon: '-0.4 -1.6 4.8 3.2' };
 export default resistor;

@@ -7,8 +7,9 @@ import { endpointKey, keyOf, ScriptedMcu, SimKernel } from '@esp32lab/sim-core';
 import wasmUrl from '../../../mcu-esp32/wasm/esp32.wasm?url';
 import { BOARDS, BREADBOARDS, LESSONS, PARTS } from './catalog';
 import type { Note } from '@esp32lab/explain';
+import type { PartManifest } from '@esp32lab/part-sdk';
 import type { FirmwareFiles, FlowView, FromWorker, StepResult, ToWorker } from '../sim/protocol';
-import { resolvePlacement } from '@esp32lab/project-model';
+import { resolvePlacement, rotate } from '@esp32lab/project-model';
 import { breadboard } from './geometry';
 
 export interface BuildError {
@@ -87,11 +88,26 @@ export function loadWorkspace(id: string): Workspace | null {
   }
 }
 
+/** Undo steps kept per workspace. */
+const HISTORY = 100;
+
+/** Leg wires of a part pulled off the breadboard: red for the first leg, then black, etc. */
+const LEAD_COLORS = ['#e5484d', '#1f2023', '#f5d90a', '#3e63dd'];
+
+/** Does the wire end on one of this part's legs? */
+const onPart = (w: Wire, id: string) => (w.a.kind === 'part' && w.a.part === id) || (w.b.kind === 'part' && w.b.part === id);
+
 class Lab {
   /** 'home' (lesson picker), a lesson id, or FREE. */
   route = $state<string>('home');
   project = $state<Project>(emptyProject());
   selection = $state<Selection>(null);
+  /** Undo/redo: earlier and undone versions of the bench, as JSON. */
+  private past = $state<string[]>([]);
+  private future = $state<string[]>([]);
+  /** The bench as last committed, and what changed it (see commit). */
+  private current = '';
+  private lastChange: string | undefined;
   lessonId = $state<string | null>(null);
   envs = $state<string[]>([]);
   program = $state<Program>({ kind: 'none' });
@@ -171,11 +187,59 @@ class Lab {
     }
   }
 
-  /** Push the edited project to the worker and save the workspace. */
-  commit() {
+  /**
+   * Push the edited project to the worker, save the workspace and record the previous version
+   * for undo. Consecutive commits with the same `change` key (dragging a slider) are one step.
+   */
+  commit(change?: string) {
     const snapshot = $state.snapshot(this.project) as Project;
+    const json = JSON.stringify(snapshot);
+    if (json !== this.current) {
+      if (this.current && !(change && change === this.lastChange)) {
+        this.past = [...this.past.slice(-(HISTORY - 1)), this.current];
+      }
+      this.future = [];
+      this.current = json;
+    }
+    this.lastChange = change;
     this.save();
     this.send({ type: 'project', project: snapshot });
+  }
+
+  get canUndo() {
+    return this.past.length > 0;
+  }
+
+  get canRedo() {
+    return this.future.length > 0;
+  }
+
+  undo() {
+    const prev = this.past.at(-1);
+    if (prev === undefined) return;
+    this.past = this.past.slice(0, -1);
+    this.future = [...this.future, this.current];
+    this.restore(prev);
+  }
+
+  redo() {
+    const next = this.future.at(-1);
+    if (next === undefined) return;
+    this.future = this.future.slice(0, -1);
+    this.past = [...this.past, this.current];
+    this.restore(next);
+  }
+
+  private restore(json: string) {
+    this.current = json;
+    this.lastChange = undefined;
+    this.project = JSON.parse(json) as Project;
+    // Keep the selection only if what it points at still exists
+    const s = this.selection;
+    if (s?.kind === 'part' && !this.part(s.id)) this.selection = null;
+    if (s?.kind === 'wire' && !this.project.wires.some((w) => w.id === s.id)) this.selection = null;
+    this.save();
+    this.send({ type: 'project', project: $state.snapshot(this.project) as Project });
   }
 
   private save() {
@@ -204,39 +268,126 @@ class Lab {
     return Object.values(placed.holes).every((h) => !taken.has(h));
   }
 
-  addPart(type: string, bb: string, hole: string, rot: Rotation = 0) {
+  private newPartId(type: string): string {
     const n = this.project.parts.filter((p) => p.type === type).length + 1;
     let id = `${type}${n}`;
     while (this.project.parts.some((p) => p.id === id)) id += "'";
+    return id;
+  }
+
+  addPart(type: string, bb: string, hole: string, rot: Rotation = 0) {
+    const id = this.newPartId(type);
     this.project.parts.push({ id, type, props: {}, placement: { bb, hole, rot } });
     this.selection = { kind: 'part', id };
     this.commit();
   }
 
-  movePart(id: string, bb: string, hole: string) {
-    const p = this.part(id);
-    if (p?.placement) {
-      p.placement = { ...p.placement, bb, hole };
-      this.commit();
-    }
+  /** A new part lying on the bench, off the breadboard: wire its legs directly. */
+  addPartOnBench(type: string, x: number, y: number, rot: Rotation = 0) {
+    const id = this.newPartId(type);
+    this.project.parts.push({ id, type, props: {}, placement: null, bench: { x, y, rot } });
+    this.selection = { kind: 'part', id };
+    this.commit();
   }
 
+  /**
+   * Plug a part into the breadboard. A part coming from the bench leaves its leg wires behind:
+   * on the breadboard its legs connect through the holes.
+   */
+  movePart(id: string, bb: string, hole: string, rot?: Rotation) {
+    const p = this.part(id);
+    if (!p) return;
+    const was = p.placement ?? p.bench;
+    p.placement = { bb, hole, rot: rot ?? was?.rot ?? 0 };
+    if (p.bench) {
+      delete p.bench;
+      this.project.wires = this.project.wires.filter((w) => !onPart(w, id));
+    }
+    this.commit();
+  }
+
+  /**
+   * Put a part on the bench. Pulled out of the breadboard, it keeps its connections: a wire runs
+   * from each hole a leg was in to that leg, as if it were on jumper leads.
+   */
+  benchPart(id: string, x: number, y: number, rot: Rotation) {
+    const p = this.part(id);
+    const manifest = p && PARTS[p.type]?.manifest;
+    if (!p || !manifest) return;
+    if (p.placement) {
+      const inst = this.project.breadboards.find((b) => b.id === p.placement!.bb);
+      const ex = inst && breadboard(inst.type);
+      const placed = ex && resolvePlacement(ex, manifest, p.placement.hole, p.placement.rot);
+      if (placed?.ok) {
+        manifest.terminals.forEach((t, k) => {
+          this.project.wires.push({
+            id: `w${Date.now().toString(36)}${this.nextWire++}`,
+            a: { kind: 'hole', bb: p.placement!.bb, hole: placed.holes[t.name]! },
+            b: { kind: 'part', part: id, terminal: t.name },
+            color: LEAD_COLORS[k % LEAD_COLORS.length],
+          });
+        });
+      }
+      p.placement = null;
+    }
+    p.bench = { x, y, rot };
+    this.selection = { kind: 'part', id };
+    this.commit();
+  }
+
+  /**
+   * Turn the selected part by 90° about the middle of its legs. When the turned legs would leave
+   * the breadboard or land on taken holes, it shifts to the nearest holes that fit, and if no
+   * nearby spot fits it tries the next quarter turn.
+   */
   rotateSelected() {
     const s = this.selection;
     const p = s?.kind === 'part' ? this.part(s.id) : undefined;
-    if (!p?.placement) return;
-    const rot = ((p.placement.rot + 90) % 360) as Rotation;
-    if (this.canPlace(p.type, p.placement.bb, p.placement.hole, rot, p.id)) {
-      p.placement = { ...p.placement, rot };
+    if (p?.bench && !p.placement) {
+      // On the bench nothing is in the way: turn in place, the leg wires follow
+      p.bench = { ...p.bench, rot: ((p.bench.rot + 90) % 360) as Rotation };
       this.commit();
+      return;
+    }
+    const manifest = p && PARTS[p.type]?.manifest;
+    const inst = p?.placement && this.project.breadboards.find((b) => b.id === p.placement!.bb);
+    const ex = inst && breadboard(inst.type);
+    const anchor = ex && p?.placement && ex.holes.get(p.placement.hole);
+    if (!p?.placement || !manifest || !ex || !anchor) return;
+    const [ox, oy] = centreOffset(manifest, p.placement.rot);
+    const centre = { x: anchor.x + ox, y: anchor.y + oy };
+    for (const step of [90, 180, 270]) {
+      const rot = ((p.placement.rot + step) % 360) as Rotation;
+      const [dx, dy] = centreOffset(manifest, rot);
+      let best: { hole: string; d: number } | null = null;
+      for (const h of ex.holes.values()) {
+        const d = Math.hypot(h.x + dx - centre.x, h.y + dy - centre.y);
+        if (d <= 3 && (!best || d < best.d) && this.canPlace(p.type, p.placement.bb, h.name, rot, p.id)) best = { hole: h.name, d };
+      }
+      if (best) {
+        p.placement = { ...p.placement, hole: best.hole, rot };
+        this.commit();
+        return;
+      }
     }
   }
 
-  setProp(id: string, key: string, value: number | string | boolean) {
+  /** `slide`: one of many updates while a slider is dragged, undone as a single step. */
+  setProp(id: string, key: string, value: number | string | boolean, slide = false) {
     const p = this.part(id);
     if (!p) return;
     p.props = { ...(p.props ?? {}), [key]: value };
-    this.commit();
+    this.commit(slide ? `slide:${id}:${key}` : undefined);
+  }
+
+  /** Flip a boolean prop, or step an enum prop to its next option (a slide switch's lever). */
+  toggleProp(id: string, key: string) {
+    const p = this.part(id);
+    const schema = p && PARTS[p.type]?.manifest.props[key];
+    if (!p || !schema) return;
+    const now = p.props?.[key] ?? schema.default;
+    if (schema.type === 'boolean') this.setProp(id, key, !now);
+    else if (schema.type === 'enum') this.setProp(id, key, schema.options[(schema.options.indexOf(String(now)) + 1) % schema.options.length]!);
   }
 
   addWire(a: Endpoint, b: Endpoint) {
@@ -249,7 +400,11 @@ class Lab {
   deleteSelected() {
     const s = this.selection;
     if (!s) return;
-    if (s.kind === 'part') this.project.parts = this.project.parts.filter((p) => p.id !== s.id);
+    if (s.kind === 'part') {
+      this.project.parts = this.project.parts.filter((p) => p.id !== s.id);
+      // Wires to its legs would hang in the air
+      this.project.wires = this.project.wires.filter((w) => !onPart(w, s.id));
+    }
     else this.project.wires = this.project.wires.filter((w) => w.id !== s.id);
     this.selection = null;
     this.commit();
@@ -288,6 +443,10 @@ class Lab {
     this.passed = ws?.passed ?? [];
     this.build = { status: 'idle', log: '', ms: 0, errors: [] };
     this.send({ type: 'lesson', lessonId: this.lessonId });
+    // Another workspace: its own, empty history
+    this.past = [];
+    this.future = [];
+    this.current = '';
     this.commit();
   }
 
@@ -498,3 +657,16 @@ function migrateOldStorage() {
 }
 
 export const lab = new Lab();
+
+/** Middle of a part's legs relative to its first leg, in pitches, after turning it by `rot`. */
+function centreOffset(manifest: PartManifest, rot: Rotation): [number, number] {
+  const first = manifest.terminals[0]!;
+  let x = 0;
+  let y = 0;
+  for (const t of manifest.terminals) {
+    const [dx, dy] = rotate(t.dx - first.dx, t.dy - first.dy, rot);
+    x += dx;
+    y += dy;
+  }
+  return [x / manifest.terminals.length, y / manifest.terminals.length];
+}

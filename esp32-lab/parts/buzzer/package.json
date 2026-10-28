@@ -1,0 +1,7 @@
+{
+  "name": "@esp32lab-parts/buzzer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.ts"
+}

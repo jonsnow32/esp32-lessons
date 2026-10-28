@@ -1,0 +1,43 @@
+{
+  "id": "buzzer",
+  "version": "0.1.0",
+  "name": "Còi chủ động (active buzzer)",
+  "category": "output",
+  "tags": [
+    "through-hole",
+    "sound"
+  ],
+  "terminals": [
+    {
+      "name": "plus",
+      "dx": 0,
+      "dy": 0,
+      "label": "+ (chân dài)"
+    },
+    {
+      "name": "minus",
+      "dx": 0,
+      "dy": 3,
+      "label": "−"
+    }
+  ],
+  "props": {},
+  "ratings": {
+    "currentMax": 0.04,
+    "overstressTime": 2000000000
+  },
+  "learn": {
+    "summary": "Còi chủ động có sẵn mạch dao động bên trong: chỉ cần cấp điện đúng chiều là kêu \"bíp\", ngắt điện là im. Có cực tính: chân dài (+, có dấu + trên vỏ) phải ở phía điện áp cao.",
+    "howToPlug": [
+      "Cắm vắt ngang rãnh giữa breadboard (chân + ở hàng e, chân − ở hàng f) giống nút nhấn: thân còi nằm trên rãnh, các lỗ a–d và g–j của hai cột vẫn trống để nối dây.",
+      "Chân + nối vào chân GPIO, chân − nối GND. digitalWrite(chân, HIGH) để kêu, LOW để tắt.",
+      "Còi 5 V vẫn kêu ở 3,3 V nhưng nhỏ hơn, và kéo khoảng 15–20 mA từ chân GPIO.",
+      "Muốn kêu to hoặc dùng còi lớn, điều khiển qua transistor NPN thay vì nối thẳng GPIO."
+    ],
+    "tips": [
+      "Hai chân cách nhau 7,6 mm = 3 lỗ. Đừng cắm cả hai chân vào cùng một cột a–e: chúng sẽ bị nối tắt qua thanh kim loại bên dưới.",
+      "Phân biệt: còi chủ động có mặt dưới bịt kín nhựa đen; còi thụ động lộ mạch xanh và cần tín hiệu PWM (tone()) mới kêu.",
+      "Cắm ngược cực thì còi im lặng."
+    ]
+  }
+}

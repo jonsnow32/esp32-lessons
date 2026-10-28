@@ -141,6 +141,14 @@ export interface PartModule<P extends PartProps = PartProps> {
    * prefix ids with the part id to avoid clashes, e.g. "led-lens-red".
    */
   defs?: string;
+  /** Library icon frame (SVG viewBox in pitch units) around the unrotated view. */
+  icon?: string;
+  /**
+   * Clickable spot on the part (pitch units, unrotated). `press` sends press/release while held
+   * (a push button); `toggle` flips a boolean prop or steps an enum prop to its next option (a
+   * slide switch). Props survive circuit rebuilds, events do not, hence the two kinds.
+   */
+  control?: { cx: number; cy: number; r: number } & ({ kind: 'press' } | { kind: 'toggle'; prop: string });
 }
 
 /** Fill in defaults from the manifest for any prop the project did not set. */
@@ -170,6 +178,48 @@ export function pnjlim(vNew: number, vOld: number, nVt: number, vCrit: number): 
     return nVt * Math.log(vNew / nVt);
   }
   return vNew;
+}
+
+const G_MIN = 1e-12; // keeps the matrix regular when a junction is off
+
+/**
+ * Shockley diode for diodes and LEDs: I = Is·(exp(v / nVt) − 1), stamped as a Newton companion
+ * model with pnjlim step limiting. Keep one instance per junction: it remembers the last iterate.
+ */
+export class Junction {
+  readonly nVt: number;
+  private readonly vCrit: number;
+  private vLast = 0;
+
+  constructor(
+    readonly is: number,
+    n: number,
+  ) {
+    this.nVt = n * VT;
+    this.vCrit = this.nVt * Math.log(this.nVt / (Math.SQRT2 * is));
+  }
+
+  /** The junction that carries `i` amperes at forward voltage `v` (datasheet point). */
+  static fit(v: number, i: number, n: number): Junction {
+    return new Junction(i / Math.exp(v / (n * VT)), n);
+  }
+
+  current(vd: number): number {
+    return this.is * (Math.exp(vd / this.nVt) - 1);
+  }
+
+  stamp(ctx: NonlinearContext, anode: string, cathode: string): void {
+    const vRaw = ctx.v(anode) - ctx.v(cathode);
+    const vd = pnjlim(vRaw, this.vLast, this.nVt, this.vCrit);
+    if (vd !== vRaw) ctx.limited();
+    this.vLast = vd;
+    const e = Math.exp(vd / this.nVt);
+    const i = this.is * (e - 1);
+    const g = (this.is * e) / this.nVt;
+    // Companion model: I(v) ≈ g·v + (i − g·vd)
+    ctx.conductance(anode, cathode, g + G_MIN);
+    ctx.current(anode, cathode, i - g * vd);
+  }
 }
 
 /** Tracks time spent above a rating; reports when the part should be marked damaged. */
