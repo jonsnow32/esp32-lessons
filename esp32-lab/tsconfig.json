@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@esp32lab/*": ["packages/*/src/index.ts"],
+      "@esp32lab-parts/*": ["parts/*/index.ts"]
+    }
+  },
+  "include": ["packages", "parts", "boards", "breadboards", "lessons"]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "pushbutton",
+  "version": "0.1.0",
+  "name": "Tactile push button 6×6 mm",
+  "category": "input",
+  "tags": ["through-hole", "switch"],
+  "terminals": [
+    { "name": "a1", "dx": 0, "dy": 0 },
+    { "name": "b1", "dx": 2, "dy": 0 },
+    { "name": "a2", "dx": 0, "dy": 3 },
+    { "name": "b2", "dx": 2, "dy": 3 }
+  ],
+  "internalShorts": [["a1", "a2"], ["b1", "b2"]],
+  "props": {
+    "bounce": { "type": "boolean", "default": true }
+  }
+}

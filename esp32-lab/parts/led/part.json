@@ -1,0 +1,20 @@
+{
+  "id": "led",
+  "version": "0.1.0",
+  "name": "LED 5 mm",
+  "category": "output",
+  "tags": ["through-hole", "diode"],
+  "terminals": [
+    { "name": "anode", "dx": 0, "dy": 0, "label": "+ (long leg)" },
+    { "name": "cathode", "dx": 1, "dy": 0, "label": "− (flat side)" }
+  ],
+  "props": {
+    "color": { "type": "enum", "default": "red", "options": ["red", "yellow", "green", "blue", "white"] }
+  },
+  "ratings": {
+    "currentMax": 0.03,
+    "currentAbsMax": 0.1,
+    "reverseVoltageMax": 5,
+    "overstressTime": 50000000
+  }
+}

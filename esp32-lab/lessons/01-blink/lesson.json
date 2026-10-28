@@ -1,0 +1,108 @@
+{
+  "id": "01-blink",
+  "title": "Hello ESP32 \u2013 Blink & Serial",
+  "source": "lession/01-hello-esp32/README.md",
+  "firmware": {
+    "kind": "pio-env",
+    "env": "lesson01"
+  },
+  "template": {
+    "schemaVersion": 1,
+    "name": "01-blink",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 0,
+      "y": 0
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 14,
+        "y": 0
+      }
+    ],
+    "parts": [],
+    "wires": [],
+    "firmware": {
+      "kind": "pio-env",
+      "env": "lesson01"
+    },
+    "lessonId": "01-blink",
+    "seed": 1
+  },
+  "steps": [
+    {
+      "id": "boot",
+      "title": "Upload and open the Serial Monitor",
+      "checks": [
+        {
+          "kind": "serialMatches",
+          "pattern": "=== Hello ESP32! ==="
+        }
+      ],
+      "hint": "The banner is printed once in setup(), one second after reset."
+    },
+    {
+      "id": "blink",
+      "title": "The onboard LED on GPIO2 lights up",
+      "checks": [
+        {
+          "kind": "observable",
+          "part": "board.led",
+          "key": "brightness",
+          "op": ">",
+          "value": 0
+        },
+        {
+          "kind": "serialMatches",
+          "pattern": "\\[0\\] LED ON"
+        }
+      ],
+      "hint": "digitalWrite(LED_PIN, HIGH) drives GPIO2 to 3.3 V; the board's 1 k\u03a9 resistor limits the current."
+    }
+  ],
+  "exercises": [
+    {
+      "id": "external-led",
+      "title": "Wire an external LED to D18 through a 220 \u03a9 resistor",
+      "firmware": {
+        "kind": "pio-env",
+        "env": "lesson01"
+      },
+      "checks": [
+        {
+          "kind": "series",
+          "from": {
+            "pad": "GPIO18"
+          },
+          "through": [
+            {
+              "type": "resistor"
+            },
+            {
+              "type": "led",
+              "enter": "anode",
+              "exit": "cathode"
+            }
+          ],
+          "to": {
+            "net": "GND"
+          },
+          "order": "any"
+        },
+        {
+          "kind": "noShort",
+          "nets": [
+            "3V3",
+            "5V"
+          ]
+        },
+        {
+          "kind": "notDamaged"
+        }
+      ],
+      "hint": "Change LED_PIN to 18. Long leg (anode) towards the GPIO, flat side (cathode) towards GND."
+    }
+  ]
+}

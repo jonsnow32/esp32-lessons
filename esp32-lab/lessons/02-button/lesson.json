@@ -1,0 +1,108 @@
+{
+  "id": "02-button",
+  "title": "Button (Digital Input)",
+  "source": "lession/02-button/README.md",
+  "firmware": {
+    "kind": "pio-env",
+    "env": "lesson02"
+  },
+  "template": {
+    "schemaVersion": 1,
+    "name": "02-button",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 0,
+      "y": 0
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 14,
+        "y": 0
+      }
+    ],
+    "parts": [],
+    "wires": [],
+    "firmware": {
+      "kind": "pio-env",
+      "env": "lesson02"
+    },
+    "lessonId": "02-button",
+    "seed": 1
+  },
+  "steps": [
+    {
+      "id": "wiring",
+      "title": "BOOT pulls GPIO0 to GND",
+      "checks": [
+        {
+          "kind": "series",
+          "from": {
+            "pad": "GPIO0"
+          },
+          "through": [
+            {
+              "type": "pushbutton"
+            }
+          ],
+          "to": {
+            "net": "GND"
+          }
+        }
+      ],
+      "hint": "On the DevKit the BOOT button is already wired between GPIO0 and GND, with a 10 k\u03a9 pull-up."
+    },
+    {
+      "id": "press",
+      "title": "Press BOOT: the LED toggles once per press",
+      "checks": [
+        {
+          "kind": "serialMatches",
+          "pattern": "Press #1 -> LED ON"
+        }
+      ],
+      "hint": "Set DEBOUNCE_MS to 0 and press a few times: contact bounce gives you several counts per press."
+    }
+  ],
+  "exercises": [
+    {
+      "id": "external-button",
+      "title": "Add your own button on D18 using INPUT_PULLUP",
+      "checks": [
+        {
+          "kind": "series",
+          "from": {
+            "pad": "GPIO18"
+          },
+          "through": [
+            {
+              "type": "pushbutton"
+            }
+          ],
+          "to": {
+            "net": "GND"
+          }
+        },
+        {
+          "kind": "avoidPads",
+          "pads": [
+            "GPIO34",
+            "GPIO35",
+            "GPIO36",
+            "GPIO39"
+          ],
+          "reason": "input-only pins have no internal pull-up"
+        },
+        {
+          "kind": "noShort",
+          "nets": [
+            "3V3",
+            "5V"
+          ]
+        }
+      ],
+      "hint": "Put the button across the middle gap; one leg to D18, the other leg's column to the blue (\u2212) rail, and the rail to GND."
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "id": "half-400",
+  "name": "Half+ breadboard, 400 holes",
+  "columns": 30,
+  "blocks": [
+    {
+      "rows": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e"
+      ],
+      "y0": 0
+    },
+    {
+      "rows": [
+        "f",
+        "g",
+        "h",
+        "i",
+        "j"
+      ],
+      "y0": 7
+    }
+  ],
+  "rails": [
+    {
+      "id": "tp",
+      "polarity": "+",
+      "y": -4,
+      "x0": 2,
+      "groups": 5,
+      "groupSize": 5,
+      "groupGap": 1
+    },
+    {
+      "id": "tn",
+      "polarity": "-",
+      "y": -3,
+      "x0": 2,
+      "groups": 5,
+      "groupSize": 5,
+      "groupGap": 1
+    },
+    {
+      "id": "bp",
+      "polarity": "+",
+      "y": 13,
+      "x0": 2,
+      "groups": 5,
+      "groupSize": 5,
+      "groupGap": 1
+    },
+    {
+      "id": "bn",
+      "polarity": "-",
+      "y": 14,
+      "x0": 2,
+      "groups": 5,
+      "groupSize": 5,
+      "groupGap": 1
+    }
+  ]
+}

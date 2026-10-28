@@ -1,0 +1,269 @@
+{
+  "mcu": "esp32",
+  "pads": {
+    "GPIO0": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": true,
+      "adc": "ADC2_CH1",
+      "adcBlockedByWifi": true,
+      "touch": "T1",
+      "note": "Strapping: LOW at reset enters download mode (BOOT button)"
+    },
+    "GPIO1": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false,
+      "note": "UART0 TX \u2013 used by USB Serial"
+    },
+    "GPIO2": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": true,
+      "adc": "ADC2_CH2",
+      "adcBlockedByWifi": true,
+      "touch": "T2",
+      "note": "Strapping: must be LOW/floating to enter download mode; onboard LED"
+    },
+    "GPIO3": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false,
+      "note": "UART0 RX \u2013 used by USB Serial"
+    },
+    "GPIO4": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC2_CH0",
+      "adcBlockedByWifi": true,
+      "touch": "T0"
+    },
+    "GPIO5": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": true,
+      "note": "Strapping: SDIO timing, outputs PWM at boot"
+    },
+    "GPIO6": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": true,
+      "strapping": false,
+      "note": "Wired to the SPI flash \u2013 never use"
+    },
+    "GPIO7": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": true,
+      "strapping": false,
+      "note": "Wired to the SPI flash \u2013 never use"
+    },
+    "GPIO8": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": true,
+      "strapping": false,
+      "note": "Wired to the SPI flash \u2013 never use"
+    },
+    "GPIO9": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": true,
+      "strapping": false,
+      "note": "Wired to the SPI flash \u2013 never use"
+    },
+    "GPIO10": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": true,
+      "strapping": false,
+      "note": "Wired to the SPI flash \u2013 never use"
+    },
+    "GPIO11": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": true,
+      "strapping": false,
+      "note": "Wired to the SPI flash \u2013 never use"
+    },
+    "GPIO12": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": true,
+      "adc": "ADC2_CH5",
+      "adcBlockedByWifi": true,
+      "touch": "T5",
+      "note": "Strapping (MTDI): HIGH at reset selects 1.8 V flash \u2013 board will not boot"
+    },
+    "GPIO13": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC2_CH4",
+      "adcBlockedByWifi": true,
+      "touch": "T4"
+    },
+    "GPIO14": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC2_CH6",
+      "adcBlockedByWifi": true,
+      "touch": "T6"
+    },
+    "GPIO15": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": true,
+      "adc": "ADC2_CH3",
+      "adcBlockedByWifi": true,
+      "touch": "T3",
+      "note": "Strapping (MTDO): LOW silences boot log"
+    },
+    "GPIO16": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false
+    },
+    "GPIO17": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false
+    },
+    "GPIO18": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false
+    },
+    "GPIO19": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false
+    },
+    "GPIO21": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false
+    },
+    "GPIO22": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false
+    },
+    "GPIO23": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false
+    },
+    "GPIO25": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC2_CH8",
+      "adcBlockedByWifi": true,
+      "dac": "DAC1"
+    },
+    "GPIO26": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC2_CH9",
+      "adcBlockedByWifi": true,
+      "dac": "DAC2"
+    },
+    "GPIO27": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC2_CH7",
+      "adcBlockedByWifi": true,
+      "touch": "T7"
+    },
+    "GPIO32": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC1_CH4",
+      "touch": "T9"
+    },
+    "GPIO33": {
+      "inputOnly": false,
+      "pullResistors": true,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC1_CH5",
+      "touch": "T8"
+    },
+    "GPIO34": {
+      "inputOnly": true,
+      "pullResistors": false,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC1_CH6"
+    },
+    "GPIO35": {
+      "inputOnly": true,
+      "pullResistors": false,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC1_CH7"
+    },
+    "GPIO36": {
+      "inputOnly": true,
+      "pullResistors": false,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC1_CH0"
+    },
+    "GPIO37": {
+      "inputOnly": true,
+      "pullResistors": false,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC1_CH1"
+    },
+    "GPIO38": {
+      "inputOnly": true,
+      "pullResistors": false,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC1_CH2"
+    },
+    "GPIO39": {
+      "inputOnly": true,
+      "pullResistors": false,
+      "flash": false,
+      "strapping": false,
+      "adc": "ADC1_CH3"
+    },
+    "EN": {
+      "inputOnly": true,
+      "pullResistors": false,
+      "flash": false,
+      "strapping": false,
+      "note": "Chip enable: LOW = reset"
+    }
+  }
+}
