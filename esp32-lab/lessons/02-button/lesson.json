@@ -348,5 +348,6 @@
         "seed": 1
       }
     }
-  ]
+  ],
+  "sketch": "lession/02-button/main.cpp"
 }

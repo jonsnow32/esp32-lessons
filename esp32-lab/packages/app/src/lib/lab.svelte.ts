@@ -13,6 +13,32 @@ import { breadboard } from './geometry';
 
 const STORAGE = 'esp32lab.project';
 
+export interface BuildError {
+  line: number;
+  column: number;
+  severity: 'error' | 'warning';
+  message: string;
+}
+
+const DEFAULT_SKETCH = `// Viết code Arduino ở đây rồi bấm ▶ Build & Run
+#include <Arduino.h>
+
+const int LED_PIN = 2;
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_PIN, OUTPUT);
+  Serial.println("Xin chao ESP32!");
+}
+
+void loop() {
+  digitalWrite(LED_PIN, HIGH);
+  delay(500);
+  digitalWrite(LED_PIN, LOW);
+  delay(500);
+}
+`;
+
 export function emptyProject(): Project {
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -218,18 +244,74 @@ class Lab {
     this.env = env;
     this.serial = '';
     if (!env) return this.send({ type: 'firmware', firmware: null });
+    await this.loadFirmwareFrom(`/pio/${env}`, env);
+  }
+
+  /** Fetch a build's four files from `base` and boot them on the emulator. */
+  private async loadFirmwareFrom(base: string, env: string) {
     const get = async (f: string) => {
-      const r = await fetch(`/pio/${env}/${f}`);
+      const r = await fetch(`${base}/${f}`, { cache: 'no-store' });
       return r.ok ? new Uint8Array(await r.arrayBuffer()) : undefined;
     };
     const [elf, bin, bootloader, partitions] = await Promise.all(['firmware.elf', 'firmware.bin', 'bootloader.bin', 'partitions.bin'].map(get));
     if (!elf || !bin) {
-      this.error = `.pio/build/${env} has no firmware.elf / firmware.bin – run \`pio run -e ${env}\``;
+      this.error = `${base} has no firmware.elf / firmware.bin`;
       return;
     }
     const firmware: FirmwareFiles = { env, elf, bin, bootloader, partitions };
     this.send({ type: 'firmware', firmware });
     this.run();
+  }
+
+  // --- Code editor: build the sketch with PlatformIO and run it ----------------------------
+
+  code = $state(localStorage.getItem('esp32lab.code') ?? DEFAULT_SKETCH);
+  build = $state<{ status: 'idle' | 'building' | 'ok' | 'failed'; log: string; ms: number; errors: BuildError[] }>({
+    status: 'idle',
+    log: '',
+    ms: 0,
+    errors: [],
+  });
+
+  setCode(code: string) {
+    this.code = code;
+    localStorage.setItem('esp32lab.code', code);
+  }
+
+  async loadLessonSketch() {
+    const lesson = LESSONS.find((l) => l.id === this.lessonId);
+    if (!lesson?.sketch) return;
+    const r = await fetch(`/api/sketch?path=${encodeURIComponent(lesson.sketch)}`);
+    if (r.ok) this.setCode(await r.text());
+  }
+
+  /** Compile the editor's code, then boot it on the emulator if it built. */
+  async buildAndRun() {
+    if (this.build.status === 'building') return;
+    this.build = { status: 'building', log: '', ms: 0, errors: [] };
+    try {
+      const r = await fetch('/api/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: this.code }) });
+      if (!r.ok || !r.body) throw new Error(await r.text());
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let log = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        log += decoder.decode(value, { stream: true });
+        this.build.log = log.replace(/\n@@RESULT .*\n?$/, '');
+      }
+      const m = /@@RESULT (.*)/.exec(log);
+      const result = m ? (JSON.parse(m[1]!) as { ok: boolean; ms: number; errors: BuildError[] }) : { ok: false, ms: 0, errors: [] };
+      this.build = { status: result.ok ? 'ok' : 'failed', log: this.build.log, ms: result.ms, errors: result.errors };
+      if (result.ok) {
+        this.env = 'sketch';
+        this.serial = '';
+        await this.loadFirmwareFrom('/api/build/out', 'sketch');
+      }
+    } catch (e) {
+      this.build = { status: 'failed', log: `${this.build.log}\n${e instanceof Error ? e.message : String(e)}`, ms: 0, errors: [] };
+    }
   }
 
   run() {

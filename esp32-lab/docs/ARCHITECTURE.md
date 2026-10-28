@@ -189,6 +189,24 @@ ELF it runs, ships a template project, and lists steps/exercises with declarativ
 
 Planned: `signal` (a pad toggles with a period in a range, measured from the pad trace).
 
+## Code editor: build and run in the browser
+
+`packages/app/build-server.ts` is a Vite dev-server plugin. `POST /api/build {code}` writes
+the sketch to its own PlatformIO project (`esp32-lab/.build/sketch`, gitignored) whose `[env]`
+copies platform / board / framework / build flags from the lesson project's `platformio.ini`,
+so it compiles against exactly the same core as `pio run -e lessonNN`; the user's
+`platformio.ini` is never modified. It runs `pio run` (from `$PIO`, else
+`~/.platformio/penv/bin/pio`), streams the log, and ends with `@@RESULT {ok, ms, errors}`,
+where GCC diagnostics for `src/main.cpp` are parsed into line/column/message. Outputs are
+served from `/api/build/out/*` and booted exactly like a `.pio/build/<env>` build. One build at
+a time; about 11 s the first time, 7 s after. `GET /api/sketch?path=lession/…/main.cpp` loads
+a lesson's sketch as starting code (paths outside `lession/` are refused).
+
+The editor (`CodePanel.svelte`, CodeMirror 6 with C++ highlighting) sits under the bench in a
+resizable split, keeps the code in localStorage, marks compiler errors in the gutter and the
+text, and lists them with jump-to-line. This needs the dev server: a static `vite build` has
+no compiler behind it.
+
 ## Seeing and explaining the circuit
 
 For beginners the bench shows what the solver knows, and says it in words.

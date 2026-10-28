@@ -298,5 +298,6 @@
         "seed": 1
       }
     }
-  ]
+  ],
+  "sketch": "lession/01-hello-esp32/main.cpp"
 }

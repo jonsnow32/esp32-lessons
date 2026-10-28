@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CodePanel from './components/CodePanel.svelte';
   import ExplainPanel from './components/ExplainPanel.svelte';
   import Inspector from './components/Inspector.svelte';
   import LessonPanel from './components/LessonPanel.svelte';
@@ -8,6 +9,21 @@
   import { lab } from './lib/lab.svelte';
 
   let dragType = $state<string | null>(null);
+  /** Code editor below the bench: share of the centre column, 0 = collapsed. */
+  let codeShare = $state(Number(localStorage.getItem('esp32lab.codeShare') ?? 0.4));
+  $effect(() => localStorage.setItem('esp32lab.codeShare', String(codeShare)));
+
+  function startResize(e: PointerEvent) {
+    const column = (e.currentTarget as HTMLElement).parentElement!;
+    const rect = column.getBoundingClientRect();
+    const move = (ev: PointerEvent) => (codeShare = Math.min(0.8, Math.max(0.12, (rect.bottom - ev.clientY) / rect.height)));
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  }
   const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 5, 10];
   let damaged = $derived(lab.diagnostics.filter((d) => d.severity === 'error'));
 </script>
@@ -17,8 +33,9 @@
 <header>
   <h1>ESP32 Lab</h1>
   <label>Firmware
-    <select value={lab.env ?? ''} onchange={(e) => lab.loadFirmware(e.currentTarget.value || null)}>
+    <select value={lab.env ?? ''} onchange={(e) => (e.currentTarget.value === 'sketch' ? lab.buildAndRun() : lab.loadFirmware(e.currentTarget.value || null))}>
       <option value="">— không nạp —</option>
+      {#if lab.env === 'sketch'}<option value="sketch">Code của bạn (main.cpp)</option>{/if}
       {#each lab.envs as env}<option value={env}>.pio/build/{env}</option>{/each}
     </select>
   </label>
@@ -44,7 +61,15 @@
 
 <main>
   <aside class="left"><Library bind:dragType /></aside>
-  <div class="center"><Workbench bind:dragType /></div>
+  <div class="center">
+    <div class="bench" style="flex: {codeShare > 0 ? 1 - codeShare : 1}"><Workbench bind:dragType /></div>
+    {#if codeShare > 0}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="splitter" onpointerdown={startResize} title="Kéo để đổi kích thước"></div>
+      <div class="code" style="flex: {codeShare}"><CodePanel /></div>
+    {/if}
+    <button class="code-toggle" onclick={() => (codeShare = codeShare > 0 ? 0 : 0.4)}>{codeShare > 0 ? '▾ Ẩn code' : '▴ Code'}</button>
+  </div>
   <aside class="right">
     <Inspector />
     <ExplainPanel />
@@ -65,7 +90,11 @@
   aside { background: #fcfcfb; overflow: auto; }
   .left { border-right: 1px solid #e4e2dd; }
   .right { border-left: 1px solid #e4e2dd; display: flex; flex-direction: column; }
-  .center { min-width: 0; min-height: 0; }
+  .center { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+  .bench, .code { min-height: 0; }
+  .splitter { flex: 0 0 6px; cursor: row-resize; background: #ece9e2; touch-action: none; }
+  .splitter:hover { background: #f5a524; }
+  .code-toggle { position: absolute; right: 12px; top: 10px; z-index: 2; font-size: 12px; box-shadow: 0 1px 3px #0002; }
   .primary { background: #f76b15; color: #fff; border-color: #f76b15; }
   header { flex-wrap: wrap; }
   /* Tablets and phones: workbench on top, panels below, parts library as a strip */

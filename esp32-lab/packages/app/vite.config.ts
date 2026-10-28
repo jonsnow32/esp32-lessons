@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+import { sketchBuilds } from './build-server';
 
 const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 /** PlatformIO build outputs of the lesson project this lab lives in. */
@@ -39,7 +40,7 @@ const alias = [
 ];
 
 export default defineConfig({
-  plugins: [svelte(), platformioBuilds()],
+  plugins: [svelte(), platformioBuilds(), sketchBuilds({ workDir: r('../../.build'), projectRoot: r('../../..') })],
   resolve: { alias },
   worker: { format: 'es' },
   server: { fs: { allow: [r('../..')] } },

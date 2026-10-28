@@ -46,6 +46,8 @@ export interface Lesson {
   /** Lesson text in the PlatformIO course, relative to the repository root. */
   source: string;
   firmware: Project['firmware'];
+  /** The lesson's Arduino sketch, relative to the repository root (starting code for the editor). */
+  sketch?: string;
   template: Project;
   steps: LessonStep[];
   /** An exercise may bring its own starting circuit (and firmware env). */

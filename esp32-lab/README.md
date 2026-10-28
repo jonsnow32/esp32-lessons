@@ -10,6 +10,8 @@ Virtual ESP32 workbench: plug parts into a breadboard, wire them to a board and 
 # The workbench in the browser (build the emulator once, and the lessons with `pio run`)
 ./scripts/build-wasm.sh            # needs rustup's wasm32-unknown-unknown target
 pnpm -C packages/app dev           # http://localhost:5173
+# In the app: ▴ Code opens the editor; ▶ Build & Run (Ctrl/⌘+Enter) compiles main.cpp with
+# PlatformIO on this machine (~7–11 s) and runs it on the emulated board
 
 pnpm install
 pnpm test        # netlist, circuit solver, parts, lesson checks

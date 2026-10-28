@@ -27,6 +27,7 @@
   ],
   "exclude": [
     "**/node_modules",
-    "packages/app/vite.config.ts"
+    "packages/app/vite.config.ts",
+    "packages/app/build-server.ts"
   ]
 }
