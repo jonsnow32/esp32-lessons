@@ -492,7 +492,12 @@
           <!-- svelte-ignore a11y_no_static_element_interactions -->
           <g class="wire" class:selected={lab.selection?.kind === 'wire' && lab.selection.id === w.id}
             onpointerenter={() => (hoverWire = w.id)} onpointerleave={() => (hoverWire = null)}
-            onpointerdown={(e) => { e.stopPropagation(); hoverWire = w.id; lab.selection = { kind: 'wire', id: w.id }; }}>
+            onpointerdown={(e) => {
+              hoverWire = w.id;
+              lab.selection = { kind: 'wire', id: w.id };
+              // On a hole / pin under the wire's end: let the svg start another wire from it
+              if (!endpointAt(lab.project, toWorld(e.clientX, e.clientY))) e.stopPropagation();
+            }}>
             <!-- Wide transparent stroke: easy to tap -->
             <path d={wirePath(a, z)} stroke="transparent" stroke-width="1" fill="none" />
             <path d={wirePath(a, z)} stroke="#00000045" stroke-width="0.44" fill="none" stroke-linecap="round" transform="translate(0.06,0.1)" />
