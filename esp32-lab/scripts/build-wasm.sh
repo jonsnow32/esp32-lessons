@@ -9,7 +9,9 @@ if [ -x "$TOOLCHAIN/cargo" ]; then
   PATH="$TOOLCHAIN:$PATH"
 fi
 cargo build --release --target wasm32-unknown-unknown -p esp32-wasm \
-  --config 'profile.release.debug=false' --config 'profile.release.strip=true'
+  --config 'profile.release.debug=false' --config 'profile.release.strip=true' \
+  --config 'profile.release.lto=true' --config 'profile.release.codegen-units=1' \
+  --config 'profile.release.panic="abort"'
 mkdir -p packages/mcu-esp32/wasm
 cp target/wasm32-unknown-unknown/release/esp32_wasm.wasm packages/mcu-esp32/wasm/esp32.wasm
 ls -la packages/mcu-esp32/wasm/esp32.wasm

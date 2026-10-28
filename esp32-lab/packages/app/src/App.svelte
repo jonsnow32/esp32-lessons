@@ -65,4 +65,14 @@
   .right { border-left: 1px solid #e4e2dd; display: flex; flex-direction: column; }
   .center { min-width: 0; min-height: 0; }
   .primary { background: #f76b15; color: #fff; border-color: #f76b15; }
+  header { flex-wrap: wrap; }
+  /* Tablets and phones: workbench on top, panels below, parts library as a strip */
+  @media (max-width: 1100px) {
+    main { grid-template-columns: 1fr; grid-template-rows: auto 62vh auto; height: auto; }
+    .left { border-right: none; border-bottom: 1px solid #e4e2dd; }
+    .left :global(section) { display: flex; gap: 8px; overflow-x: auto; align-items: center; }
+    .left :global(h2), .left :global(.hint), .left :global(.keys), .left :global(.static) { display: none; }
+    .left :global(.item) { flex: 0 0 auto; margin: 0; }
+    .right { border-left: none; }
+  }
 </style>

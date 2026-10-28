@@ -65,13 +65,35 @@ function create(props: PushbuttonProps, env: PartEnv): PartBehavior {
   };
 }
 
+const defs = `
+  <linearGradient id="btn-frame" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#e9ecef"/><stop offset="0.5" stop-color="#aab1b9"/><stop offset="1" stop-color="#7d848c"/>
+  </linearGradient>
+  <radialGradient id="btn-cap" cx="40%" cy="35%" r="70%">
+    <stop offset="0" stop-color="#5d6168"/><stop offset="0.7" stop-color="#2a2c30"/><stop offset="1" stop-color="#151618"/>
+  </radialGradient>
+  <radialGradient id="btn-cap-down" cx="50%" cy="55%" r="70%">
+    <stop offset="0" stop-color="#303236"/><stop offset="1" stop-color="#0d0e10"/>
+  </radialGradient>`;
+
+/**
+ * 6 × 6 mm tactile switch straddling the breadboard gap: metal frame, black body and round
+ * cap. The legs a1/a2 (left) and b1/b2 (right) bend down into the holes.
+ */
 function view(_props: PushbuttonProps, obs: Record<string, unknown>): string {
   const pressed = obs.pressed === true;
+  const legs = [0, 2]
+    .map((x) => [0, 3].map((y) => `<path d="M${x},${y} V${y === 0 ? 0.35 : 2.65}" stroke="#a7adb4" stroke-width="0.2" stroke-linecap="square"/><circle cx="${x}" cy="${y}" r="0.13" fill="#5f646b"/>`).join(''))
+    .join('');
   return `
-    <rect x="-0.3" y="-0.3" width="2.6" height="3.6" rx="0.2" fill="#2b2d31" stroke="#111" stroke-width="0.05"/>
-    ${[0, 2].map((x) => [0, 3].map((y) => `<circle cx="${x}" cy="${y}" r="0.12" fill="#c8c8c8"/>`).join('')).join('')}
-    <circle cx="1" cy="1.5" r="${pressed ? 0.75 : 0.85}" fill="${pressed ? '#5b5f66' : '#80858d'}" stroke="#1a1a1a" stroke-width="0.06"/>`;
+    ${legs}
+    <rect x="-0.25" y="0.3" width="2.5" height="2.4" rx="0.12" fill="#1f2023"/>
+    <rect x="-0.15" y="0.4" width="2.3" height="2.2" rx="0.1" fill="url(#btn-frame)"/>
+    ${[0.1, 1.9].map((x) => [0.65, 2.35].map((y) => `<circle cx="${x}" cy="${y}" r="0.08" fill="#5c6168"/>`).join('')).join('')}
+    <circle cx="1" cy="1.5" r="0.82" fill="#1b1c1f"/>
+    <circle cx="1" cy="${pressed ? 1.53 : 1.5}" r="${pressed ? 0.68 : 0.74}" fill="url(#${pressed ? 'btn-cap-down' : 'btn-cap'})"/>
+    ${pressed ? '' : '<path d="M0.55,1.2 A0.55,0.55 0 0 1 1.05,0.9" fill="none" stroke="#fff" stroke-opacity="0.25" stroke-width="0.07" stroke-linecap="round"/>'}`;
 }
 
-export const pushbutton: PartModule<PushbuttonProps> = { manifest: manifest as unknown as PartModule['manifest'], create, view };
+export const pushbutton: PartModule<PushbuttonProps> = { manifest: manifest as unknown as PartModule['manifest'], create, view, defs };
 export default pushbutton;

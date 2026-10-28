@@ -82,23 +82,51 @@ function publish(rate: number): void {
   });
 }
 
-// Pacing: every tick, advance by the wall time that passed × speed, in 1 ms slices, but never
-// spend more than ~12 ms of wall time per tick so the worker stays responsive.
-const TICK_MS = 16;
+// Pacing: virtual time follows wall-clock time × speed. The loop runs in ~8 ms bursts and yields
+// through a MessageChannel (not setTimeout, which is clamped), so UI messages are handled
+// between bursts while the emulator gets almost all of the worker's time. When the emulator
+// can't keep up, the lag is capped instead of accumulating.
+const BURST_MS = 8;
+const PUBLISH_MS = 33;
+const MAX_LAG = 100 * MS;
+let simTarget = 0;
 let lastWall = performance.now();
-setInterval(() => {
+let lastPublish = 0;
+let rateWindow = { wall: performance.now(), sim: 0 };
+let rate = 0;
+const loop = new MessageChannel();
+loop.port1.onmessage = tick;
+function schedule(): void {
+  loop.port2.postMessage(null);
+}
+
+function tick(): void {
   const wall = performance.now();
   const elapsed = wall - lastWall;
   lastWall = wall;
-  if (!running || !kernel) return;
-  const startSim = kernel.now;
-  const target = kernel.now + Math.min(elapsed, 100) * MS * speed;
-  const deadline = performance.now() + 12;
-  while (kernel.now < target && performance.now() < deadline) {
-    kernel.advanceTo(Math.min(target, kernel.now + 1 * MS));
+  if (!running || !kernel) {
+    setTimeout(tick, 50);
+    return;
   }
-  publish(((kernel.now - startSim) / S) / (elapsed / 1000));
-}, TICK_MS);
+  simTarget = Math.min(simTarget + elapsed * MS * speed, kernel.now + MAX_LAG);
+  simTarget = Math.max(simTarget, kernel.now);
+  const deadline = wall + BURST_MS;
+  while (kernel.now < simTarget && performance.now() < deadline) {
+    kernel.advanceTo(Math.min(simTarget, kernel.now + 1 * MS));
+  }
+  if (wall - rateWindow.wall > 500) {
+    rate = (kernel.now - rateWindow.sim) / S / ((wall - rateWindow.wall) / 1000);
+    rateWindow = { wall, sim: kernel.now };
+  }
+  if (wall - lastPublish > PUBLISH_MS) {
+    publish(rate);
+    lastPublish = wall;
+  }
+  // Ahead of the clock (fast-forwarded idle time): wait instead of spinning
+  if (kernel.now >= simTarget) setTimeout(tick, 4);
+  else schedule();
+}
+setTimeout(tick, 50);
 
 self.onmessage = async (ev: MessageEvent<ToWorker>) => {
   const m = ev.data;
@@ -122,6 +150,8 @@ self.onmessage = async (ev: MessageEvent<ToWorker>) => {
       case 'run':
         running = true;
         lastWall = performance.now();
+        simTarget = kernel?.now ?? 0;
+        rateWindow = { wall: performance.now(), sim: kernel?.now ?? 0 };
         break;
       case 'pause':
         running = false;

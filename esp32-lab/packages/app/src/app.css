@@ -4,3 +4,8 @@ button, select, input { font: inherit; font-size: 13px; padding: 4px 10px; borde
 button { cursor: pointer; }
 button:hover { background: #f4f4f5; }
 code { font-size: 11px; }
+
+/* Fingers need bigger targets */
+@media (pointer: coarse) {
+  button, select, input { min-height: 40px; font-size: 15px; padding: 6px 12px; }
+}

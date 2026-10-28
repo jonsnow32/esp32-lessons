@@ -130,6 +130,11 @@ export interface PartModule<P extends PartProps = PartProps> {
   manifest: PartManifest;
   create(props: P, env: PartEnv): PartBehavior;
   view?: PartView<P>;
+  /**
+   * SVG <defs> content (gradients, filters) the view references. Inserted once per workbench;
+   * prefix ids with the part id to avoid clashes, e.g. "led-lens-red".
+   */
+  defs?: string;
 }
 
 /** Fill in defaults from the manifest for any prop the project did not set. */

@@ -23,7 +23,7 @@
 
 <section>
   <h2>Linh kiện</h2>
-  <p class="hint">Kéo thả vào breadboard. Kéo từ một lỗ tới lỗ khác để nối dây.</p>
+  <p class="hint">Kéo thả vào breadboard. Kéo từ một lỗ tới lỗ khác để nối dây. Hai ngón tay: phóng to, di chuyển.</p>
   {#each Object.entries(PARTS) as [type, m] (type)}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="item" onpointerdown={(e) => { e.preventDefault(); dragType = type; }}>
@@ -39,7 +39,7 @@
   <h2>Breadboard</h2>
   <div class="item static"><div class="name">Half+ 400 lỗ</div></div>
   <div class="keys">
-    <b>Phím tắt</b><br />R: xoay · Del: xoá · Esc: huỷ<br />Rê chuột lên lỗ: xem các điểm cùng mạch
+    <b>Thao tác</b><br />R: xoay · Del: xoá · Esc: huỷ · +/− / 0: zoom<br />Kéo chỗ trống: di chuyển bàn<br />Rê chuột hoặc chạm vào lỗ: xem các điểm cùng mạch
   </div>
 </section>
 
@@ -48,7 +48,7 @@
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #6f6e77; margin: 14px 0 6px; }
   .hint, .keys { font-size: 12px; color: #6f6e77; }
   .keys { margin-top: 18px; line-height: 1.6; }
-  .item { display: flex; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid #e4e2dd; border-radius: 8px; margin-bottom: 6px; background: #fff; cursor: grab; }
+  .item { touch-action: none; -webkit-user-select: none; user-select: none; display: flex; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid #e4e2dd; border-radius: 8px; margin-bottom: 6px; background: #fff; cursor: grab; }
   .item.static { cursor: default; color: #555; }
   .name { font-size: 13px; font-weight: 600; }
   .meta { font-size: 11px; color: #8b8d98; }

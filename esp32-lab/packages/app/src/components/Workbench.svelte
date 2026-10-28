@@ -1,95 +1,232 @@
 <script lang="ts">
-  // The workbench: breadboards, the board and parts drawn in pitch units. Drag from the
-  // library to place, drag a part to move it, drag from a hole/pin to another to wire.
+  // The workbench, in breadboard-pitch units.
+  //
+  // One pointer (mouse, pen or finger):
+  //   on a part      → move it            on a hole / pin → draw a wire
+  //   on empty space → pan                tap             → select
+  // Two fingers pinch to zoom and pan; the mouse wheel / trackpad pinch zooms at the cursor.
+  // While a finger drags a part or wire, a loupe above the finger shows what is underneath.
+  //
+  // Drags are tracked on the window, not on the element where they started: on touch screens
+  // the browser keeps sending a finger's events to its first target, so a drag from the parts
+  // library would otherwise never reach the workbench.
 
   import type { Endpoint, Rotation } from '@esp32lab/project-model';
   import { ESP32_PADS } from '@esp32lab/mcu-esp32';
-  import { endpointKey, keyOf } from '@esp32lab/sim-core';
   import { PARTS } from '../lib/catalog';
   import { board, breadboard, endpointAt, endpointPos, holePos, sameEndpoint, type Pt } from '../lib/geometry';
   import { lab } from '../lib/lab.svelte';
+  import BoardView from './BoardView.svelte';
+  import BreadboardView from './BreadboardView.svelte';
 
   let { dragType = $bindable<string | null>(null) } = $props();
 
   let svg: SVGSVGElement;
+  let view = $state({ x: -5, y: -6, w: 54, h: 30 });
   let pointer = $state<Pt | null>(null);
+  let pointerType = $state<string>('mouse');
   let hover = $state<Endpoint | null>(null);
   let wireFrom = $state<Endpoint | null>(null);
   let moving = $state<{ id: string; type: string; rot: Rotation; moved: boolean } | null>(null);
-  let pressedBoardPart = $state<string | null>(null);
+  let pan: { start: Pt; view: typeof view; moved: boolean } | null = null;
+  let downAt: Pt | null = null;
 
-  const VIEW = { x: -2, y: -1, w: 50, h: 25 };
+  /** Active touch points on the workbench, for pinch. */
+  const touches = new Map<number, { x: number; y: number }>();
+  let pinch: { dist: number; mid: Pt; view: typeof view } | null = null;
 
-  function toWorld(ev: PointerEvent): Pt {
+  const TAP = 0.35;
+  const allDefs = Object.values(PARTS)
+    .map((m) => m.defs ?? '')
+    .join('');
+
+  function toWorld(clientX: number, clientY: number): Pt {
     const m = svg.getScreenCTM()!.inverse();
-    const p = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(m);
+    const p = new DOMPoint(clientX, clientY).matrixTransform(m);
     return { x: p.x, y: p.y };
   }
 
-  /** Anchor hole for a part being dragged: the hole under the pointer. */
+  function inside(ev: PointerEvent): boolean {
+    const r = svg.getBoundingClientRect();
+    return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+  }
+
+  let dragging = $derived(!!dragType || !!moving || !!wireFrom);
+
+  /** Anchor hole for a part being placed or moved: the hole under the pointer. */
   let ghost = $derived.by(() => {
     const type = dragType ?? moving?.type;
-    if (!type || !pointer) return null;
+    if (!type || !pointer || (moving && !moving.moved)) return null;
     const e = endpointAt(lab.project, pointer);
-    if (!e || e.kind !== 'hole') return { type, at: pointer, ok: false, hole: null as null | { bb: string; hole: string } };
     const rot = moving?.rot ?? 0;
+    if (!e || e.kind !== 'hole') return { type, at: pointer, ok: false, hole: null as null | { bb: string; hole: string } };
     const ok = lab.canPlace(type, e.bb, e.hole, rot, moving?.id);
     return { type, at: holePos(lab.project, e.bb, e.hole)!, ok, hole: { bb: e.bb, hole: e.hole } };
   });
 
-  /** Keys on the hovered net, for highlighting connected holes and pins. */
   let hoverNet = $derived(hover ? lab.netOf(hover) : new Set<string>());
+  let hereHole = $derived(hover?.kind === 'hole' ? hover : null);
 
-  function onMove(ev: PointerEvent) {
-    pointer = toWorld(ev);
-    hover = endpointAt(lab.project, pointer);
-    if (moving) moving.moved = true;
-  }
+  // --- Pointer handling --------------------------------------------------------------------
 
-  function onDown(ev: PointerEvent) {
-    const e = endpointAt(lab.project, toWorld(ev));
-    if (e) {
-      wireFrom = e;
-      svg.setPointerCapture(ev.pointerId);
-    } else {
-      lab.selection = null;
+  function onSvgDown(ev: PointerEvent) {
+    pointerType = ev.pointerType;
+    if (ev.pointerType === 'touch') {
+      touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (touches.size === 2) {
+        // Second finger: abandon whatever the first started and pinch instead
+        wireFrom = null;
+        moving = null;
+        pan = null;
+        startPinch();
+        return;
+      }
     }
+    const p = toWorld(ev.clientX, ev.clientY);
+    pointer = p;
+    downAt = p;
+    const e = endpointAt(lab.project, p);
+    if (e) wireFrom = e;
+    else pan = { start: { x: ev.clientX, y: ev.clientY }, view: { ...view }, moved: false };
   }
 
-  function onUp(ev: PointerEvent) {
-    const p = toWorld(ev);
-    if (dragType && ghost?.ok && ghost.hole) lab.addPart(dragType, ghost.hole.bb, ghost.hole.hole, 0);
-    dragType = null;
+  function startMove(ev: PointerEvent, id: string) {
+    if (ev.pointerType === 'touch' && touches.size >= 1) return; // second finger of a pinch
+    ev.stopPropagation();
+    pointerType = ev.pointerType;
+    if (ev.pointerType === 'touch') touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    const part = lab.part(id);
+    if (!part?.placement) return;
+    pointer = toWorld(ev.clientX, ev.clientY);
+    downAt = pointer;
+    moving = { id, type: part.type, rot: part.placement.rot, moved: false };
+  }
+
+  function onWindowMove(ev: PointerEvent) {
+    if (!svg) return;
+    pointerType = ev.pointerType;
+    if (touches.has(ev.pointerId)) touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pinch && touches.size === 2) return updatePinch();
+    const p = toWorld(ev.clientX, ev.clientY);
+    if (pan) {
+      const r = svg.getBoundingClientRect();
+      const k = view.w / r.width;
+      const dx = (ev.clientX - pan.start.x) * k;
+      const dy = (ev.clientY - pan.start.y) * k;
+      if (Math.abs(dx) + Math.abs(dy) > 0.2) pan.moved = true;
+      view = { ...pan.view, x: pan.view.x - dx, y: pan.view.y - dy };
+      return;
+    }
+    pointer = inside(ev) ? p : dragging ? p : null;
+    hover = pointer ? endpointAt(lab.project, p) : null;
+    if (moving && downAt && Math.hypot(p.x - downAt.x, p.y - downAt.y) > TAP) moving.moved = true;
+  }
+
+  function onWindowUp(ev: PointerEvent) {
+    touches.delete(ev.pointerId);
+    if (pinch) {
+      if (touches.size < 2) pinch = null;
+      return;
+    }
+    if (!svg) return;
+    const p = toWorld(ev.clientX, ev.clientY);
+    const over = inside(ev);
+    if (dragType) {
+      if (over && ghost?.ok && ghost.hole) lab.addPart(dragType, ghost.hole.bb, ghost.hole.hole, 0);
+      dragType = null;
+    }
     if (moving) {
       if (moving.moved && ghost?.ok && ghost.hole) lab.movePart(moving.id, ghost.hole.bb, ghost.hole.hole);
       else if (!moving.moved) lab.selection = { kind: 'part', id: moving.id };
       moving = null;
     }
     if (wireFrom) {
-      const to = endpointAt(lab.project, p);
+      const to = over ? endpointAt(lab.project, p) : null;
       if (to && !sameEndpoint(to, wireFrom)) lab.addWire(wireFrom, to);
       wireFrom = null;
     }
+    if (pan) {
+      if (!pan.moved) lab.selection = null;
+      pan = null;
+    }
+    if (ev.pointerType === 'touch') {
+      pointer = null;
+      hover = null;
+    }
   }
 
-  function startMove(ev: PointerEvent, id: string) {
-    ev.stopPropagation();
-    const part = lab.part(id);
-    if (!part?.placement) return;
-    moving = { id, type: part.type, rot: part.placement.rot, moved: false };
-    svg.setPointerCapture(ev.pointerId);
+  // --- Zoom ---------------------------------------------------------------------------------
+
+  function zoomAt(world: Pt, factor: number) {
+    const w = Math.min(160, Math.max(12, view.w * factor));
+    const k = w / view.w;
+    view = { x: world.x - (world.x - view.x) * k, y: world.y - (world.y - view.y) * k, w, h: view.h * k };
+  }
+
+  function onWheel(ev: WheelEvent) {
+    ev.preventDefault();
+    const p = toWorld(ev.clientX, ev.clientY);
+    // Trackpad pinch arrives as ctrl+wheel with small deltas
+    zoomAt(p, Math.exp(ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015)));
+  }
+
+  function touchPair() {
+    const [a, b] = [...touches.values()];
+    return { a: a!, b: b! };
+  }
+
+  function startPinch() {
+    const { a, b } = touchPair();
+    pinch = {
+      dist: Math.hypot(a.x - b.x, a.y - b.y),
+      mid: toWorld((a.x + b.x) / 2, (a.y + b.y) / 2),
+      view: { ...view },
+    };
+  }
+
+  function updatePinch() {
+    if (!pinch) return;
+    const { a, b } = touchPair();
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    const k = Math.min(160 / pinch.view.w, Math.max(12 / pinch.view.w, pinch.dist / Math.max(dist, 1)));
+    // Keep the world point first under the fingers' midpoint under their current midpoint
+    const r = svg.getBoundingClientRect();
+    const w = pinch.view.w * k;
+    const h = pinch.view.h * k;
+    const mx = ((a.x + b.x) / 2 - r.left) / r.width;
+    const my = ((a.y + b.y) / 2 - r.top) / r.height;
+    view = { x: pinch.mid.x - mx * w, y: pinch.mid.y - my * h, w, h };
+  }
+
+  /** Keep a press's events on its element; harmless if the browser refuses. */
+  function capture(e: PointerEvent) {
+    try {
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    } catch {
+      /* pointer not active (synthetic event) */
+    }
+  }
+
+  function fit() {
+    view = { x: -5, y: -6, w: 54, h: 30 };
   }
 
   function onKey(ev: KeyboardEvent) {
     if ((ev.target as HTMLElement).closest('input, select, textarea')) return;
     if (ev.key === 'Delete' || ev.key === 'Backspace') lab.deleteSelected();
     if (ev.key === 'r' || ev.key === 'R') lab.rotateSelected();
+    if (ev.key === '+' || ev.key === '=') zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 0.8);
+    if (ev.key === '-') zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 1.25);
+    if (ev.key === '0') fit();
     if (ev.key === 'Escape') {
       dragType = null;
       wireFrom = null;
+      moving = null;
       lab.selection = null;
     }
   }
+
+  // --- Drawing helpers --------------------------------------------------------------------------
 
   function partView(type: string, props: Record<string, unknown>, obs: Record<string, unknown>): string {
     const m = PARTS[type];
@@ -100,213 +237,191 @@
   }
 
   function wirePath(a: Pt, b: Pt): string {
-    // A gentle sag, like a jumper wire
     const mx = (a.x + b.x) / 2;
     const my = (a.y + b.y) / 2 + Math.min(3, Math.hypot(b.x - a.x, b.y - a.y) * 0.15);
     return `M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`;
   }
 
-  /** Pin colour from the pad's live drive state. */
   function pinFill(pin: string): string {
     const pad = lab.padOfPin(pin);
     const o = pad ? lab.observables[`mcu.${pad}`] : undefined;
-    if (!o) return '#c9c9c9';
-    if (o.damaged) return '#000';
-    if (o.output === 'high') return '#e5484d';
-    if (o.output === 'low') return '#3e63dd';
-    return '#c9c9c9';
+    if (o?.damaged) return '#000';
+    if (o?.output === 'high') return '#ff5a4f';
+    if (o?.output === 'low') return '#4f7bff';
+    return 'url(#gold)';
   }
 
   function pinHint(pin: string): string {
     const pad = lab.padOfPin(pin);
     if (!pad) return pin;
     const c = ESP32_PADS[pad];
-    const bits = [pad, c?.adc, c?.touch, c?.dac, c?.inputOnly ? 'input only' : '', c?.strapping ? 'strapping' : '', c?.note].filter(Boolean);
-    return bits.join(' · ');
+    return [pin, pad, c?.adc, c?.touch, c?.dac, c?.inputOnly ? 'input only' : '', c?.strapping ? 'strapping' : '', c?.note].filter(Boolean).join(' · ');
   }
 
   let b = $derived(board(lab.project));
+  /** Loupe: shown above a finger that is dragging, magnifying what it covers. */
+  let loupe = $derived(pointerType === 'touch' && dragging && pointer ? pointer : null);
+  const LOUPE_R = 3.2;
+  const LOUPE_ZOOM = 2.2;
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} onpointermove={onWindowMove} onpointerup={onWindowUp} onpointercancel={onWindowUp} />
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<svg
-  bind:this={svg}
-  class="bench"
-  viewBox="{VIEW.x} {VIEW.y} {VIEW.w} {VIEW.h}"
-  onpointermove={onMove}
-  onpointerdown={onDown}
-  onpointerup={onUp}
-  onpointerleave={() => (pointer = null)}
->
-  <defs>
-    <filter id="glow" x="-1" y="-1" width="3" height="3"><feGaussianBlur stdDeviation="0.35" /></filter>
-  </defs>
+<div class="wrap">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <svg bind:this={svg} class="bench" class:grabbing={!!pan} viewBox="{view.x} {view.y} {view.w} {view.h}"
+    onpointerdown={onSvgDown} onwheel={onWheel} onpointerleave={() => pointerType !== 'touch' && !dragging && (hover = null)}>
+    <defs>
+      <linearGradient id="bb-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf9f4" /><stop offset="1" stop-color="#ece7dc" /></linearGradient>
+      <radialGradient id="bb-hole" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#6b6b6b" /><stop offset="1" stop-color="#2b2b2b" /></radialGradient>
+      <linearGradient id="pcb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22344a" /><stop offset="1" stop-color="#16222f" /></linearGradient>
+      <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e6e9ec" /><stop offset="0.5" stop-color="#c4c9cf" /><stop offset="1" stop-color="#a7adb4" /></linearGradient>
+      <linearGradient id="usb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e1e4e8" /><stop offset="1" stop-color="#9aa0a7" /></linearGradient>
+      <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3dc8a" /><stop offset="1" stop-color="#b8923a" /></linearGradient>
+      <filter id="lift" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0.15" dy="0.25" stdDeviation="0.2" flood-opacity="0.35" /></filter>
+      <clipPath id="loupe-clip"><circle r={LOUPE_R} /></clipPath>
+      {@html allDefs}
+    </defs>
 
-  <!-- Breadboards -->
-  {#each lab.project.breadboards as inst (inst.id)}
-    {@const bb = breadboard(inst.type)}
-    {#if bb}
-      <g transform="translate({inst.x},{inst.y})">
-        <rect x="-1.2" y="-5.2" width={bb.def.columns + 1.4} height="21.4" rx="0.5" fill="#f4f1ea" stroke="#d8d2c4" stroke-width="0.08" />
-        <rect x="-1.2" y="4.6" width={bb.def.columns + 1.4} height="1.8" fill="#e6e1d6" />
-        {#each bb.def.rails as rail}
-          <line x1="1.4" x2={bb.def.columns - 2.4} y1={rail.y + (rail.polarity === '+' ? -0.55 : 0.55)} y2={rail.y + (rail.polarity === '+' ? -0.55 : 0.55)}
-            stroke={rail.polarity === '+' ? '#e5484d' : '#3e63dd'} stroke-width="0.1" />
-        {/each}
-        {#each bb.def.blocks as block}
-          {#each block.rows as row, i}
-            <text x="-0.9" y={block.y0 + i + 0.18} font-size="0.5" fill="#a39e93">{row}</text>
-          {/each}
-        {/each}
-        {#each [...bb.holes.values()] as h (h.name)}
-          {@const key = keyOf.hole(inst.id, h.name)}
-          <rect x={h.x - 0.2} y={h.y - 0.2} width="0.4" height="0.4" rx="0.06"
-            class="hole" class:net={hoverNet.has(key)} class:here={hover?.kind === 'hole' && hover.bb === inst.id && hover.hole === h.name} />
-        {/each}
+    <g id="scene">
+      {#each lab.project.breadboards as inst (inst.id)}
+        {@const bb = breadboard(inst.type)}
+        {#if bb}
+          <g transform="translate({inst.x},{inst.y})">
+            <BreadboardView id={inst.id} {bb} net={hoverNet} here={hereHole && hereHole.bb === inst.id ? hereHole.hole : null} />
+          </g>
+        {/if}
+      {/each}
+
+      <g transform="translate({lab.project.board.x},{lab.project.board.y})" filter="url(#lift)">
+        <BoardView board={b} net={hoverNet} observables={lab.observables} {pinFill} {pinHint}
+          onpress={(id) => lab.press(id)} onrelease={(id) => lab.release(id)} />
       </g>
-    {/if}
-  {/each}
 
-  <!-- Board -->
-  <g transform="translate({lab.project.board.x},{lab.project.board.y})">
-    <rect x="-0.9" y="-1.6" width={b.width - 0.2} height={b.height} rx="0.6" fill="#1d2b3a" stroke="#0f1720" stroke-width="0.1" />
-    <rect x="2" y="0.2" width="6" height="7.5" rx="0.3" fill="#b8bcc2" stroke="#8a8f96" stroke-width="0.08" />
-    <text x="5" y="3.6" font-size="0.75" text-anchor="middle" fill="#4a4f57" font-weight="600">ESP32-WROOM</text>
-    <text x="5" y="4.6" font-size="0.5" text-anchor="middle" fill="#5b6068">{b.name.split('(')[0]}</text>
-    <rect x="3.6" y={b.height - 2.8} width="2.8" height="1.6" rx="0.2" fill="#9aa0a6" />
-    {#each b.pins as pin (pin.name)}
-      {@const key = endpointKey({ kind: 'board', pin: pin.name })}
-      <g>
-        <title>{pinHint(pin.name)}</title>
-        <rect x={pin.x - 0.32} y={pin.y - 0.32} width="0.64" height="0.64" rx="0.1" fill={pinFill(pin.name)}
-          class="pin" class:net={hoverNet.has(key)} />
-        <text x={pin.x + (pin.x === 0 ? 0.6 : -0.6)} y={pin.y + 0.18} font-size="0.45" fill="#d7dee8"
-          text-anchor={pin.x === 0 ? 'start' : 'end'}>{pin.name.replace(/\.[LR]$/, '')}</text>
-      </g>
-    {/each}
-    {#each b.onboard.filter((p) => p.x !== undefined) as op (op.id)}
-      {@const id = `board.${op.id}`}
-      {#if op.type === 'pushbutton'}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <g transform="translate({op.x},{op.y})" class="board-button"
-          onpointerdown={(e) => { e.stopPropagation(); pressedBoardPart = id; lab.press(id); }}
-          onpointerup={(e) => { e.stopPropagation(); if (pressedBoardPart) lab.release(pressedBoardPart); pressedBoardPart = null; }}
-          onpointerleave={() => { if (pressedBoardPart === id) { lab.release(id); pressedBoardPart = null; } }}>
-          <rect x="-0.7" y="-0.5" width="1.4" height="1" rx="0.15" fill="#2b2d31" />
-          <rect x="-0.4" y="-0.3" width="0.8" height="0.6" rx="0.1" fill={lab.observables[id]?.pressed ? '#555' : '#888'} />
-          <text y="1.1" font-size="0.42" text-anchor="middle" fill="#d7dee8">{op.label?.split(' ')[0]}</text>
-        </g>
-      {:else if op.type === 'led'}
-        {@const glow = Number(lab.observables[id]?.current ?? 0) > 5e-5}
-        <g transform="translate({op.x},{op.y})">
-          {#if glow}<circle r="1.1" fill="#3e8ef7" opacity="0.55" filter="url(#glow)" />{/if}
-          <rect x="-0.35" y="-0.22" width="0.7" height="0.44" rx="0.08" fill={glow ? '#8fc1ff' : '#6b7c93'} />
-          <text y="0.95" font-size="0.4" text-anchor="middle" fill="#d7dee8">IO2</text>
+      {#each lab.project.parts as part (part.id)}
+        {@const at = part.placement ? holePos(lab.project, part.placement.bb, part.placement.hole) : undefined}
+        {#if at}
+          {@const rot = part.placement?.rot ?? 0}
+          <!-- While moving, the part is hidden but stays in the DOM: on touch screens the finger's
+               events keep going to the element the drag started on -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <g transform="translate({at.x},{at.y}) rotate({rot})" class="part" filter="url(#lift)"
+            opacity={moving?.id === part.id && moving.moved ? 0 : 1}
+            class:selected={lab.selection?.kind === 'part' && lab.selection.id === part.id}
+            onpointerdown={(e) => startMove(e, part.id)}>
+            {@html partView(part.type, part.props ?? {}, lab.observables[part.id] ?? {})}
+          </g>
+          {#if part.type === 'pushbutton'}
+            <!-- The cap presses the button; the rest of the body drags it -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <g transform="translate({at.x},{at.y}) rotate({rot})">
+              <circle cx="1" cy="1.5" r="0.85" fill="transparent" class="press"
+                onpointerdown={(e) => { e.stopPropagation(); capture(e); lab.press(part.id); }}
+                onpointerup={(e) => { e.stopPropagation(); lab.release(part.id); }}
+                onpointercancel={() => lab.release(part.id)} />
+            </g>
+          {/if}
+        {/if}
+      {/each}
+
+      {#each lab.project.wires as w (w.id)}
+        {@const a = endpointPos(lab.project, w.a)}
+        {@const z = endpointPos(lab.project, w.b)}
+        {#if a && z}
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <g class="wire" class:selected={lab.selection?.kind === 'wire' && lab.selection.id === w.id}
+            onpointerdown={(e) => { e.stopPropagation(); lab.selection = { kind: 'wire', id: w.id }; }}>
+            <!-- Wide transparent stroke: easy to tap -->
+            <path d={wirePath(a, z)} stroke="transparent" stroke-width="1" fill="none" />
+            <path d={wirePath(a, z)} stroke="#00000045" stroke-width="0.44" fill="none" stroke-linecap="round" transform="translate(0.06,0.1)" />
+            <path d={wirePath(a, z)} stroke={w.color} stroke-width="0.3" fill="none" stroke-linecap="round" />
+            <path d={wirePath(a, z)} stroke="#ffffff" stroke-opacity="0.3" stroke-width="0.08" fill="none" stroke-linecap="round" transform="translate(-0.04,-0.06)" />
+            {#each [a, z] as p}<rect x={p.x - 0.18} y={p.y - 0.18} width="0.36" height="0.36" rx="0.06" fill="#3a3d42" />{/each}
+          </g>
+        {/if}
+      {/each}
+
+      {#if wireFrom && pointer}
+        {@const a = endpointPos(lab.project, wireFrom)}
+        {#if a}<path d={wirePath(a, pointer)} stroke="#f76b15" stroke-width="0.26" fill="none" stroke-dasharray="0.5 0.3" stroke-linecap="round" />{/if}
+      {/if}
+
+      {#if ghost}
+        <g transform="translate({ghost.at.x},{ghost.at.y}) rotate({moving?.rot ?? 0})" opacity="0.8" class:bad={!ghost.ok} pointer-events="none">
+          {@html partView(ghost.type, moving ? (lab.part(moving.id)?.props ?? {}) : {}, {})}
         </g>
       {/if}
-    {/each}
-  </g>
-
-  <!-- Parts -->
-  {#each lab.project.parts as part (part.id)}
-    {@const at = part.placement ? holePos(lab.project, part.placement.bb, part.placement.hole) : undefined}
-    {#if at && moving?.id !== part.id}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <g transform="translate({at.x},{at.y}) rotate({part.placement?.rot ?? 0})" class="part"
-        class:selected={lab.selection?.kind === 'part' && lab.selection.id === part.id}
-        onpointerdown={(e) => startMove(e, part.id)}
-        ondblclick={() => part.type === 'pushbutton' && lab.press(part.id)}>
-        {@html partView(part.type, part.props ?? {}, lab.observables[part.id] ?? {})}
-      </g>
-      {#if part.type === 'pushbutton'}
-        <!-- Press the cap; the rest of the body drags -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <circle cx={at.x + 1} cy={at.y + 1.5} r="0.8" fill="transparent" class="press"
-          transform="rotate({part.placement?.rot ?? 0} {at.x} {at.y})"
-          onpointerdown={(e) => { e.stopPropagation(); lab.press(part.id); }}
-          onpointerup={(e) => { e.stopPropagation(); lab.release(part.id); }}
-          onpointerleave={() => lab.release(part.id)} />
-      {/if}
-    {/if}
-  {/each}
-
-  <!-- Wires -->
-  {#each lab.project.wires as w (w.id)}
-    {@const a = endpointPos(lab.project, w.a)}
-    {@const z = endpointPos(lab.project, w.b)}
-    {#if a && z}
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <g class="wire" class:selected={lab.selection?.kind === 'wire' && lab.selection.id === w.id}
-        onpointerdown={(e) => { e.stopPropagation(); lab.selection = { kind: 'wire', id: w.id }; }}>
-        <path d={wirePath(a, z)} stroke="#00000055" stroke-width="0.42" fill="none" stroke-linecap="round" />
-        <path d={wirePath(a, z)} stroke={w.color} stroke-width="0.3" fill="none" stroke-linecap="round" />
-        <circle cx={a.x} cy={a.y} r="0.18" fill="#444" /><circle cx={z.x} cy={z.y} r="0.18" fill="#444" />
-      </g>
-    {/if}
-  {/each}
-
-  <!-- Wire being drawn -->
-  {#if wireFrom && pointer}
-    {@const a = endpointPos(lab.project, wireFrom)}
-    {#if a}<path d={wirePath(a, pointer)} stroke="#f76b15" stroke-width="0.25" fill="none" stroke-dasharray="0.5 0.3" />{/if}
-  {/if}
-
-  <!-- Part being placed or moved -->
-  {#if ghost}
-    <g transform="translate({ghost.at.x},{ghost.at.y}) rotate({moving?.rot ?? 0})" opacity="0.75" class:bad={!ghost.ok} pointer-events="none">
-      {@html partView(ghost.type, moving ? (lab.part(moving.id)?.props ?? {}) : {}, {})}
     </g>
-  {/if}
-</svg>
+
+    {#if loupe}
+      <!-- Magnified copy of the scene around the finger, drawn above it -->
+      <g transform="translate({loupe.x},{loupe.y - LOUPE_R - 1.6})" pointer-events="none">
+        <circle r={LOUPE_R + 0.15} fill="#fff" stroke="#f76b15" stroke-width="0.12" />
+        <g clip-path="url(#loupe-clip)">
+          <use href="#scene" transform="scale({LOUPE_ZOOM}) translate({-loupe.x},{-loupe.y})" />
+        </g>
+        <circle r="0.25" fill="none" stroke="#f76b15" stroke-width="0.06" />
+      </g>
+    {/if}
+  </svg>
+
+  <div class="zoom">
+    <button onclick={() => zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 0.8)} aria-label="Phóng to">+</button>
+    <button onclick={() => zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 1.25)} aria-label="Thu nhỏ">−</button>
+    <button onclick={fit} aria-label="Vừa màn hình">⤢</button>
+  </div>
+</div>
 
 <style>
+  .wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
   .bench {
     width: 100%;
     height: 100%;
-    background: #fbfaf7;
+    background: radial-gradient(circle at 50% 40%, #fdfcf9, #f1eee7);
     touch-action: none;
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    cursor: default;
   }
-  .hole {
-    fill: #3b3b3b;
-    opacity: 0.55;
-  }
-  .hole.net {
-    fill: #12a594;
-    opacity: 1;
-  }
-  .hole.here {
-    fill: #f76b15;
-    opacity: 1;
-  }
-  .pin {
-    stroke: #0f1720;
-    stroke-width: 0.06;
-    cursor: crosshair;
-  }
-  .pin.net {
-    stroke: #12a594;
-    stroke-width: 0.18;
+  .bench.grabbing {
+    cursor: grabbing;
   }
   .part {
     cursor: grab;
   }
   .part.selected {
-    filter: drop-shadow(0 0 0.25px #f76b15) drop-shadow(0 0 0.25px #f76b15);
+    filter: drop-shadow(0 0 0.3px #f76b15) drop-shadow(0 0 0.3px #f76b15);
   }
-  .press,
-  .board-button {
+  .press {
     cursor: pointer;
   }
   .wire {
     cursor: pointer;
   }
-  .wire.selected path:last-of-type {
+  .wire.selected path:nth-child(3) {
     stroke-dasharray: 0.6 0.3;
   }
   .bad {
-    filter: grayscale(1) opacity(0.6);
+    filter: grayscale(1) opacity(0.55);
+  }
+  .zoom {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .zoom button {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px #0002;
   }
 </style>

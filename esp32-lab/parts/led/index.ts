@@ -78,28 +78,54 @@ function create(props: LedProps, _env: PartEnv): PartBehavior {
   };
 }
 
-const FILL: Record<LedColor, string> = {
-  red: '#e5484d',
-  yellow: '#f5d90a',
-  green: '#30a46c',
-  blue: '#3e63dd',
-  white: '#f1f3f5',
+/** Lens tint (unlit) and emitted colour for each LED colour. */
+const COLORS: Record<LedColor, { lens: string; light: string }> = {
+  red: { lens: '#d8343a', light: '#ff4a3d' },
+  yellow: { lens: '#e8c21a', light: '#ffe14d' },
+  green: { lens: '#2f9e5e', light: '#5dff8f' },
+  blue: { lens: '#3557c7', light: '#5aa0ff' },
+  white: { lens: '#e6e9ee', light: '#ffffff' },
 };
 
+const defs = Object.entries(COLORS)
+  .map(
+    ([name, c]) => `
+  <radialGradient id="led-lens-${name}" cx="35%" cy="30%" r="80%">
+    <stop offset="0" stop-color="#fff" stop-opacity="0.55"/>
+    <stop offset="0.25" stop-color="${c.lens}" stop-opacity="0.75"/>
+    <stop offset="1" stop-color="${c.lens}" stop-opacity="0.95"/>
+  </radialGradient>
+  <radialGradient id="led-glow-${name}">
+    <stop offset="0" stop-color="${c.light}" stop-opacity="0.9"/>
+    <stop offset="0.35" stop-color="${c.light}" stop-opacity="0.35"/>
+    <stop offset="1" stop-color="${c.light}" stop-opacity="0"/>
+  </radialGradient>`,
+  )
+  .join('') +
+  `<linearGradient id="led-lead" x1="0" x2="1"><stop offset="0" stop-color="#8d939b"/><stop offset="0.5" stop-color="#e3e6ea"/><stop offset="1" stop-color="#80868e"/></linearGradient>`;
+
+/**
+ * A 5 mm LED standing on its legs: anode (long, kinked leg) at (0,0), cathode at (1,0) on the
+ * side of the flat. Lit LEDs show a bright die and a halo scaled by brightness.
+ */
 function view(props: LedProps, obs: Record<string, unknown>): string {
-  const color = FILL[props.color] ?? FILL.red;
+  const name = COLORS[props.color] ? props.color : 'red';
+  const c = COLORS[name];
   const glow = Math.min(1, Number(obs.brightness ?? 0));
   const dead = obs.damaged === true;
-  const body = dead ? '#3a3a3a' : color;
+  const lit = glow > 0.02 && !dead;
   return `
-    <line x1="0" y1="0" x2="0" y2="-0.9" stroke="#9aa0a6" stroke-width="0.09"/>
-    <line x1="1" y1="0" x2="1" y2="-0.75" stroke="#9aa0a6" stroke-width="0.09"/>
-    ${glow > 0.01 && !dead ? `<circle cx="0.5" cy="-1.35" r="${0.9 + glow * 0.6}" fill="${color}" opacity="${0.15 + glow * 0.45}" filter="url(#glow)"/>` : ''}
-    <path d="M0.05,-0.85 L0.05,-1.45 A0.45,0.45 0 0 1 0.95,-1.45 L0.95,-0.85 Z" fill="${body}" fill-opacity="${dead ? 1 : 0.55 + glow * 0.45}" stroke="${dead ? '#111' : '#00000055'}" stroke-width="0.05"/>
-    <rect x="-0.05" y="-0.9" width="1.1" height="0.12" rx="0.04" fill="${body}" opacity="0.9"/>
-    ${dead ? `<g class="smoke"><circle cx="0.4" cy="-2" r="0.35" fill="#888" opacity="0.5"/><circle cx="0.7" cy="-2.6" r="0.45" fill="#999" opacity="0.35"/></g>` : ''}
-    <text x="-0.25" y="0.55" font-size="0.45" fill="#666">+</text>`;
+    <path d="M0,0 V-0.55 l-0.12,-0.18 l0.12,-0.18 V-1.05" fill="none" stroke="url(#led-lead)" stroke-width="0.11" stroke-linejoin="round"/>
+    <path d="M1,0 V-1.05" stroke="url(#led-lead)" stroke-width="0.11"/>
+    <circle cx="0" cy="0" r="0.13" fill="#5f646b"/><circle cx="1" cy="0" r="0.13" fill="#5f646b"/>
+    ${lit ? `<circle cx="0.5" cy="-2.2" r="${1.8 + glow * 2.2}" fill="url(#led-glow-${name})" opacity="${0.55 + glow * 0.45}"/>` : ''}
+    <path d="M-0.62,-1.05 H1.48 V-1.3 H-0.62 Z" fill="${dead ? '#2a2a2a' : c.lens}" opacity="0.9"/>
+    <path d="M-0.5,-1.3 V-2.45 A1,1 0 0 1 1.5,-2.45 V-1.3 Z" fill="${dead ? '#262626' : `url(#led-lens-${name})`}" stroke="#00000040" stroke-width="0.04"/>
+    <path d="M0.18,-1.3 V-1.7 H0.45 L0.6,-1.95 H0.82 V-1.3" fill="none" stroke="#6c7076" stroke-width="0.06" opacity="0.8"/>
+    ${lit ? `<ellipse cx="0.52" cy="-1.9" rx="0.32" ry="0.2" fill="${c.light}" opacity="${0.6 + glow * 0.4}"/>` : ''}
+    <path d="M-0.25,-2.55 A0.75,0.75 0 0 1 0.25,-3.25" fill="none" stroke="#fff" stroke-opacity="0.55" stroke-width="0.09" stroke-linecap="round"/>
+    ${dead ? `<g opacity="0.55"><circle cx="0.3" cy="-3.6" r="0.4" fill="#8a8a8a"/><circle cx="0.8" cy="-4.2" r="0.55" fill="#a0a0a0"/><circle cx="0.4" cy="-4.9" r="0.45" fill="#b5b5b5"/></g>` : ''}`;
 }
 
-export const led: PartModule<LedProps> = { manifest: manifest as PartModule['manifest'], create, view };
+export const led: PartModule<LedProps> = { manifest: manifest as PartModule['manifest'], create, view, defs };
 export default led;
