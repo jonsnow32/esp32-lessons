@@ -72,6 +72,9 @@ pub struct Insn {
     pub imm: i32,
     /// Second immediate where an instruction has two (EXTUI mask width, branch-immediate offset).
     pub imm2: i32,
+    /// Highest address register touched, for the window-overflow check. Filled in by the CPU
+    /// when the instruction enters its decode cache.
+    pub max_ar: u8,
 }
 
 const B4CONST: [i32; 16] = [-1, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 16, 32, 64, 128, 256];
@@ -102,7 +105,7 @@ pub fn decode(word: u32) -> Insn {
     let op2 = (word >> 20) & 0xf;
     let imm8 = (word >> 16) & 0xff;
 
-    let mut i = Insn { op: Op::Unknown, len: insn_len(word as u8), r, s, t, imm: 0, imm2: 0 };
+    let mut i = Insn { op: Op::Unknown, len: insn_len(word as u8), r, s, t, imm: 0, imm2: 0, max_ar: 15 };
     let set = |i: &mut Insn, op: Op, imm: i32| {
         i.op = op;
         i.imm = imm;

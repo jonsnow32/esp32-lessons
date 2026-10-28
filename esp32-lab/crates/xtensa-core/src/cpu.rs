@@ -46,6 +46,7 @@ pub const PS_WOE: u32 = 1 << 18;
 const PS_MASK: u32 = 0x0007_0fff;
 
 const EXCM_LEVEL: u32 = 3;
+const ICACHE_SIZE: usize = 1 << 15;
 
 /// Interrupt level of each of the 32 CPU interrupts (ESP32 TRM, "CPU interrupts" table).
 pub const INT_LEVEL: [u8; 32] = [
@@ -152,6 +153,9 @@ pub struct Cpu {
     pub itlb_attr: [u32; 8],
     pub dtlb_attr: [u32; 8],
     pub waiting: bool,
+    /// Decoded-instruction cache, direct-mapped by PC: (pc + 1, insn); 0 marks an empty slot.
+    icache: Vec<(u32, Insn)>,
+    icache_generation: u64,
     /// Instructions retired (≈ cycles; the timing model is 1 cycle per instruction for now).
     pub retired: u64,
 }
@@ -197,6 +201,8 @@ impl Cpu {
             itlb_attr: [2; 8],
             dtlb_attr: [2; 8],
             waiting: false,
+            icache: vec![(0, decode(0)); ICACHE_SIZE],
+            icache_generation: 0,
             retired: 0,
         }
     }
@@ -494,7 +500,7 @@ impl Cpu {
 
     /// Highest address-register index the instruction touches, for the window check.
     /// Over-estimating is safe (at worst an early spill); under-estimating is not.
-    fn max_ar(i: &Insn) -> u8 {
+    pub fn max_ar(i: &Insn) -> u8 {
         use Op::*;
         let (r, s, t) = (i.r, i.s, i.t);
         match i.op {
@@ -547,19 +553,32 @@ impl Cpu {
         }
 
         let pc = self.pc;
-        let word = match bus.fetch(pc) {
-            Ok(w) => w,
-            Err(_) => {
-                self.excvaddr = pc;
-                self.exception(EXC_INSTR_PIF_ADDR_ERROR, pc);
-                return Step::Exception { cause: EXC_INSTR_PIF_ADDR_ERROR, pc };
-            }
+        let generation = bus.code_generation();
+        if generation != self.icache_generation {
+            self.icache.iter_mut().for_each(|e| e.0 = 0);
+            self.icache_generation = generation;
+        }
+        let slot = (pc as usize >> 1) & (ICACHE_SIZE - 1);
+        let insn = if self.icache[slot].0 == pc.wrapping_add(1) {
+            self.icache[slot].1
+        } else {
+            let word = match bus.fetch(pc) {
+                Ok(w) => w,
+                Err(_) => {
+                    self.excvaddr = pc;
+                    self.exception(EXC_INSTR_PIF_ADDR_ERROR, pc);
+                    return Step::Exception { cause: EXC_INSTR_PIF_ADDR_ERROR, pc };
+                }
+            };
+            let mut insn = decode(word);
+            insn.max_ar = Self::max_ar(&insn);
+            self.icache[slot] = (pc.wrapping_add(1), insn);
+            insn
         };
-        let insn = decode(word);
         self.retired += 1;
         self.tick(1);
 
-        if self.window_check(pc, Self::max_ar(&insn)) {
+        if self.window_check(pc, insn.max_ar) {
             return Step::Ok;
         }
         if Self::is_fp(insn.op) && self.cpenable & 1 == 0 {

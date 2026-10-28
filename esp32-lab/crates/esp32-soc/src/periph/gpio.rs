@@ -69,6 +69,8 @@ pub struct Gpio {
     /// Pads driven from outside the chip (a button, the circuit simulator): mask and levels.
     pub external_mask: u64,
     pub external_level: u64,
+    /// Set by any write that can change a pad; the SoC re-scans pads only then.
+    pub dirty: bool,
     iomux: [u32; PADS],
     regs: std::collections::HashMap<u32, u32>,
 }
@@ -84,6 +86,7 @@ impl Default for Gpio {
             board_pull_up: 0,
             external_mask: 0,
             external_level: 0,
+            dirty: true,
             iomux: [2 << 10; PADS],
             regs: Default::default(),
         }
@@ -134,6 +137,7 @@ impl Gpio {
     }
 
     pub fn write(&mut self, off: u32, v: u32) {
+        self.dirty = true;
         let lo = v as u64;
         let hi = (v as u64 & 0xff) << 32;
         match off {
@@ -157,6 +161,7 @@ impl Gpio {
 
     /// A write to an RTCIO pad register: update pulls of the pads it controls.
     pub fn write_rtcio(&mut self, off: u32, v: u32) {
+        self.dirty = true;
         for &(gpio, reg, rue, rde) in &RTC_PULLS {
             if reg == off {
                 let bit = 1u64 << gpio;
@@ -171,6 +176,7 @@ impl Gpio {
     }
 
     pub fn write_iomux(&mut self, off: u32, v: u32) {
+        self.dirty = true;
         if let Some(n) = IO_MUX_OFFSET.iter().position(|&o| o == off && o != 0) {
             self.iomux[n] = v;
         }

@@ -15,6 +15,12 @@ pub trait Bus {
     fn read(&mut self, addr: u32, size: u8) -> Result<u32, BusError>;
     fn write(&mut self, addr: u32, size: u8, value: u32) -> Result<(), BusError>;
 
+    /// Bumped whenever memory that may hold code changes (IRAM writes, MMU remaps, flash
+    /// programming). The CPU drops its decoded-instruction cache when it changes.
+    fn code_generation(&self) -> u64 {
+        0
+    }
+
     /// Instruction fetch: the 4 bytes starting at `addr` (any alignment), little-endian.
     /// Bytes past the end of a region may be garbage as long as the first 3 are right.
     fn fetch(&mut self, addr: u32) -> Result<u32, BusError> {

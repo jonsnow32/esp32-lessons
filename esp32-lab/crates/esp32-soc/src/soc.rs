@@ -30,12 +30,33 @@ pub struct CoreBus<'a> {
 }
 
 impl Bus for CoreBus<'_> {
+    fn code_generation(&self) -> u64 {
+        self.mem.code_generation
+    }
+
+    fn fetch(&mut self, addr: u32) -> Result<u32, BusError> {
+        // Instructions are at most 3 bytes: read them straight out of RAM or flash
+        let bytes: Option<[u8; 3]> = match self.mem.target(self.cpu, addr) {
+            Target::Ram(buf, off) if off + 3 <= buf.len() => Some([buf[off], buf[off + 1], buf[off + 2]]),
+            Target::Flash(off) => self.mem.flash.data.get(off..off + 3).map(|b| [b[0], b[1], b[2]]),
+            _ => None,
+        };
+        match bytes {
+            Some(b) => Ok(u32::from_le_bytes([b[0], b[1], b[2], 0])),
+            None => Err(BusError::Unmapped),
+        }
+    }
+
     fn read(&mut self, addr: u32, size: u8) -> Result<u32, BusError> {
         let instruction_bus = (0x4000_0000..0x4400_0000).contains(&addr);
         match self.mem.target(self.cpu, addr) {
             Target::Ram(buf, off) => {
+                if size == 4 {
+                    let b = buf.get(off..off + 4).ok_or(BusError::Unmapped)?;
+                    return Ok(u32::from_le_bytes([b[0], b[1], b[2], b[3]]));
+                }
                 // IRAM and the flash instruction cache only allow 32-bit accesses
-                if instruction_bus && size != 4 {
+                if instruction_bus {
                     return Err(BusError::BadWidth);
                 }
                 let mut v = 0u32;
@@ -73,15 +94,24 @@ impl Bus for CoreBus<'_> {
                 for k in 0..size as usize {
                     *buf.get_mut(off + k).ok_or(BusError::Unmapped)? = (value >> (8 * k)) as u8;
                 }
+                // Writes through the instruction bus can change code (IRAM, RTC FAST)
+                if instruction_bus {
+                    self.mem.code_generation += 1;
+                }
                 Ok(())
             }
             Target::Mmu(cpu, i) => {
                 self.mem.mmu[cpu][i] = value & 0x1ff;
+                self.mem.code_generation += 1;
                 Ok(())
             }
             Target::Io => {
                 if let Some(k) = self.periph.write(io_alias(addr) & !3, value, self.apb) {
+                    let writes = self.periph.spi[k].writes;
                     self.periph.spi[k].execute(&mut self.mem.flash);
+                    if self.periph.spi[k].writes != writes {
+                        self.mem.code_generation += 1;
+                    }
                 }
                 Ok(())
             }
@@ -212,6 +242,7 @@ impl Soc {
             None => g.external_mask &= !(1 << gpio),
         }
         g.input = g.resolve_input();
+        g.dirty = true;
     }
 
     pub fn apb(&self) -> u64 {
@@ -300,6 +331,9 @@ impl Soc {
             self.boot(1, addr, 0x3ffe_7e30);
             self.cpus[1].ccount = ccount;
             self.running[1] = true;
+        }
+        if !std::mem::take(&mut self.periph.gpio.dirty) {
+            return;
         }
         self.periph.gpio.input = self.periph.gpio.resolve_input();
         for k in 0..crate::periph::gpio::PADS {

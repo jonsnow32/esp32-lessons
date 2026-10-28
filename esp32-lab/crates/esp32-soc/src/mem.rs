@@ -46,6 +46,8 @@ pub struct Memory {
     pub flash: Flash,
     /// Per-CPU flash MMU: entry = 64 KB flash page, or MMU_INVALID.
     pub mmu: [[u32; MMU_ENTRIES]; 2],
+    /// See `Bus::code_generation`.
+    pub code_generation: u64,
 }
 
 /// Where an address lands.
@@ -78,6 +80,7 @@ impl Memory {
             rtc_slow: vec![0; RTC_SIZE as usize],
             flash,
             mmu: [[MMU_INVALID; MMU_ENTRIES]; 2],
+            code_generation: 0,
         }
     }
 
