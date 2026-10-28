@@ -73,8 +73,8 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  // Each function only checks "is it time yet?" and returns,
-  // so loop() spins hundreds of thousands of times a second and misses nothing
+  // Each one only asks "is it time yet?" and returns,
+  // so loop() spins ~100k times/s and misses nothing
   updateLed(now);
   updateButton(now);
   updateReport(now);

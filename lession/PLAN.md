@@ -8,10 +8,13 @@ Each lesson lives in its own folder `lession/NN-name/` containing:
 Each lesson has its own environment in `platformio.ini` (`lesson01`, `lesson02`, ...).
 Pick the environment of the lesson you want to upload (see Lesson 01).
 
+No board at hand? The virtual workbench in [`esp32-lab/`](../esp32-lab/README.md) is being built to run these same lessons in the browser.
+
 ## Stage 1 – Getting to know the hardware (no extra parts)
 
 | # | Lesson | What you learn | Parts |
 |---|--------|----------------|-------|
+| [00](00-platformio/README.md) | PlatformIO basics | Installing PlatformIO, new project, choosing the board, Build/Upload/Monitor buttons | Board + cable |
 | [01](01-hello-esp32/README.md) | Hello ESP32 – Blink & Serial | Setup, uploading, `setup()/loop()`, Serial Monitor, onboard LED | Board + cable |
 | [02](02-button/README.md) | Button (Digital Input) | `pinMode`, `digitalRead`, pull-up, debouncing – using the BOOT button (GPIO0) | Board only |
 | [03](03-millis/README.md) | Non-blocking code with `millis()` | Dropping `delay()`, running several tasks at once, simple state machine | Board only |

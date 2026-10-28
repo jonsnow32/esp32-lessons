@@ -16,13 +16,13 @@ void setup() {
 }
 
 void loop() {
-  // Blink with delay(): for these 2 seconds the ESP32 can do nothing else
+  // delay(): for these 2 s the ESP32 does nothing else
   digitalWrite(LED_PIN, HIGH);
   delay(1000);
   digitalWrite(LED_PIN, LOW);
   delay(1000);
 
-  // The button is read only once every 2 s → it counts only if held right now
+  // Read once every 2 s → counts only if held right now
   if (digitalRead(BUTTON_PIN) == LOW) {
     pressCount++;
     Serial.printf("Press #%d\n", pressCount);

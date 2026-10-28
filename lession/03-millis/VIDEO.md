@@ -3,6 +3,17 @@
 Format: vertical 9:16, ~50 seconds. 🎥 = you film with a camera, 🖥️ = Claude records the screen.
 Screen recordings live in `lession/03-millis/recordings/` (1080x1920, no audio).
 
+## Status
+| Shot | File | Status |
+|------|------|--------|
+| 1 | `recordings/01-delay-code.mp4` | ✅ 9.2s |
+| 2a | `recordings/02a-upload-blocking.mp4` | ✅ 23.2s (speed up x4) |
+| 2 | `recordings/02-blocking-monitor.mp4` | ✅ 37.9s – only `Press #1`, `#2` counted |
+| 3 | `recordings/03-millis-code.mp4` | ✅ 9.2s |
+| 4 | `recordings/04-loop-code.mp4` | ✅ 7.2s |
+| 5a | `recordings/05a-upload-millis.mp4` | ✅ 24.4s (speed up x4) |
+| 5 | `recordings/05-millis-monitor.mp4` | ✅ 45.8s – SLOW → MEDIUM → FAST → OFF → SLOW…, "Still running" every 5 s |
+
 | # | Type | Content | Length | Suggested voice-over |
 |---|------|---------|--------|----------------------|
 | 1 | 🖥️ | `blocking-demo` code: two `delay(1000)` before reading the button | 5s | "Most beginners write this…" |
