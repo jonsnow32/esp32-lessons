@@ -13,6 +13,6 @@ import lesson01 from '../../../../lessons/01-blink/lesson.json';
 import lesson02 from '../../../../lessons/02-button/lesson.json';
 
 export const PARTS: Record<string, PartModule<any>> = { led, resistor, pushbutton };
-export const BOARDS: Record<string, BoardDef> = { 'esp32-devkit-v1': devkit as BoardDef };
-export const BREADBOARDS: Record<string, BreadboardDef> = { 'half-400': half400 as BreadboardDef };
+export const BOARDS: Record<string, BoardDef> = { 'esp32-devkit-v1': devkit as unknown as BoardDef };
+export const BREADBOARDS: Record<string, BreadboardDef> = { 'half-400': half400 as unknown as BreadboardDef };
 export const LESSONS: Lesson[] = [lesson01 as unknown as Lesson, lesson02 as unknown as Lesson];
