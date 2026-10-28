@@ -216,6 +216,8 @@ export class SimKernel {
     }
 
     for (const wire of project.wires) uf.union(endpointKey(wire.a), endpointKey(wire.b));
+    // Terminals nothing connects to (pads not brought out to a header...) still get their own net
+    for (const inst of this.instances.values()) for (const key of Object.values(inst.keys)) uf.add(key);
 
     this.netlist = new Netlist(uf);
     for (const inst of this.instances.values()) {

@@ -18,5 +18,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "esp32-wasm"
+version = "0.1.0"
+dependencies = [
+ "esp32-soc",
+]
+
+[[package]]
 name = "xtensa-core"
 version = "0.1.0"

@@ -124,6 +124,9 @@ impl Bus for CoreBus<'_> {
 pub enum Stop {
     /// Reached the requested time.
     Timeout,
+    /// A pad's drive state changed (only with `stop_on_pad_change`), so the circuit must be
+    /// re-solved before going on.
+    PadChange,
     Break { cpu: usize, pc: u32, s: u8, t: u8 },
     /// Firmware called a ROM function the HLE layer does not implement.
     Rom(String),
@@ -151,6 +154,8 @@ pub struct Soc {
     last_pads: [crate::periph::gpio::PadState; crate::periph::gpio::PADS],
     edge_prev: [u32; 2],
     pub exceptions: Vec<(u64, usize, u32, u32)>,
+    /// Return Stop::PadChange from `run` as soon as a pad changes (circuit co-simulation).
+    pub stop_on_pad_change: bool,
 }
 
 impl Soc {
@@ -201,6 +206,7 @@ impl Soc {
             last_pads: [crate::periph::gpio::Gpio::default().pad(0); crate::periph::gpio::PADS],
             edge_prev: [0; 2],
             exceptions: vec![],
+            stop_on_pad_change: false,
         };
         for k in 0..crate::periph::gpio::PADS {
             soc.last_pads[k] = soc.periph.gpio.pad(k);
@@ -265,7 +271,11 @@ impl Soc {
                 }
             }
             self.cycles += QUANTUM;
+            let events = self.pad_events.len();
             self.sync();
+            if self.stop_on_pad_change && self.pad_events.len() != events {
+                return Stop::PadChange;
+            }
             self.skip_idle(until);
         }
         Stop::Timeout

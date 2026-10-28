@@ -1,0 +1,12 @@
+[package]
+name = "esp32-wasm"
+description = "ESP32 emulator for the browser: a plain C-ABI WebAssembly module"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+esp32-soc = { path = "../esp32-soc" }
