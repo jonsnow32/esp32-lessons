@@ -6,6 +6,14 @@ version = 4
 name = "esp32-cli"
 version = "0.1.0"
 dependencies = [
+ "esp32-soc",
+ "xtensa-core",
+]
+
+[[package]]
+name = "esp32-soc"
+version = "0.1.0"
+dependencies = [
  "xtensa-core",
 ]
 

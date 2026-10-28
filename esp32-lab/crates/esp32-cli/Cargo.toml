@@ -7,3 +7,4 @@ license.workspace = true
 
 [dependencies]
 xtensa-core = { path = "../xtensa-core" }
+esp32-soc = { path = "../esp32-soc" }

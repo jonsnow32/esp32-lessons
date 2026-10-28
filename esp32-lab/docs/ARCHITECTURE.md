@@ -36,8 +36,8 @@ UI thread (Svelte)                     Sim Worker (Web Worker)
 | `parts/*` | One package per part (`resistor`, `led`, `pushbutton`) | M0 ✅ |
 | `boards/*`, `breadboards/*`, `lessons/*` | Pure JSON definitions | M0 ✅ |
 | `crates/xtensa-core` | Xtensa LX6 decoder, objdump-syntax disassembler, interpreter | M1 ✅ |
-| `crates/esp32-soc`, `crates/esp32-periph` | Memory map, cores, interrupt matrix, peripherals | M2 |
-| `crates/esp32-cli` | Headless tools: `disasm-check` (M1 ✅), `run` (M2) | M1–M2 |
+| `crates/esp32-soc` | Memory map + flash MMU, two cores, interrupt matrix, peripherals, ROM HLE, direct boot | M2 ✅ |
+| `crates/esp32-cli` | Headless tools: `disasm-check`, `run` | M1–M2 ✅ |
 | `crates/esp32-wasm` | Browser binding | M3 |
 | `packages/app` | Svelte UI | M3 |
 
@@ -211,6 +211,39 @@ Order of work is set by what Arduino-ESP32 needs to reach `setup()`:
 4. **WiFi/BLE** – the radio is not emulated. A later shim at the driver or lwIP level provides a
    virtual network.
 
+### What M2 implements (`crates/esp32-soc`)
+
+- **Direct boot** (`soc.rs`): the flash image is assembled as esptool writes it (bootloader
+  0x1000, partitions 0x8000, app 0x10000); then the second-stage bootloader's job is done in
+  Rust: RAM segments of `firmware.bin` are copied, flash segments are mapped through the MMU
+  tables, and PRO_CPU starts at the entry point as if called with CALLX8. APP_CPU starts when the
+  firmware releases it through DPORT and sets its boot address.
+- **ROM HLE** (`rom.rs`): the mask ROM is not shipped with firmware, so calls into
+  0x4000_0000–0x4006_FFFF are intercepted. The firmware's own symbol table names the function
+  (all aliases, e.g. `esp_rom_get_reset_reason` = `rtc_get_reset_reason`), and it runs in Rust
+  as one atomic call (arguments from the callee's a2…, result in a2/a3, return as RETW would).
+  Implemented: console (`ets_printf` with a printf formatter), delays (the core stalls for the
+  right number of cycles), CPU tick bookkeeping (`g_ticks_per_us_*`), GPIO/interrupt matrix
+  helpers, analog I2C registers, CRC32/CRC8/MD5, libc memory/string functions, libgcc 64-bit
+  integer and soft-double helpers, and newlib syscalls forwarded as tail calls to the firmware's
+  `_open_r`, `_write_r`, ... An unimplemented ROM function stops the run with its name.
+- **Peripherals** (`periph/`): UART0–2 (TX captured, RX queue, interrupts), GPIO + IO_MUX +
+  RTCIO pulls (pad state for the circuit simulator), timer groups (T0/T1, LAC timer used by
+  `esp_timer`/`millis()`, RTC clock calibration), SPI0/SPI1 flash controller with a 4 MB flash
+  chip (user-mode and native commands; erase/program obey write-enable), DPORT interrupt matrix
+  and cross-core interrupts, APP_CPU control, cache state, eFuse (MAC with valid CRC, chip
+  revision), RNG, RTC_CNTL presets. Unmodelled registers act as storage and are listed after a
+  run (`esp32-cli run` prints them), which is the to-do list for new firmware.
+- **Scheduling**: both cores run in 64-instruction quanta; interrupts are re-evaluated between
+  quanta; when both cores sit in WAITI the clock jumps to the next timer event (never past a
+  latched interrupt).
+
+Known gaps: the clock tree is fixed at CPU 240 MHz / APB 80 MHz (frequency switches are
+bookkept, not simulated); UART TX is instantaneous (no baud-rate timing); watchdogs never fire;
+region protection (null-pointer traps) is stored but not enforced; no WiFi/BT; speed is
+~25–35 MIPS, so busy-looping sketches (lessons 02/03) run ~6× slower than real time while
+delay()-based ones (lesson 01) run ~9× faster. A decoded-instruction cache is the next speed-up.
+
 ## Verification strategy
 
 - `pnpm test` – Vitest for netlist, solver, parts, lessons (`test/`).
@@ -224,8 +257,10 @@ Order of work is set by what Arduino-ESP32 needs to reach `setup()`:
   MAC16, TLB ops, ESP32 double-precision assist ops (`f64*`) and literal-pool data.
 - Differential testing against Espressif's QEMU (`qemu-system-xtensa -machine esp32`, local only):
   step the same ELF on both and compare PC and register traces.
-- Firmware: `pio run -e lesson01` then `esp32-cli run .pio/build/lesson01/firmware.elf --until 5s`.
-  UART output must match the real Serial Monitor, and GPIO2 must toggle on lesson 01's timing.
+- Firmware: `pio run -e lesson01` then `esp32-cli run .pio/build/lesson01 --seconds 5 --trace-gpio`
+  (`--press 0@2.0-2.3` holds the BOOT button). `crates/esp32-soc/tests/lessons.rs` boots the real
+  lesson 01/02 builds: banner, chip info and MAC; GPIO2 HIGH at 1.0 s, LOW 100 ms later, HIGH
+  2000 ms after that (±2 ms); a 150 ms BOOT press toggles the LED and a 20 ms blip is debounced.
 - Hardware conformance: the same ELF on a real ESP32-D and on the emulator. Compare serial logs
   and pin timing, then store the result as a golden test.
 
@@ -237,6 +272,8 @@ Order of work is set by what Arduino-ESP32 needs to reach `setup()`:
   CCOMPARE timers, loops, booleans, FPU) + `esp32-cli disasm-check`. Not yet: MAC16, `f64*`
   double-precision assist ops, a cycle-accurate timing model (1 cycle/instruction for now),
   differential runs against QEMU.
-- **M2** – `esp32-soc` + UART/GPIO/timers; lesson 01's real ELF prints its banner and blinks.
+- **M2** ✅ – `esp32-soc`: the unmodified lesson 01, 02, 03 and 03_blocking builds boot on
+  both cores, print exactly what the Serial Monitor shows, blink GPIO2 with correct timing and
+  react to the BOOT button with real debounce behaviour.
 - **M3** – WASM ↔ sim-core ↔ Svelte UI (port the prototype's UX); lessons 01–03 end to end.
 - **M4** – LEDC, ADC, touch, I2C; potentiometer and SSD1306 parts; lessons 04–09.

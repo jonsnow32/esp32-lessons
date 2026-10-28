@@ -1,0 +1,9 @@
+[package]
+name = "esp32-soc"
+description = "ESP32 system-on-chip: memory map, flash/MMU, interrupt matrix, peripherals, ROM HLE"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+xtensa-core = { path = "../xtensa-core" }

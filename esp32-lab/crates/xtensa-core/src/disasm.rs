@@ -103,6 +103,8 @@ pub fn mnemonic(op: Op) -> &'static str {
         Rfe => "rfe", Rfue => "rfue", Rfde => "rfde", Rfwo => "rfwo", Rfwu => "rfwu", Rfi => "rfi", Rfme => "rfme",
         Break => "break", Syscall => "syscall", Simcall => "simcall", Rsil => "rsil", Waiti => "waiti",
         Any4 => "any4", All4 => "all4", Any8 => "any8", All8 => "all8",
+        Ritlb0 => "ritlb0", Iitlb => "iitlb", Pitlb => "pitlb", Witlb => "witlb", Ritlb1 => "ritlb1",
+        Rdtlb0 => "rdtlb0", Idtlb => "idtlb", Pdtlb => "pdtlb", Wdtlb => "wdtlb", Rdtlb1 => "rdtlb1",
         And => "and", Or => "or", Xor => "xor",
         Ssr => "ssr", Ssl => "ssl", Ssa8l => "ssa8l", Ssa8b => "ssa8b", Ssai => "ssai",
         Rer => "rer", Wer => "wer", Rotw => "rotw", Nsa => "nsa", Nsau => "nsau",
@@ -194,7 +196,8 @@ impl fmt::Display for Disasm {
         match i.op {
             Ill | Ret | Retw | Isync | Rsync | Esync | Dsync | Excw | Memw | Extw | Nop | Rfe | Rfue | Rfde
             | Rfwo | Rfwu | Rfme | Syscall | Simcall | RetN | RetwN | NopN | IllN => write!(f, "{m}"),
-            Jx | Callx0 | Callx4 | Callx8 | Callx12 | Ssr | Ssl | Ssa8l | Ssa8b => write!(f, "{m}\ta{s}"),
+            Jx | Callx0 | Callx4 | Callx8 | Callx12 | Ssr | Ssl | Ssa8l | Ssa8b | Iitlb | Idtlb => write!(f, "{m}\ta{s}"),
+            Ritlb0 | Pitlb | Witlb | Ritlb1 | Rdtlb0 | Pdtlb | Wdtlb | Rdtlb1 => write!(f, "{m}\ta{t}, a{s}"),
             Movsp | Nsa | Nsau | MovN => write!(f, "{m}\ta{t}, a{s}"),
             Rer | Wer => write!(f, "{m}\ta{t}, a{s}"),
             Rfi | Waiti => write!(f, "{m}\t{s}"),

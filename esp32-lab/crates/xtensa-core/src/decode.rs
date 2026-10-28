@@ -20,6 +20,8 @@ pub enum Op {
     Rfe, Rfue, Rfde, Rfwo, Rfwu, Rfi, Rfme,
     Break, Syscall, Simcall, Rsil, Waiti,
     Any4, All4, Any8, All8,
+    /// Region-protection TLB access (ESP32 uses 8 × 512 MB regions, no translation).
+    Ritlb0, Iitlb, Pitlb, Witlb, Ritlb1, Rdtlb0, Idtlb, Pdtlb, Wdtlb, Rdtlb1,
     // --- Logic / arithmetic ---------------------------------------------------------------
     And, Or, Xor,
     Ssr, Ssl, Ssa8l, Ssa8b, Ssai, Rer, Wer, Rotw, Nsa, Nsau,
@@ -183,6 +185,21 @@ pub fn decode(word: u32) -> Insn {
                     15 => i.op = Op::Nsau,
                     _ => {}
                 },
+                5 => {
+                    i.op = match r {
+                        3 => Op::Ritlb0,
+                        4 => Op::Iitlb,
+                        5 => Op::Pitlb,
+                        6 => Op::Witlb,
+                        7 => Op::Ritlb1,
+                        11 => Op::Rdtlb0,
+                        12 => Op::Idtlb,
+                        13 => Op::Pdtlb,
+                        14 => Op::Wdtlb,
+                        15 => Op::Rdtlb1,
+                        _ => Op::Unknown,
+                    }
+                }
                 6 => {
                     i.op = match s {
                         0 => Op::Neg,

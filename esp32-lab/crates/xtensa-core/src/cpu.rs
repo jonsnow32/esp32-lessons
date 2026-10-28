@@ -148,6 +148,9 @@ pub struct Cpu {
     /// Every other special/user register, stored but without side effects.
     pub sr_other: [u32; 256],
     pub ur_other: [u32; 256],
+    /// Region protection attributes for the eight 512 MB regions (instruction, data).
+    pub itlb_attr: [u32; 8],
+    pub dtlb_attr: [u32; 8],
     pub waiting: bool,
     /// Instructions retired (≈ cycles; the timing model is 1 cycle per instruction for now).
     pub retired: u64,
@@ -190,6 +193,9 @@ impl Cpu {
             f: [0; 16],
             sr_other: [0; 256],
             ur_other: [0; 256],
+            // Reset: every region is "bypass" (attribute 2), i.e. accessible
+            itlb_attr: [2; 8],
+            dtlb_attr: [2; 8],
             waiting: false,
             retired: 0,
         }
@@ -358,6 +364,11 @@ impl Cpu {
             .unwrap_or(u32::MAX)
     }
 
+    /// An enabled interrupt is pending above the current level: the next step will take it.
+    pub fn interrupt_ready(&self) -> bool {
+        self.pending_interrupt_level() > 0
+    }
+
     /// Highest pending, enabled interrupt level above the current one.
     fn pending_interrupt_level(&self) -> u32 {
         let pending = (self.interrupt | self.irq_lines) & self.intenable;
@@ -492,6 +503,8 @@ impl Cpu {
             | Movltz | Movgez | AddN => r.max(s).max(t),
             Movf | Movt | Sll | Sext | Clamps | Slli | AddiN => r.max(s),
             Neg | Abs | Srl | Sra | Srai | Srli | Extui => r.max(t),
+            Ritlb0 | Pitlb | Witlb | Ritlb1 | Rdtlb0 | Pdtlb | Wdtlb | Rdtlb1 => s.max(t),
+            Iitlb | Idtlb => s,
             Movsp | Nsa | Nsau | MovN | Rer | Wer | L32e | S32e | L8ui | L16ui | L16si | L32i | S8i | S16i
             | S32i | L32ai | S32ri | S32c1i | Addi | Addmi | L32iN | S32iN | Bnone | Beq | Blt | Bltu | Ball
             | Bbc | Bany | Bne | Bge | Bgeu | Bnall | Bbs => s.max(t),
@@ -839,6 +852,19 @@ impl Cpu {
                 self.set_a(r, v);
             }
             Wur => self.write_ur(i.imm as u32, self.a(t)),
+            // --- Region protection: attributes are stored; access checks are not enforced yet
+            Witlb => self.itlb_attr[(self.a(s) >> 29) as usize] = self.a(t) & 0xf,
+            Wdtlb => self.dtlb_attr[(self.a(s) >> 29) as usize] = self.a(t) & 0xf,
+            Iitlb | Idtlb => {}
+            Ritlb0 | Rdtlb0 => self.set_a(t, self.a(s) & 0xe000_0000),
+            Ritlb1 | Pitlb => {
+                let region = self.a(s) & 0xe000_0000;
+                self.set_a(t, region | self.itlb_attr[(region >> 29) as usize]);
+            }
+            Rdtlb1 | Pdtlb => {
+                let region = self.a(s) & 0xe000_0000;
+                self.set_a(t, region | self.dtlb_attr[(region >> 29) as usize]);
+            }
             // External registers (ERI): not modelled
             Rer => self.set_a(t, 0),
             Wer => {}
