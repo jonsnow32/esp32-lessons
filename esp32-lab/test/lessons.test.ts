@@ -60,3 +60,32 @@ describe('lesson 02', () => {
     expect(r.results[1]!.pass).toBe(false);
   });
 });
+
+describe('lesson templates', () => {
+  const templates = [l1, l2].flatMap((l) => [
+    { name: `${l.id} template`, project: l.template, steps: l.steps },
+    ...(l.exercises ?? []).filter((e) => e.template).map((e) => ({ name: `${l.id} ${e.id}`, project: e.template!, steps: [e] })),
+  ]);
+
+  it.each(templates)('$name: every part plugs into real holes', ({ project }) => {
+    expect(project.parts.length).toBeGreaterThan(0);
+    const { k } = kernel(project);
+    expect(k.diagnostics.filter((d) => d.code === 'bad-placement' || d.code === 'unknown-part')).toEqual([]);
+  });
+
+  it.each(templates)('$name: satisfies its own wiring checks', ({ project, steps }) => {
+    const { k } = kernel(project);
+    k.solve();
+    for (const step of steps) {
+      for (const r of evaluateStep(step, { kernel: k, serial: '' }).results) {
+        if (r.check.kind === 'series' || r.check.kind === 'noShort' || r.check.kind === 'avoidPads') expect(r.pass, `${step.id}: ${r.check.kind}`).toBe(true);
+      }
+    }
+  });
+
+  it('lesson 01 template lights the external LED when GPIO2 is high', () => {
+    const { k } = kernel(l1.template, (m) => m.set('GPIO2', { output: 'high' }));
+    k.advanceTo(1 * MS);
+    expect(k.observables('led1').current as number).toBeGreaterThan(0.005);
+  });
+});

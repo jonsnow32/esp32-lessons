@@ -188,12 +188,17 @@ class Lab {
     if (fw?.kind === 'pio-env' && this.envs.includes(fw.env)) void this.loadFirmware(fw.env);
   }
 
-  loadTemplate() {
+  /** Replace the bench with the lesson's circuit, or one exercise's, and load its firmware. */
+  loadTemplate(exerciseId?: string) {
     const lesson = LESSONS.find((l) => l.id === this.lessonId);
     if (!lesson) return;
-    this.project = structuredClone(lesson.template);
+    const exercise = lesson.exercises?.find((e) => e.id === exerciseId);
+    const template = exercise?.template ?? lesson.template;
+    this.project = structuredClone(template);
     this.selection = null;
     this.commit();
+    const fw = exercise?.firmware ?? template.firmware ?? lesson.firmware;
+    if (fw?.kind === 'pio-env' && this.envs.includes(fw.env) && fw.env !== this.env) void this.loadFirmware(fw.env);
   }
 
   async loadFirmware(env: string | null) {

@@ -11,19 +11,85 @@
     "name": "02-button",
     "board": {
       "type": "esp32-devkit-v1",
-      "x": 0,
-      "y": 0
+      "x": 1,
+      "y": 3
     },
     "breadboards": [
       {
         "id": "bb1",
         "type": "half-400",
-        "x": 14,
-        "y": 0
+        "x": 15,
+        "y": 6
       }
     ],
-    "parts": [],
-    "wires": [],
+    "parts": [
+      {
+        "id": "r1",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "a5",
+          "rot": 0
+        }
+      },
+      {
+        "id": "led1",
+        "type": "led",
+        "props": {
+          "color": "red"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "e9",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "D2"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e5"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "a10"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "tn9"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "tn1"
+        },
+        "color": "#1c2024"
+      }
+    ],
     "firmware": {
       "kind": "pio-env",
       "env": "lesson02"
@@ -63,6 +129,40 @@
         }
       ],
       "hint": "Set DEBOUNCE_MS to 0 and press a few times: contact bounce gives you several counts per press."
+    },
+    {
+      "id": "external-led-d2",
+      "title": "Each BOOT press also toggles an external LED on D2",
+      "checks": [
+        {
+          "kind": "series",
+          "from": {
+            "pad": "GPIO2"
+          },
+          "through": [
+            {
+              "type": "resistor"
+            },
+            {
+              "type": "led",
+              "enter": "anode",
+              "exit": "cathode"
+            }
+          ],
+          "to": {
+            "net": "GND"
+          },
+          "order": "any"
+        },
+        {
+          "kind": "noShort",
+          "nets": [
+            "3V3",
+            "5V"
+          ]
+        }
+      ],
+      "hint": "Same LED circuit as lesson 01; the firmware drives GPIO2 for both LEDs."
     }
   ],
   "exercises": [
@@ -102,7 +202,150 @@
           ]
         }
       ],
-      "hint": "Put the button across the middle gap; one leg to D18, the other leg's column to the blue (\u2212) rail, and the rail to GND."
+      "hint": "Put the button across the middle gap; one leg to D18, the other leg's column to the blue (\u2212) rail, and the rail to GND.",
+      "template": {
+        "schemaVersion": 1,
+        "name": "02-button",
+        "board": {
+          "type": "esp32-devkit-v1",
+          "x": 1,
+          "y": 3
+        },
+        "breadboards": [
+          {
+            "id": "bb1",
+            "type": "half-400",
+            "x": 15,
+            "y": 6
+          }
+        ],
+        "parts": [
+          {
+            "id": "r1",
+            "type": "resistor",
+            "props": {
+              "resistance": 220
+            },
+            "placement": {
+              "bb": "bb1",
+              "hole": "a5",
+              "rot": 0
+            }
+          },
+          {
+            "id": "led1",
+            "type": "led",
+            "props": {
+              "color": "red"
+            },
+            "placement": {
+              "bb": "bb1",
+              "hole": "e9",
+              "rot": 0
+            }
+          },
+          {
+            "id": "sw1",
+            "type": "pushbutton",
+            "props": {
+              "bounce": true
+            },
+            "placement": {
+              "bb": "bb1",
+              "hole": "e20",
+              "rot": 0
+            }
+          }
+        ],
+        "wires": [
+          {
+            "id": "w1",
+            "a": {
+              "kind": "board",
+              "pin": "D2"
+            },
+            "b": {
+              "kind": "hole",
+              "bb": "bb1",
+              "hole": "e5"
+            },
+            "color": "#f5d90a"
+          },
+          {
+            "id": "w2",
+            "a": {
+              "kind": "hole",
+              "bb": "bb1",
+              "hole": "a10"
+            },
+            "b": {
+              "kind": "hole",
+              "bb": "bb1",
+              "hole": "tn9"
+            },
+            "color": "#1c2024"
+          },
+          {
+            "id": "w3",
+            "a": {
+              "kind": "board",
+              "pin": "GND.R"
+            },
+            "b": {
+              "kind": "hole",
+              "bb": "bb1",
+              "hole": "tn1"
+            },
+            "color": "#1c2024"
+          },
+          {
+            "id": "w4",
+            "a": {
+              "kind": "board",
+              "pin": "D18"
+            },
+            "b": {
+              "kind": "hole",
+              "bb": "bb1",
+              "hole": "a20"
+            },
+            "color": "#3e63dd"
+          },
+          {
+            "id": "w5",
+            "a": {
+              "kind": "hole",
+              "bb": "bb1",
+              "hole": "j22"
+            },
+            "b": {
+              "kind": "hole",
+              "bb": "bb1",
+              "hole": "bn17"
+            },
+            "color": "#1c2024"
+          },
+          {
+            "id": "w6",
+            "a": {
+              "kind": "board",
+              "pin": "GND.L"
+            },
+            "b": {
+              "kind": "hole",
+              "bb": "bb1",
+              "hole": "bn1"
+            },
+            "color": "#1c2024"
+          }
+        ],
+        "firmware": {
+          "kind": "pio-env",
+          "env": "lesson02"
+        },
+        "lessonId": "02-button",
+        "seed": 1
+      }
     }
   ]
 }

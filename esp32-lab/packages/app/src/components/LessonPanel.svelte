@@ -29,7 +29,9 @@
       <h3>Bài tập</h3>
       <ol>
         {#each exercises as s (s.id)}
+          {@const ex = lesson.exercises?.find((e) => e.id === s.id)}
           <li class:pass={s.pass}><span class="mark">{s.pass ? '✓' : '○'}</span> {s.title}
+            {#if ex?.template}<button class="small" onclick={() => lab.loadTemplate(ex.id)}>Nạp mạch bài tập</button>{/if}
             {#if !s.pass}
               {#each s.results.filter((r) => !r.pass && r.detail) as r}<div class="fail">{r.detail}</div>{/each}
               {#if s.hint}<div class="hint">{s.hint}</div>{/if}
@@ -53,4 +55,5 @@
   .pass .mark { color: #30a46c; }
   .hint { font-size: 12px; color: #6f6e77; margin-left: 18px; }
   .fail { font-size: 12px; color: #e5484d; margin-left: 18px; }
+  .small { display: block; margin: 4px 0 0 18px; font-size: 12px; padding: 2px 8px; }
 </style>

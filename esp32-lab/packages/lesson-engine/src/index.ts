@@ -43,7 +43,8 @@ export interface Lesson {
   firmware: Project['firmware'];
   template: Project;
   steps: LessonStep[];
-  exercises?: (LessonStep & { firmware?: Project['firmware'] })[];
+  /** An exercise may bring its own starting circuit (and firmware env). */
+  exercises?: (LessonStep & { firmware?: Project['firmware']; template?: Project })[];
 }
 
 export interface CheckContext {
