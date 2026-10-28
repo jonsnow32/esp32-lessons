@@ -35,9 +35,10 @@ UI thread (Svelte)                     Sim Worker (Web Worker)
 | `packages/mcu-esp32` | ESP32 pad capabilities; later the `McuModel` wrapping `esp32-wasm` | data only |
 | `parts/*` | One package per part (`resistor`, `led`, `pushbutton`) | M0 ✅ |
 | `boards/*`, `breadboards/*`, `lessons/*` | Pure JSON definitions | M0 ✅ |
-| `crates/xtensa-core` | Xtensa LX6 ISA interpreter | M1 |
+| `crates/xtensa-core` | Xtensa LX6 decoder, objdump-syntax disassembler, interpreter | M1 ✅ |
 | `crates/esp32-soc`, `crates/esp32-periph` | Memory map, cores, interrupt matrix, peripherals | M2 |
-| `crates/esp32-wasm`, `crates/esp32-cli` | Browser binding, headless runner | M2–M3 |
+| `crates/esp32-cli` | Headless tools: `disasm-check` (M1 ✅), `run` (M2) | M1–M2 |
+| `crates/esp32-wasm` | Browser binding | M3 |
 | `packages/app` | Svelte UI | M3 |
 
 ## The pad boundary
@@ -213,7 +214,14 @@ Order of work is set by what Arduino-ESP32 needs to reach `setup()`:
 ## Verification strategy
 
 - `pnpm test` – Vitest for netlist, solver, parts, lessons (`test/`).
-- `cargo test` – per-instruction vectors for `xtensa-core`.
+- `cargo test` – decoder unit tests, plus bare-metal programs in
+  `crates/xtensa-core/tests/asm/` assembled with the real `xtensa-esp32-elf` toolchain (recursive
+  CALL8/CALL12 with window spill/fill, zero-overhead loops, division, S32C1I, CCOMPARE interrupt
+  out of WAITI, FPU and the coprocessor-disabled trap). Skipped if the toolchain is missing.
+- Decoder vs. GNU objdump on every instruction of a real firmware:
+  `xtensa-esp32-elf-objdump -d firmware.elf | cargo run -p esp32-cli -- disasm-check`.
+  Lessons 01–03: 0 mismatches over ~80k instructions each. Remaining "unsupported" lines are
+  MAC16, TLB ops, ESP32 double-precision assist ops (`f64*`) and literal-pool data.
 - Differential testing against Espressif's QEMU (`qemu-system-xtensa -machine esp32`, local only):
   step the same ELF on both and compare PC and register traces.
 - Firmware: `pio run -e lesson01` then `esp32-cli run .pio/build/lesson01/firmware.elf --until 5s`.
@@ -225,7 +233,10 @@ Order of work is set by what Arduino-ESP32 needs to reach `setup()`:
 
 - **M0** ✅ – monorepo, Part SDK, project model, netlist, MNA + Newton, resistor/LED/pushbutton,
   DevKit V1, half-400, lessons 01/02, lesson engine, tests.
-- **M1** – `xtensa-core` + `esp32-cli`, ISA tests, small bare-metal programs.
+- **M1** ✅ – `xtensa-core` (decode, disassemble, execute: windowed calls, exceptions, interrupts,
+  CCOMPARE timers, loops, booleans, FPU) + `esp32-cli disasm-check`. Not yet: MAC16, `f64*`
+  double-precision assist ops, a cycle-accurate timing model (1 cycle/instruction for now),
+  differential runs against QEMU.
 - **M2** – `esp32-soc` + UART/GPIO/timers; lesson 01's real ELF prints its banner and blinks.
 - **M3** – WASM ↔ sim-core ↔ Svelte UI (port the prototype's UX); lessons 01–03 end to end.
 - **M4** – LEDC, ADC, touch, I2C; potentiometer and SSD1306 parts; lessons 04–09.

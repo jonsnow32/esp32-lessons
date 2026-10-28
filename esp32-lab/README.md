@@ -10,7 +10,12 @@ Virtual ESP32 workbench: plug parts into a breadboard, wire them to a board and 
 pnpm install
 pnpm test        # netlist, circuit solver, parts, lesson checks
 pnpm typecheck
+cargo test       # Xtensa decoder + interpreter (bare-metal tests need the PlatformIO toolchain)
+
+# Check the decoder against GNU objdump on a real firmware
+~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32-elf-objdump -d \
+  ../.pio/build/lesson01/firmware.elf | cargo run -q -p esp32-cli -- disasm-check
 ```
 
-Status: **M0**. The circuit core is done and tested; the Xtensa emulator (M1–M2) and the UI (M3)
-are next.
+Status: **M1**. The circuit core (M0) and the Xtensa LX6 CPU (M1) are done and tested. Next is
+the ESP32 SoC (M2): memory map, peripherals, and booting the lesson ELFs.
