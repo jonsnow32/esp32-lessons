@@ -10,9 +10,23 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@esp32lab/*": ["packages/*/src/index.ts"],
-      "@esp32lab-parts/*": ["parts/*/index.ts"]
+      "@esp32lab/*": [
+        "packages/*/src/index.ts"
+      ],
+      "@esp32lab-parts/*": [
+        "parts/*/index.ts"
+      ]
     }
   },
-  "include": ["packages", "parts", "boards", "breadboards", "lessons"]
+  "include": [
+    "packages",
+    "parts",
+    "boards",
+    "breadboards",
+    "lessons"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "packages/app/vite.config.ts"
+  ]
 }
