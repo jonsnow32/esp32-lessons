@@ -7,14 +7,12 @@
   import { EditorView, keymap } from '@codemirror/view';
   import { basicSetup } from 'codemirror';
   import { onDestroy, onMount } from 'svelte';
-  import { LESSONS } from '../lib/catalog';
   import { lab } from '../lib/lab.svelte';
 
   let host: HTMLDivElement;
   let view: EditorView | null = null;
   let showLog = $state(false);
   let logEl: HTMLPreElement;
-  let lesson = $derived(LESSONS.find((l) => l.id === lab.lessonId));
 
   /** Compiler diagnostics as editor lint markers (pushed after each build, not re-linted). */
   function diagnostics(v: EditorView): Diagnostic[] {
@@ -36,7 +34,7 @@
         basicSetup,
         cpp(),
         lintGutter(),
-        keymap.of([{ key: 'Mod-Enter', run: () => (void lab.buildAndRun(), true) }, { key: 'Mod-s', run: () => (void lab.buildAndRun(), true) }]),
+        keymap.of([{ key: 'Mod-Enter', run: () => (void lab.runCode(), true) }, { key: 'Mod-s', run: () => (void lab.runCode(), true) }]),
         EditorView.updateListener.of((u) => {
           if (u.docChanged) lab.setCode(u.state.doc.toString());
         }),
@@ -79,16 +77,12 @@
 <section>
   <div class="bar">
     <b>main.cpp</b>
-    {#if lesson?.sketch}
-      <button onclick={() => lab.loadLessonSketch()} title={lesson.sketch}>Nạp code bài {lesson.id.slice(0, 2)}</button>
-    {/if}
-    <button class="primary" disabled={lab.build.status === 'building'} onclick={() => lab.buildAndRun()} title="Ctrl/⌘ + Enter">
-      {lab.build.status === 'building' ? '⏳ Đang build…' : '▶ Build & Run'}
-    </button>
     <span class="status {lab.build.status}">
-      {#if lab.build.status === 'ok'}✓ Build xong ({(lab.build.ms / 1000).toFixed(1)} s), đang chạy trên board ảo
-      {:else if lab.build.status === 'failed'}✗ Build lỗi{errors.length ? `: ${errors.length} lỗi` : ''}
-      {:else if lab.build.status === 'building'}PlatformIO đang biên dịch (lần đầu khoảng 10 s)…{/if}
+      {#if lab.build.status === 'building'}⏳ PlatformIO đang biên dịch…
+      {:else if lab.build.status === 'failed'}✗ Build lỗi{errors.length ? `: ${errors.length} lỗi, xem bên dưới` : ', xem log'}
+      {:else if lab.program.kind !== 'none' && lab.codeChanged}✎ Code đã sửa, bấm ▶ Chạy (hoặc Ctrl/⌘ + Enter) để build lại
+      {:else if lab.program.kind !== 'none'}✓ Board đang chạy đúng code này
+      {:else}Bấm ▶ Chạy (hoặc Ctrl/⌘ + Enter) để build và chạy{/if}
     </span>
     <span class="spacer"></span>
     <button onclick={() => (showLog = !showLog)}>{showLog ? 'Ẩn log' : 'Log build'}</button>
@@ -114,8 +108,6 @@
   section { display: flex; flex-direction: column; height: 100%; min-height: 0; background: #fff; border-top: 1px solid #e4e2dd; }
   .bar { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #eee; flex-wrap: wrap; }
   .bar b { font: 600 13px ui-monospace, monospace; }
-  .primary { background: #f76b15; color: #fff; border-color: #f76b15; }
-  .primary:disabled { opacity: 0.7; cursor: progress; }
   .status { font-size: 12px; color: #6f6e77; }
   .status.ok { color: #18794e; }
   .status.failed { color: #ce2c31; }

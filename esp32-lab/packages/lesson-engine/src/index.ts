@@ -43,6 +43,9 @@ export interface LessonStep {
 export interface Lesson {
   id: string;
   title: string;
+  /** UI title and one-paragraph summary for the lesson picker (Vietnamese UI copy). */
+  titleVi?: string;
+  summary?: string;
   /** Lesson text in the PlatformIO course, relative to the repository root. */
   source: string;
   firmware: Project['firmware'];

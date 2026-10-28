@@ -11,8 +11,6 @@ import type { FirmwareFiles, FlowView, FromWorker, StepResult, ToWorker } from '
 import { resolvePlacement } from '@esp32lab/project-model';
 import { breadboard } from './geometry';
 
-const STORAGE = 'esp32lab.project';
-
 export interface BuildError {
   line: number;
   column: number;
@@ -55,12 +53,51 @@ type Selection = { kind: 'part'; id: string } | { kind: 'wire'; id: string } | n
 
 const WIRE_COLORS = ['#e5484d', '#3e63dd', '#30a46c', '#f5d90a', '#f76b15', '#8e4ec6', '#1c2024'];
 
+/** What the emulated board is running, so the UI can always say it plainly. */
+export type Program =
+  | { kind: 'none' }
+  | { kind: 'sketch'; codeHash: string; at: number; ms: number }
+  | { kind: 'prebuilt'; env: string; codeHash?: string; at: number };
+
+/** One lesson's (or the sandbox's) saved work. */
+interface Workspace {
+  project: Project;
+  code: string;
+  /** Steps ever passed, for the progress shown on the lesson cards. */
+  passed: string[];
+}
+
+export const FREE = 'free';
+
+/** FNV-1a: cheap fingerprint to tell whether the code changed since it was built. */
+function hashCode(text: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193);
+  return (h >>> 0).toString(36);
+}
+
+const wsKey = (id: string) => `esp32lab.ws.${id}`;
+
+export function loadWorkspace(id: string): Workspace | null {
+  try {
+    const raw = localStorage.getItem(wsKey(id));
+    return raw ? (JSON.parse(raw) as Workspace) : null;
+  } catch {
+    return null;
+  }
+}
+
 class Lab {
-  project = $state<Project>(load());
+  /** 'home' (lesson picker), a lesson id, or FREE. */
+  route = $state<string>('home');
+  project = $state<Project>(emptyProject());
   selection = $state<Selection>(null);
   lessonId = $state<string | null>(null);
   envs = $state<string[]>([]);
-  env = $state<string | null>(null);
+  program = $state<Program>({ kind: 'none' });
+  /** The lesson's original sketch, to know when a prebuilt .pio build still matches. */
+  originalCode = $state<string | null>(null);
+  passed = $state<string[]>([]);
   running = $state(false);
   speed = $state(1);
   t = $state(0);
@@ -89,7 +126,7 @@ class Lab {
     this.worker = new Worker(new URL('../sim/worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (ev: MessageEvent<FromWorker>) => this.receive(ev.data);
     this.send({ type: 'init', wasmUrl });
-    this.send({ type: 'project', project: $state.snapshot(this.project) as Project });
+    migrateOldStorage();
     fetch('/pio/envs')
       .then((r) => r.json())
       .then((envs: string[]) => (this.envs = envs))
@@ -122,6 +159,11 @@ class Lab {
       this.terminalCurrents = m.terminalCurrents;
       this.voltages = m.voltages;
       this.notes = m.notes;
+      const newly = m.steps.filter((x) => x.pass && !this.passed.includes(x.id)).map((x) => x.id);
+      if (newly.length) {
+        this.passed = [...this.passed, ...newly];
+        this.save();
+      }
     } else if (m.type === 'serial') {
       this.serial = (this.serial + m.text).slice(-20000);
     } else {
@@ -129,11 +171,17 @@ class Lab {
     }
   }
 
-  /** Push the edited project to the worker and save it. */
+  /** Push the edited project to the worker and save the workspace. */
   commit() {
     const snapshot = $state.snapshot(this.project) as Project;
-    localStorage.setItem(STORAGE, JSON.stringify(snapshot));
+    this.save();
     this.send({ type: 'project', project: snapshot });
+  }
+
+  private save() {
+    if (this.route === 'home') return;
+    const ws: Workspace = { project: $state.snapshot(this.project) as Project, code: this.code, passed: this.passed };
+    localStorage.setItem(wsKey(this.route), JSON.stringify(ws));
   }
 
   // --- Editing ----------------------------------------------------------------------------
@@ -217,55 +265,66 @@ class Lab {
     this.commit();
   }
 
-  // --- Lessons and firmware -----------------------------------------------------------------
+  // --- Navigation: lesson picker ⇄ lab ----------------------------------------------------
 
-  selectLesson(id: string | null) {
-    this.lessonId = id;
-    this.send({ type: 'lesson', lessonId: id });
-    const lesson = LESSONS.find((l) => l.id === id);
-    const fw = lesson?.firmware;
-    if (fw?.kind === 'pio-env' && this.envs.includes(fw.env)) void this.loadFirmware(fw.env);
+  get lesson() {
+    return LESSONS.find((l) => l.id === this.lessonId);
   }
 
-  /** Replace the bench with the lesson's circuit, or one exercise's, and load its firmware. */
-  loadTemplate(exerciseId?: string) {
-    const lesson = LESSONS.find((l) => l.id === this.lessonId);
-    if (!lesson) return;
-    const exercise = lesson.exercises?.find((e) => e.id === exerciseId);
-    const template = exercise?.template ?? lesson.template;
-    this.project = structuredClone(template);
+  /** Enter a lesson (or the sandbox): its saved work, or a fresh template + original sketch. */
+  async open(id: string) {
+    this.save();
+    this.stopProgram();
+    const lesson = LESSONS.find((l) => l.id === id);
+    // Fetch before switching, so nothing saves the old bench under the new id meanwhile
+    const original = lesson?.sketch ? await this.fetchSketch(lesson.sketch) : null;
+    this.lessonId = lesson?.id ?? null;
+    this.route = id;
+    this.selection = null;
+    this.originalCode = original;
+    const ws = loadWorkspace(id);
+    this.project = ws ? ws.project : structuredClone(lesson?.template ?? emptyProject());
+    this.code = ws ? ws.code : (this.originalCode ?? DEFAULT_SKETCH);
+    this.passed = ws?.passed ?? [];
+    this.build = { status: 'idle', log: '', ms: 0, errors: [] };
+    this.send({ type: 'lesson', lessonId: this.lessonId });
+    this.commit();
+  }
+
+  goHome() {
+    this.save();
+    this.stopProgram();
+    this.route = 'home';
+  }
+
+  /** Back to the lesson's template circuit and original code (or an empty sandbox). */
+  restart() {
+    const lesson = this.lesson;
+    this.stopProgram();
+    this.project = structuredClone(lesson?.template ?? emptyProject());
+    this.code = this.originalCode ?? DEFAULT_SKETCH;
+    this.selection = null;
+    this.build = { status: 'idle', log: '', ms: 0, errors: [] };
+    this.commit();
+  }
+
+  /** Put an exercise's starting circuit on the bench; the code stays as it is. */
+  startExercise(exerciseId: string) {
+    const ex = this.lesson?.exercises?.find((e) => e.id === exerciseId);
+    if (!ex?.template) return;
+    this.project = structuredClone(ex.template);
     this.selection = null;
     this.commit();
-    const fw = exercise?.firmware ?? template.firmware ?? lesson.firmware;
-    if (fw?.kind === 'pio-env' && this.envs.includes(fw.env) && fw.env !== this.env) void this.loadFirmware(fw.env);
   }
 
-  async loadFirmware(env: string | null) {
-    this.env = env;
-    this.serial = '';
-    if (!env) return this.send({ type: 'firmware', firmware: null });
-    await this.loadFirmwareFrom(`/pio/${env}`, env);
+  private async fetchSketch(path: string): Promise<string | null> {
+    const r = await fetch(`/api/sketch?path=${encodeURIComponent(path)}`);
+    return r.ok ? await r.text() : null;
   }
 
-  /** Fetch a build's four files from `base` and boot them on the emulator. */
-  private async loadFirmwareFrom(base: string, env: string) {
-    const get = async (f: string) => {
-      const r = await fetch(`${base}/${f}`, { cache: 'no-store' });
-      return r.ok ? new Uint8Array(await r.arrayBuffer()) : undefined;
-    };
-    const [elf, bin, bootloader, partitions] = await Promise.all(['firmware.elf', 'firmware.bin', 'bootloader.bin', 'partitions.bin'].map(get));
-    if (!elf || !bin) {
-      this.error = `${base} has no firmware.elf / firmware.bin`;
-      return;
-    }
-    const firmware: FirmwareFiles = { env, elf, bin, bootloader, partitions };
-    this.send({ type: 'firmware', firmware });
-    this.run();
-  }
+  // --- Code and the program on the board -----------------------------------------------------
 
-  // --- Code editor: build the sketch with PlatformIO and run it ----------------------------
-
-  code = $state(localStorage.getItem('esp32lab.code') ?? DEFAULT_SKETCH);
+  code = $state(DEFAULT_SKETCH);
   build = $state<{ status: 'idle' | 'building' | 'ok' | 'failed'; log: string; ms: number; errors: BuildError[] }>({
     status: 'idle',
     log: '',
@@ -273,24 +332,77 @@ class Lab {
     errors: [],
   });
 
+  /** The editor's code differs from what the board is running. */
+  get codeChanged(): boolean {
+    const p = this.program;
+    return p.kind === 'none' || p.codeHash !== hashCode(this.code);
+  }
+
   setCode(code: string) {
     this.code = code;
-    localStorage.setItem('esp32lab.code', code);
+    this.save();
   }
 
-  async loadLessonSketch() {
-    const lesson = LESSONS.find((l) => l.id === this.lessonId);
-    if (!lesson?.sketch) return;
-    const r = await fetch(`/api/sketch?path=${encodeURIComponent(lesson.sketch)}`);
-    if (r.ok) this.setCode(await r.text());
+  private stopProgram() {
+    this.send({ type: 'pause' });
+    this.send({ type: 'firmware', firmware: null });
+    this.program = { kind: 'none' };
+    this.running = false;
+    this.serial = '';
   }
 
-  /** Compile the editor's code, then boot it on the emulator if it built. */
-  async buildAndRun() {
+  /** The one Run button: new code always gets built and run; otherwise pause / resume. */
+  async runOrPause() {
     if (this.build.status === 'building') return;
+    if (this.codeChanged) return this.runCode();
+    if (this.running) return this.pause();
+    this.run();
+  }
+
+  /** Get the editor's code onto the board: a matching prebuilt build if there is one, else compile. */
+  async runCode() {
+    const lesson = this.lesson;
+    const env = lesson?.firmware.kind === 'pio-env' ? lesson.firmware.env : null;
+    if (env && lesson?.sketch && this.code === this.originalCode && this.envs.includes(env)) {
+      // The code is the lesson's own sketch: reuse `pio run -e lessonNN`'s output if it's current
+      const fresh = await fetch(`/pio/${env}/fresh?src=${encodeURIComponent(lesson.sketch)}`).then((r) => r.json()).catch(() => ({ fresh: false }));
+      if (fresh.fresh && (await this.loadFirmwareFrom(`/pio/${env}`, env))) {
+        this.program = { kind: 'prebuilt', env, codeHash: hashCode(this.code), at: Date.now() };
+        return;
+      }
+    }
+    await this.buildAndRun();
+  }
+
+  /** Advanced: run whatever `pio run -e <env>` built last, regardless of the editor. */
+  async runPrebuilt(env: string) {
+    if (await this.loadFirmwareFrom(`/pio/${env}`, env)) this.program = { kind: 'prebuilt', env, at: Date.now() };
+  }
+
+  /** Fetch a build's four files from `base` and boot them on the emulator. */
+  private async loadFirmwareFrom(base: string, env: string): Promise<boolean> {
+    const get = async (f: string) => {
+      const r = await fetch(`${base}/${f}`, { cache: 'no-store' });
+      return r.ok ? new Uint8Array(await r.arrayBuffer()) : undefined;
+    };
+    const [elf, bin, bootloader, partitions] = await Promise.all(['firmware.elf', 'firmware.bin', 'bootloader.bin', 'partitions.bin'].map(get));
+    if (!elf || !bin) {
+      this.error = `${base} has no firmware.elf / firmware.bin`;
+      return false;
+    }
+    this.serial = '';
+    const firmware: FirmwareFiles = { env, elf, bin, bootloader, partitions };
+    this.send({ type: 'firmware', firmware });
+    this.run();
+    return true;
+  }
+
+  /** Compile the editor's code with PlatformIO, then boot it if it built. */
+  private async buildAndRun() {
+    const code = this.code;
     this.build = { status: 'building', log: '', ms: 0, errors: [] };
     try {
-      const r = await fetch('/api/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code: this.code }) });
+      const r = await fetch('/api/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
       if (!r.ok || !r.body) throw new Error(await r.text());
       const reader = r.body.getReader();
       const decoder = new TextDecoder();
@@ -304,10 +416,8 @@ class Lab {
       const m = /@@RESULT (.*)/.exec(log);
       const result = m ? (JSON.parse(m[1]!) as { ok: boolean; ms: number; errors: BuildError[] }) : { ok: false, ms: 0, errors: [] };
       this.build = { status: result.ok ? 'ok' : 'failed', log: this.build.log, ms: result.ms, errors: result.errors };
-      if (result.ok) {
-        this.env = 'sketch';
-        this.serial = '';
-        await this.loadFirmwareFrom('/api/build/out', 'sketch');
+      if (result.ok && (await this.loadFirmwareFrom('/api/build/out', 'sketch'))) {
+        this.program = { kind: 'sketch', codeHash: hashCode(code), at: Date.now(), ms: result.ms };
       }
     } catch (e) {
       this.build = { status: 'failed', log: `${this.build.log}\n${e instanceof Error ? e.message : String(e)}`, ms: 0, errors: [] };
@@ -371,14 +481,20 @@ class Lab {
   }
 }
 
-function load(): Project {
-  try {
-    const raw = localStorage.getItem(STORAGE);
-    if (raw) return JSON.parse(raw) as Project;
-  } catch {
-    /* fall through */
+/** Before lessons had their own workspaces, one bench and one sketch were stored: keep them as the sandbox. */
+function migrateOldStorage() {
+  const project = localStorage.getItem('esp32lab.project');
+  const code = localStorage.getItem('esp32lab.code');
+  if ((project || code) && !localStorage.getItem(wsKey(FREE))) {
+    try {
+      const ws: Workspace = { project: project ? (JSON.parse(project) as Project) : emptyProject(), code: code ?? DEFAULT_SKETCH, passed: [] };
+      localStorage.setItem(wsKey(FREE), JSON.stringify(ws));
+    } catch {
+      /* unreadable: ignore */
+    }
   }
-  return emptyProject();
+  localStorage.removeItem('esp32lab.project');
+  localStorage.removeItem('esp32lab.code');
 }
 
 export const lab = new Lab();

@@ -1,6 +1,6 @@
 {
   "id": "01-blink",
-  "title": "Hello ESP32 \u2013 Blink & Serial",
+  "title": "Hello ESP32 – Blink & Serial",
   "source": "lession/01-hello-esp32/README.md",
   "firmware": {
     "kind": "pio-env",
@@ -125,7 +125,7 @@
           "pattern": "\\[0\\] LED ON"
         }
       ],
-      "hint": "digitalWrite(LED_PIN, HIGH) drives GPIO2 to 3.3 V; the board's 1 k\u03a9 resistor limits the current."
+      "hint": "digitalWrite(LED_PIN, HIGH) drives GPIO2 to 3.3 V; the board's 1 kΩ resistor limits the current."
     },
     {
       "id": "external-led-d2",
@@ -162,13 +162,13 @@
           "kind": "notDamaged"
         }
       ],
-      "hint": "D2 \u2192 220 \u03a9 \u2192 LED long leg (anode); flat side (cathode) \u2192 blue rail \u2192 GND. 'Load template' wires it for you."
+      "hint": "D2 → 220 Ω → LED long leg (anode); flat side (cathode) → blue rail → GND. 'Load template' wires it for you."
     }
   ],
   "exercises": [
     {
       "id": "external-led",
-      "title": "Wire an external LED to D18 through a 220 \u03a9 resistor",
+      "title": "Wire an external LED to D18 through a 220 Ω resistor",
       "firmware": {
         "kind": "pio-env",
         "env": "lesson01"
@@ -299,5 +299,7 @@
       }
     }
   ],
-  "sketch": "lession/01-hello-esp32/main.cpp"
+  "sketch": "lession/01-hello-esp32/main.cpp",
+  "titleVi": "Bài 01 · Blink & Serial",
+  "summary": "Nháy LED trên chân D2 và in thông tin chip ra Serial Monitor. Làm quen setup(), loop(), pinMode, digitalWrite, delay."
 }

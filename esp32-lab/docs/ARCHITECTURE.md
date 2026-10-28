@@ -189,6 +189,24 @@ ELF it runs, ships a template project, and lists steps/exercises with declarativ
 
 Planned: `signal` (a pad toggles with a period in a range, measured from the pad trace).
 
+## App flow
+
+- **Lesson picker** (`Home.svelte`): one card per lesson (title, summary, progress) plus the
+  sandbox. Each lesson, and the sandbox, has its own **workspace** in localStorage
+  (`esp32lab.ws.<id>`: bench, code, steps ever passed). The first visit starts from the
+  lesson's template circuit and original sketch; later visits resume. "Làm lại bài từ đầu" in
+  the ⋯ menu restores both.
+- **One Run button.** If the editor's code differs from what the board runs, it builds and
+  runs it, even while running. Otherwise it pauses or resumes. When the code is still the
+  lesson's original sketch and `.pio/build/<env>` is newer than that file
+  (`GET /pio/<env>/fresh?src=…`), the prebuilt firmware is booted at once instead of
+  compiling.
+- **Program chip** in the toolbar always says what the board runs: your `main.cpp` (with
+  build time), the lesson's code from a prebuilt build, a raw `.pio/build` env picked from
+  the ⋯ menu, or that the editor has unbuilt changes.
+- Right column: inspector, lesson steps (exercises have "Bắt đầu bài tập", which swaps in the
+  exercise circuit and keeps the code), explanations, serial monitor.
+
 ## Code editor: build and run in the browser
 
 `packages/app/build-server.ts` is a Vite dev-server plugin. `POST /api/build {code}` writes

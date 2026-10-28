@@ -118,7 +118,7 @@
           }
         }
       ],
-      "hint": "On the DevKit the BOOT button is already wired between GPIO0 and GND, with a 10 k\u03a9 pull-up."
+      "hint": "On the DevKit the BOOT button is already wired between GPIO0 and GND, with a 10 kΩ pull-up."
     },
     {
       "id": "press",
@@ -203,7 +203,7 @@
           ]
         }
       ],
-      "hint": "Put the button across the middle gap; one leg to D18, the other leg's column to the blue (\u2212) rail, and the rail to GND.",
+      "hint": "Put the button across the middle gap; one leg to D18, the other leg's column to the blue (−) rail, and the rail to GND.",
       "template": {
         "schemaVersion": 1,
         "name": "02-button",
@@ -349,5 +349,7 @@
       }
     }
   ],
-  "sketch": "lession/02-button/main.cpp"
+  "sketch": "lession/02-button/main.cpp",
+  "titleVi": "Bài 02 · Nút nhấn",
+  "summary": "Đọc nút BOOT bằng digitalRead, hiểu điện trở kéo lên (INPUT_PULLUP) và chống dội phím (debounce)."
 }
