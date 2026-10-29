@@ -1,6 +1,6 @@
 // Tidy the wires: route every wire over the half-pitch grid, horizontal and vertical steps
 // only, with the cheapest path (Dijkstra over grid point + heading). What costs:
-//   bends; passing over a pin (the board's, a part's leg, a hole a wire ends in); passing over
+//   bends; passing over a pin (the board's, a part's leg, a hole a wire ends in) or a part's body; passing over
 //   an empty breadboard hole; running along another wire; crossing one.
 // How much bends, pins and holes weigh against each other is a matter of taste: see TIDY_MODES.
 // Running half a pitch to a pitch beside another wire is cheaper than open space, so wires
@@ -8,8 +8,9 @@
 // Wires are routed shortest first, then each once more with all the others in place.
 
 import type { Project } from '@esp32lab/project-model';
+import { rotate } from '@esp32lab/project-model';
 import { PARTS } from './catalog';
-import { benchBounds, board, breadboard, endpointPos, terminalPos, type Pt } from './geometry';
+import { benchBounds, board, breadboard, endpointPos, partAnchor, terminalPos, type Box, type Pt } from './geometry';
 
 const STEP = 0.1; // per half pitch
 const BESIDE = 0.05; // per half pitch, next to another wire
@@ -28,12 +29,18 @@ export interface TidyMode {
   pin: number;
   /** Over an empty breadboard hole. */
   hole: number;
+  /** Pull the route straight: cut corners at any angle wherever nothing lies under the shortcut. */
+  free?: boolean;
 }
 
 export const TIDY_MODES: TidyMode[] = [
   { name: 'Né chân', hint: 'không qua chân hay lỗ nào, chạy giữa các hàng lỗ', bend: 4, pin: 40, hole: 5 },
   { name: 'Cân bằng', hint: 'né chân, qua vài lỗ trống để bớt gấp khúc', bend: 4, pin: 40, hole: 1 },
   { name: 'Ít gấp', hint: 'ít gấp khúc nhất, chỉ vòng qua chân khi đáng', bend: 6, pin: 12, hole: 0 },
+  // Classic maze routing (Lee / A*): the shortest path with pins as obstacles, a bend only breaks ties
+  { name: 'Lee/A*', hint: 'dò mê cung kinh điển: ngắn nhất có thể, chân là vật cản tuyệt đối', bend: 0.15, pin: 1000, hole: 0 },
+  // Any angle: the Lee route, pulled taut like a string around what it must keep off
+  { name: 'Tự do', hint: 'dây thẳng, xiên mọi hướng, chỉ vòng qua chân và linh kiện', bend: 0.15, pin: 1000, hole: 0, free: true },
 ];
 
 /** A binary min-heap of [cost, state]. */
@@ -73,8 +80,12 @@ class Heap {
   }
 }
 
-/** The corners each wire should bend through (empty: a straight run), by wire id. */
-export function tidyWires(project: Project, mode: TidyMode = TIDY_MODES[0]!): Map<string, Pt[]> {
+/**
+ * The corners each wire should bend through (empty: a straight run), by wire id. `bodies`: each
+ * part's drawn box, by part id, in its own unrotated units (as the part view is drawn); wires
+ * keep off them like off a pin.
+ */
+export function tidyWires(project: Project, mode: TidyMode = TIDY_MODES[0]!, bodies?: ReadonlyMap<string, Box>): Map<string, Pt[]> {
   const { bend: BEND, pin: PIN, hole: HOLE } = mode;
   const box = benchBounds(project, 3);
   const x0 = Math.floor(box.x);
@@ -95,6 +106,23 @@ export function tidyWires(project: Project, mode: TidyMode = TIDY_MODES[0]!): Ma
   }
   for (const pin of board(project).pins) mark({ x: project.board.x + pin.x, y: project.board.y + pin.y }, PIN);
   for (const part of project.parts) {
+    const b = bodies?.get(part.id);
+    const anchor = partAnchor(project, part);
+    if (b && anchor) {
+      const xs: number[] = [];
+      const ys: number[] = [];
+      for (const [cx, cy] of [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]] as const) {
+        const [dx, dy] = rotate(cx, cy, anchor.rot);
+        xs.push(anchor.at.x + dx);
+        ys.push(anchor.at.y + dy);
+      }
+      // Grid points under the body, and those within a quarter pitch of its edge
+      for (let y = Math.ceil((Math.min(...ys) - 0.25) * 2); y <= (Math.max(...ys) + 0.25) * 2; y++) {
+        for (let x = Math.ceil((Math.min(...xs) - 0.25) * 2); x <= (Math.max(...xs) + 0.25) * 2; x++) {
+          if (x / 2 >= x0 && x / 2 < x0 + W / 2) mark({ x: x / 2, y: y / 2 }, PIN);
+        }
+      }
+    }
     for (const t of PARTS[part.type]?.manifest.terminals ?? []) {
       const p = terminalPos(project, part, t.name);
       if (p) mark(p, PIN);
@@ -191,9 +219,33 @@ export function tidyWires(project: Project, mode: TidyMode = TIDY_MODES[0]!): Ma
   for (const id of order) route(id);
   for (const id of order) route(id);
 
-  // Only the corners: where the path turns
+  /** Can a wire run straight from grid point u to v without passing over anything but `path`? */
+  const clear = (u: number, v: number, path: Set<number>) => {
+    const [p, q] = [at(u), at(v)];
+    const n = Math.ceil(Math.hypot(q.x - p.x, q.y - p.y) * 10);
+    for (let k = 1; k < n; k++) {
+      const m = node({ x: p.x + ((q.x - p.x) * k) / n, y: p.y + ((q.y - p.y) * k) / n });
+      if (under[m]! > 0 && !path.has(m)) return false;
+    }
+    return true;
+  };
+
   const out = new Map<string, Pt[]>();
   for (const [id, r] of routes) {
+    if (mode.free) {
+      // From each corner kept, on to the farthest point of the route in straight sight
+      const path = new Set(r);
+      const corners: Pt[] = [];
+      for (let i = 0; i < r.length - 1; ) {
+        let j = r.length - 1;
+        while (j > i + 1 && !clear(r[i]!, r[j]!, path)) j--;
+        if (j < r.length - 1) corners.push(at(r[j]!));
+        i = j;
+      }
+      out.set(id, corners);
+      continue;
+    }
+    // Only the corners: where the path turns
     const corners: Pt[] = [];
     for (let i = 1; i < r.length - 1; i++) {
       if (r[i]! - r[i - 1]! !== r[i + 1]! - r[i]!) corners.push(at(r[i]!));

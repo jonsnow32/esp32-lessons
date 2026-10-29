@@ -162,9 +162,11 @@ function simplify(route: Pt[]): Pt[] {
 /**
  * The points a wire runs through, from a to b, every segment horizontal or vertical. Without
  * corners it leaves a and enters b vertically, crossing over halfway; with them, it leaves a
- * vertically and reaches every later point (and b) horizontally first.
+ * vertically and reaches every later point (and b) horizontally first. A free wire runs
+ * straight through its corners instead.
  */
-export function wireRoute(a: Pt, b: Pt, points: Pt[] = []): Pt[] {
+export function wireRoute(a: Pt, b: Pt, points: Pt[] = [], free = false): Pt[] {
+  if (free) return simplify([a, ...points, b]);
   const out: Pt[] = [a];
   if (!points.length) {
     const my = half((a.y + b.y) / 2);
@@ -183,8 +185,8 @@ export function wireRoute(a: Pt, b: Pt, points: Pt[] = []): Pt[] {
 }
 
 /** A wire along its route, its bends slightly rounded. */
-export function wirePath(a: Pt, b: Pt, points?: Pt[]): string {
-  return routePath(wireRoute(a, b, points));
+export function wirePath(a: Pt, b: Pt, points?: Pt[], free?: boolean): string {
+  return routePath(wireRoute(a, b, points, free));
 }
 
 /** SVG path through a route's points, its bends slightly rounded. */

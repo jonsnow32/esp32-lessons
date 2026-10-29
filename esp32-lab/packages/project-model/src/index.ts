@@ -159,6 +159,8 @@ export interface Wire {
    * wire bends on its own; ends that no longer line up with a corner get an elbow.
    */
   points?: { x: number; y: number }[];
+  /** Run straight from corner to corner, at any angle (else every segment is horizontal or vertical). */
+  free?: boolean;
 }
 
 export type Firmware =

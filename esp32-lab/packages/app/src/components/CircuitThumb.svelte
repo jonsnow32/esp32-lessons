@@ -46,7 +46,7 @@
   {#each project.wires as w (w.id)}
     {@const a = endpointPos(project, w.a)}
     {@const z = endpointPos(project, w.b)}
-    {#if a && z}<path d={wirePath(a, z, w.points)} stroke={w.color ?? '#3e63dd'} stroke-width="0.32" fill="none" stroke-linecap="round" />{/if}
+    {#if a && z}<path d={wirePath(a, z, w.points, w.free)} stroke={w.color ?? '#3e63dd'} stroke-width="0.32" fill="none" stroke-linecap="round" />{/if}
   {/each}
 </svg>
 

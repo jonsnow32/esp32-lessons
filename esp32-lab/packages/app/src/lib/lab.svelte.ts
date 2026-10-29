@@ -10,7 +10,7 @@ import type { Note } from '@esp32lab/explain';
 import type { PartManifest } from '@esp32lab/part-sdk';
 import type { FirmwareFiles, FlowView, FromWorker, StepResult, ToWorker } from '../sim/protocol';
 import { resolvePlacement, rotate } from '@esp32lab/project-model';
-import { breadboard } from './geometry';
+import { breadboard, type Box } from './geometry';
 import { loadSettings, saveSettings } from './settings';
 import { TIDY_MODES, tidyWires } from './tidy';
 
@@ -497,15 +497,21 @@ class Lab {
     if (this.tidyMode >= 0) this.reroute();
   }
 
+  /** Each part's drawn box, by part id, as the workbench measured it (so tidy keeps wires off it). */
+  readonly partBoxes = new Map<string, Box>();
+
   /** Re-route every wire in the current tidy mode. Did any wire change? */
   private reroute(): boolean {
-    const routes = tidyWires($state.snapshot(this.project) as Project, TIDY_MODES[this.tidyMode]);
+    const mode = TIDY_MODES[this.tidyMode]!;
+    const routes = tidyWires($state.snapshot(this.project) as Project, mode, this.partBoxes);
     let changed = false;
     for (const w of this.project.wires) {
       const points = routes.get(w.id);
-      if (!points || JSON.stringify(points) === JSON.stringify(w.points ?? [])) continue;
+      if (!points || (JSON.stringify(points) === JSON.stringify(w.points ?? []) && !w.free === !mode.free)) continue;
       if (points.length) w.points = points;
       else delete w.points;
+      if (mode.free) w.free = true;
+      else delete w.free;
       changed = true;
     }
     return changed;
@@ -516,6 +522,7 @@ class Lab {
     const w = this.project.wires.find((q) => q.id === id);
     if (!w?.points) return;
     delete w.points;
+    delete w.free;
     this.commit();
   }
 

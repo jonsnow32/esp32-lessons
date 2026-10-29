@@ -323,7 +323,7 @@
   let tidyNote = $state<string | null>(null);
   let tidyTimer: ReturnType<typeof setTimeout> | undefined;
   /** A wire for each tidy mode on the button: between the pins, over one, straight over all. */
-  const TIDY_ICONS = ['M4 4V7H16V16', 'M4 4V10H16V16', 'M4 4V16H16'];
+  const TIDY_ICONS = ['M4 4V7H16V16', 'M4 4V10H16V16', 'M4 4V16H16', 'M4 4H7V10H13V16H16', 'M4 4L13 7L16 16'];
   /** The mode the tidy button applies next. */
   let next = $derived(TIDY_MODES[(lab.tidyMode + 1) % TIDY_MODES.length]!);
   function tidy() {
@@ -456,7 +456,7 @@
       if (!pa || !pb || (pa.x === pb.x && pa.y === pb.y)) continue;
       const w = f.kind === 'wire' ? lab.project.wires.find((q) => q.id === f.id) : undefined;
       // Along the wire's bends, from the end the current enters
-      const route = w && (from === endpointKey(w.a) ? wireRoute(pa, pb, w.points) : wireRoute(pb, pa, w.points).reverse());
+      const route = w && (from === endpointKey(w.a) ? wireRoute(pa, pb, w.points, w.free) : wireRoute(pb, pa, w.points, w.free).reverse());
       const d = route ? routePath(route) : `M${pa.x},${pa.y} L${pb.x},${pb.y}`;
       out.push({ d, dur: flowDuration(f.amps), key: `${f.kind}:${f.id ?? ''}:${f.a}:${f.b}` });
     }
@@ -505,6 +505,16 @@
     };
     fit(body);
     return { update: fit };
+  }
+
+  /** Note each part's body box for tidy (in its own units, before the turn), again as it redraws. */
+  function measure(el: SVGGraphicsElement, key: [string, unknown]) {
+    const fit = ([id]: [string, unknown]) => {
+      const b = el.getBBox();
+      lab.partBoxes.set(id, { x: b.x, y: b.y, w: b.width, h: b.height });
+    };
+    fit(key);
+    return { update: fit, destroy: () => lab.partBoxes.delete(key[0]) };
   }
 
   let hoverPart = $state<string | null>(null);
@@ -618,7 +628,7 @@
             class:emph={lab.emphasis.includes(part.id)}
             onpointerenter={() => (hoverPart = part.id)} onpointerleave={() => (hoverPart = null)}
             onpointerdown={(e) => { hoverPart = part.id; startMove(e, part.id); }}>
-            <g bind:this={bodies[part.id]}>{@html partView(part.type, part.props ?? {}, lab.observables[part.id] ?? {})}</g>
+            <g bind:this={bodies[part.id]} use:measure={[part.id, part.props]}>{@html partView(part.type, part.props ?? {}, lab.observables[part.id] ?? {})}</g>
           </g>
           {#if lab.selection?.kind === 'part' && lab.selection.id === part.id && !(moving?.id === part.id && moving.moved)}
             <g transform="translate({at.x},{at.y}) rotate({rot})" pointer-events="none">
@@ -661,12 +671,12 @@
               if (!endpointAt(lab.project, toWorld(e.clientX, e.clientY))) e.stopPropagation();
             }}>
             <!-- Wide transparent stroke: easy to tap -->
-            <path d={wirePath(a, z, w.points)} stroke="transparent" stroke-width="1" fill="none" />
-            <path d={wirePath(a, z, w.points)} stroke="#00000045" stroke-width="0.44" fill="none" stroke-linecap="round" transform="translate(0.06,0.1)" />
-            <path d={wirePath(a, z, w.points)} stroke={w.color} stroke-width="0.3" fill="none" stroke-linecap="round" />
-            <path d={wirePath(a, z, w.points)} stroke="#ffffff" stroke-opacity="0.3" stroke-width="0.08" fill="none" stroke-linecap="round" transform="translate(-0.04,-0.06)" />
+            <path d={wirePath(a, z, w.points, w.free)} stroke="transparent" stroke-width="1" fill="none" />
+            <path d={wirePath(a, z, w.points, w.free)} stroke="#00000045" stroke-width="0.44" fill="none" stroke-linecap="round" transform="translate(0.06,0.1)" />
+            <path d={wirePath(a, z, w.points, w.free)} stroke={w.color} stroke-width="0.3" fill="none" stroke-linecap="round" />
+            <path d={wirePath(a, z, w.points, w.free)} stroke="#ffffff" stroke-opacity="0.3" stroke-width="0.08" fill="none" stroke-linecap="round" transform="translate(-0.04,-0.06)" />
             {#if lab.overlay === 'voltage'}
-              <path d={wirePath(a, z, w.points)} stroke={voltColor(lab.voltages[endpointKey(w.a)])} stroke-width="0.14" fill="none" stroke-linecap="round" />
+              <path d={wirePath(a, z, w.points, w.free)} stroke={voltColor(lab.voltages[endpointKey(w.a)])} stroke-width="0.14" fill="none" stroke-linecap="round" />
             {/if}
             {#each [a, z] as p}<rect x={p.x - 0.18} y={p.y - 0.18} width="0.36" height="0.36" rx="0.06" fill="#3a3d42" />{/each}
           </g>
@@ -681,12 +691,13 @@
         {@const a = w && endpointPos(lab.project, w.a)}
         {@const z = w && endpointPos(lab.project, w.b)}
         {#if w && a && z}
-          {@const route = wireRoute(a, z, w.points)}
+          {@const route = wireRoute(a, z, w.points, w.free)}
           {#each route.slice(1) as q, i}
             {@const p = route[i]!}
             {@const horizontal = p.y === q.y}
             {@const len = Math.abs(q.x - p.x) + Math.abs(q.y - p.y)}
-            {#if len > 0.8}
+            <!-- A free wire's slanted segments have no sideways to slide -->
+            {#if len > 0.8 && (horizontal || p.x === q.x)}
               {@const k = 0.4 / len}
               {@const m = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 }}
               <!-- svelte-ignore a11y_no_static_element_interactions -->
