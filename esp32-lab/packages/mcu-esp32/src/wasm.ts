@@ -1,7 +1,7 @@
 // The ESP32 emulator (crates/esp32-wasm) as an McuModel: real firmware on emulated Xtensa
 // cores, exchanging only pad drive states and pad voltages with the circuit simulator.
 
-import type { SimTime } from '@esp32lab/part-sdk';
+import type { PulseTrain, SimTime } from '@esp32lab/part-sdk';
 import {
   ESP32_PAD_ELECTRICAL,
   type I2cOp,
@@ -35,6 +35,7 @@ interface Exports {
   soc_pad_pwm_high(soc: number, gpio: number): number;
   soc_i2c_take(soc: number): number;
   soc_i2c_answer(soc: number, ptr: number, len: number): void;
+  soc_rmt_take(soc: number): number;
   soc_set_pad_input(soc: number, gpio: number, level: number): void;
   soc_set_pad_volts(soc: number, gpio: number, volts: number): void;
   soc_set_board_pull_ups(soc: number, lo: number, hi: number): void;
@@ -42,7 +43,7 @@ interface Exports {
 
 const REQUIRED_EXPORTS = [
   'alloc', 'dealloc', 'scratch_ptr', 'last_error_len', 'soc_new', 'soc_free', 'soc_run_until', 'soc_cycles',
-  'soc_uart_take', 'soc_uart_push', 'soc_pad_state', 'soc_pad_pwm_period', 'soc_pad_pwm_high', 'soc_i2c_take', 'soc_i2c_answer', 'soc_set_pad_input', 'soc_set_pad_volts', 'soc_set_board_pull_ups',
+  'soc_uart_take', 'soc_uart_push', 'soc_pad_state', 'soc_pad_pwm_period', 'soc_pad_pwm_high', 'soc_i2c_take', 'soc_i2c_answer', 'soc_rmt_take', 'soc_set_pad_input', 'soc_set_pad_volts', 'soc_set_board_pull_ups',
 ] as const satisfies readonly Exclude<keyof Exports, 'memory'>[];
 
 /** A PlatformIO build: .pio/build/<env>/{firmware.elf, firmware.bin, bootloader.bin, partitions.bin}. */
@@ -134,6 +135,7 @@ export class Esp32Mcu implements McuModel {
   /** Number of times EN has rebooted the chip. */
   resets = 0;
   private i2cBus: ((tx: I2cTransaction) => I2cReply) | null = null;
+  private pulseSink: ((pad: string, train: PulseTrain) => void) | null = null;
 
   constructor(
     private readonly x: Exports,
@@ -230,6 +232,7 @@ export class Esp32Mcu implements McuModel {
     // An I2C transaction is answered on the spot and the chip runs on
     while ((code = this.x.soc_run_until(this.soc, Math.ceil((t - this.bootedAt) * CYCLES_PER_NS))) === 3) this.answerI2c();
     this.flushSerial();
+    this.flushPulses();
     if (code === 2) {
       this.halted = new TextDecoder().decode(this.wasm.scratch(this.x.last_error_len()));
       return { t, padsChanged: false };
@@ -243,6 +246,25 @@ export class Esp32Mcu implements McuModel {
 
   setI2cBus(bus: ((tx: I2cTransaction) => I2cReply) | null): void {
     this.i2cBus = bus;
+  }
+
+  setPulseSink(sink: ((pad: string, train: PulseTrain) => void) | null): void {
+    this.pulseSink = sink;
+  }
+
+  /** Hand finished RMT transmissions to the circuit. */
+  private flushPulses(): void {
+    const len = this.x.soc_rmt_take(this.soc);
+    if (len === 0) return;
+    const b = this.wasm.scratch(len);
+    const w = new Uint32Array(b.buffer, b.byteOffset, len / 4);
+    for (let i = 0; i < w.length; ) {
+      const [gpio, lo, hi, n] = [w[i]!, w[i + 1]!, w[i + 2]!, w[i + 3]!];
+      const pulses = Array.from(w.subarray(i + 4, i + 4 + n), (p) => [(p >>> 31) as 0 | 1, p & 0x7fff_ffff] as const);
+      i += 4 + n;
+      if (gpio === 255 || this.damaged.has(`GPIO${gpio}`)) continue;
+      this.pulseSink?.(`GPIO${gpio}`, { t: this.bootedAt + (hi * 2 ** 32 + lo) / CYCLES_PER_NS, pulses });
+    }
   }
 
   private answerI2c(): void {

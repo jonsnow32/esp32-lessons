@@ -1,0 +1,68 @@
+{
+  "id": "neopixel",
+  "version": "0.1.0",
+  "name": "LED RGB WS2812B (NeoPixel)",
+  "category": "output",
+  "tags": [
+    "led",
+    "rgb",
+    "ws2812",
+    "rmt"
+  ],
+  "terminals": [
+    {
+      "name": "gnd",
+      "dx": 0,
+      "dy": 0,
+      "label": "GND"
+    },
+    {
+      "name": "vcc",
+      "dx": 1,
+      "dy": 0,
+      "label": "VCC 5 V"
+    },
+    {
+      "name": "din",
+      "dx": 2,
+      "dy": 0,
+      "label": "DIN (dữ liệu vào)"
+    },
+    {
+      "name": "dout",
+      "dx": 3,
+      "dy": 0,
+      "label": "DOUT (dữ liệu ra, nối DIN của dải tiếp theo)"
+    }
+  ],
+  "props": {
+    "layout": {
+      "type": "enum",
+      "default": "strip",
+      "options": [
+        "strip",
+        "ring"
+      ]
+    },
+    "count": {
+      "type": "number",
+      "default": 8,
+      "unit": " LED",
+      "min": 1,
+      "max": 64
+    }
+  },
+  "learn": {
+    "summary": "Mỗi LED có sẵn một con chip nhỏ: chỉ một dây dữ liệu đi qua cả dải, mỗi LED giữ lại 24 bit màu đầu tiên (xanh lá, đỏ, xanh dương, mỗi màu 0–255) rồi chuyển phần còn lại cho LED sau. Dừng gửi hơn 50 µs là cả dải đổi màu cùng lúc.",
+    "howToPlug": [
+      "GND nối GND, VCC nối VIN (5 V), DIN nối một GPIO (ví dụ GPIO5).",
+      "Nối thêm dải khác: DOUT của dải này vào DIN của dải sau, chung nguồn và GND.",
+      "Trong code: Adafruit_NeoPixel strip(8, 5, NEO_GRB + NEO_KHZ800); strip.begin(); strip.setPixelColor(0, strip.Color(255, 0, 0)); strip.show();"
+    ],
+    "tips": [
+      "Mỗi LED trắng sáng hết cỡ kéo khoảng 60 mA: 16 LED là gần 1 A, quá sức cổng USB. Dùng setBrightness(50) khi thử.",
+      "Gọi show() thì màu mới hiện ra; setPixelColor chỉ đổi dữ liệu trong RAM của ESP32.",
+      "Thứ tự màu của WS2812B là G-R-B. Nếu đỏ hiện thành xanh lá, kiểm tra cờ NEO_GRB / NEO_RGB."
+    ]
+  }
+}

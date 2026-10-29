@@ -92,6 +92,8 @@ importers:
 
   parts/led-bar: {}
 
+  parts/neopixel: {}
+
   parts/photoresistor: {}
 
   parts/pir-sensor: {}

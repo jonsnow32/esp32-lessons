@@ -261,6 +261,31 @@ describe.skipIf(!existsSync(wasmPath))('featured projects on the emulated ESP32'
     expect(String(lcd().line2)).toMatch(/^ +4[4-6]\.\d#C/);
   });
 
+  it('neopixel-ring runs a rainbow round the ring, as bright as the knob says', async () => {
+    const b = await boot('neopixel-ring');
+    if (!b) return;
+    b.k.advanceTo(1 * S);
+    expect(b.serial()).toContain('Vong LED cau vong');
+    const ring = () => b.k.observables('ring1');
+    const pixels = () => String(ring().pixels).split(' ').map((h) => [0, 2, 4].map((k) => parseInt(h.slice(k, k + 2), 16)));
+    expect(ring().powered).toBe(true);
+    expect(ring().frames as number).toBeGreaterThan(20);
+    const first = pixels();
+    expect(first).toHaveLength(12);
+    // Every LED lit, and not all the same colour
+    expect(first.every((c) => Math.max(...c) > 0)).toBe(true);
+    expect(new Set(String(ring().pixels).split(' ')).size).toBeGreaterThan(6);
+    // The rainbow moves on
+    b.k.advanceTo(b.k.now + 200 * MS);
+    expect(String(ring().pixels)).not.toBe(first.map(String).join());
+    const peak = (px: number[][]) => Math.max(...px.flat());
+    const half = peak(pixels());
+    b.setProp('pot1', 'position', 100);
+    b.k.advanceTo(b.k.now + 300 * MS);
+    expect(peak(pixels())).toBeGreaterThan(half * 1.5);
+    expect(b.serial()).toMatch(/Do sang: 2[45]\d\/255/);
+  });
+
   it('relay-lamp toggles the lamp through the relay contacts', async () => {
     const b = await boot('relay-lamp');
     if (!b) return;

@@ -54,6 +54,13 @@ Rules:
 - **Time-dependent behaviour** uses `env.schedule(at, tag)` and `onEvent({ kind: 'timer', tag })`.
   Call `env.invalidate()` when the electrical state changes (a switch moves).
 - **Randomness** only via `env.random()`, so simulations stay reproducible.
+- **Fast serial data** (WS2812, anything an MCU sends with the RMT) arrives whole in
+  `pulses(terminal, train)`: `train.t` is when it started, `train.pulses` the levels and their
+  durations in ns. Decode it yourself; pass data on with `env.emit(terminal, train)`. See
+  `parts/neopixel/index.ts`.
+- **I2C devices** expose `i2c: I2cTarget` and name their SDA/SCL terminals in the module's `bus`.
+  State that must survive a rebuild of the circuit (what a display shows) goes through
+  `persist()` / `restore()`. See `parts/lcd1602/index.ts`.
 - **Damage**: use `Overstress` for "too much for too long" and an absolute limit for instant
   failure. Model the failed state electrically (a burnt LED is open circuit).
 

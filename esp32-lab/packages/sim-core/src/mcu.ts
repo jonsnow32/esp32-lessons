@@ -2,7 +2,7 @@
 // in WASM, or ScriptedMcu in tests) only ever exchanges pad drive states and pad voltages with the
 // circuit, so any MCU can be dropped in without touching the kernel.
 
-import type { PwmSignal, SimTime } from '@esp32lab/part-sdk';
+import type { PulseTrain, PwmSignal, SimTime } from '@esp32lab/part-sdk';
 
 export interface PadDrive {
   output: 'high' | 'low' | 'z';
@@ -76,6 +76,8 @@ export interface McuModel {
   onSerial?(listener: (port: number, bytes: Uint8Array) => void): void;
   /** Who answers the MCU's I2C transactions; without one, nobody does (every address NACKed). */
   setI2cBus?(bus: ((tx: I2cTransaction) => I2cReply) | null): void;
+  /** Who gets the pulse trains the chip puts out on a pad (RMT), each once it is complete. */
+  setPulseSink?(sink: ((pad: string, train: PulseTrain) => void) | null): void;
 }
 
 /** ESP32 pad characteristics (datasheet §5, approximate – to be calibrated against real boards). */
@@ -102,6 +104,7 @@ export class ScriptedMcu implements McuModel {
   readonly edges: { t: SimTime; pad: string; level: 0 | 1 }[] = [];
   readonly damagedPads = new Set<string>();
   private i2cBus: ((tx: I2cTransaction) => I2cReply) | null = null;
+  private pulseSink: ((pad: string, train: PulseTrain) => void) | null = null;
 
   constructor(
     readonly pads: readonly string[],
@@ -113,6 +116,15 @@ export class ScriptedMcu implements McuModel {
 
   setI2cBus(bus: ((tx: I2cTransaction) => I2cReply) | null): void {
     this.i2cBus = bus;
+  }
+
+  setPulseSink(sink: ((pad: string, train: PulseTrain) => void) | null): void {
+    this.pulseSink = sink;
+  }
+
+  /** Put a pulse train out on `pad`, as the RMT would (starting now unless `t` says otherwise). */
+  pulse(pad: string, pulses: PulseTrain['pulses'], t: SimTime = this.now): void {
+    this.pulseSink?.(pad, { t, pulses });
   }
 
   /** Clock a command list out on the I2C bus, as a controller on these pads would. */

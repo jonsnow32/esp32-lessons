@@ -6,5 +6,6 @@
   "OneWire.h": "paulstoffregen/OneWire@^2.3.8",
   "DallasTemperature.h": "milesburton/DallasTemperature@^4.0.6",
   "DHT.h": "adafruit/DHT sensor library@^1.4.7",
-  "Keypad.h": "chris--a/Keypad@^3.1.1"
+  "Keypad.h": "chris--a/Keypad@^3.1.1",
+  "Adafruit_NeoPixel.h": "adafruit/Adafruit NeoPixel@^1.12.0"
 }

@@ -122,6 +122,17 @@ pub fn run(args: &[String]) -> i32 {
     if !soc.exceptions.is_empty() {
         eprintln!("--- {} exceptions, first: {:?}", soc.exceptions.len(), &soc.exceptions[..soc.exceptions.len().min(5)]);
     }
+    let frames = &soc.periph.rmt.frames;
+    if !frames.is_empty() {
+        let highs = |f: &esp32_soc::periph::rmt::Frame| f.pulses.iter().filter(|p| p.0).count();
+        eprintln!(
+            "--- RMT: {} transmissions, first on channel {} with {} pulses HIGH, last at {:.3} s",
+            frames.len(),
+            frames[0].channel,
+            highs(&frames[0]),
+            frames.last().unwrap().start_apb as f64 / 80e6
+        );
+    }
     // Group consecutive registers so large tables read as one range
     let mut groups: Vec<(u32, u32, u32, u32)> = vec![];
     for (&a, &(r, w)) in &soc.periph.unmodelled {

@@ -96,6 +96,17 @@ export interface PwmSignal {
 }
 
 /**
+ * A burst of pulses on a wire, too fast for the circuit solve to follow: an RMT transmission,
+ * the data stream of a WS2812 chain. Parts get it whole, with when each level began.
+ */
+export interface PulseTrain {
+  /** Time the first pulse started. */
+  t: SimTime;
+  /** [level, duration in ns]; neighbours alternate. */
+  pulses: readonly (readonly [0 | 1, number])[];
+}
+
+/**
  * The solved operating point, handed to the part after each converged solve. While a pad puts
  * out PWM the circuit is solved once per stretch of the period with a fixed set of pads HIGH,
  * and the part sees each stretch in turn with its share of `dt`.
@@ -124,6 +135,8 @@ export interface PartEnv {
   random(): number;
   /** Tell the kernel the circuit must be re-solved (switch moved, value changed...). */
   invalidate(): void;
+  /** Put a pulse train out on one of the part's terminals (a WS2812 passing data on at DOUT). */
+  emit(terminal: string, train: PulseTrain): void;
 }
 
 export type Observable = number | string | boolean;
@@ -153,6 +166,8 @@ export interface PartBehavior {
   /** Called once per converged solve: update observables, check ratings. */
   onSolved?(op: OperatingPoint): void;
   onEvent?(ev: PartEvent): void;
+  /** A pulse train arrived on `terminal`, from an MCU pad or another part's `emit` on its net. */
+  pulses?(terminal: string, train: PulseTrain): void;
   observables(): Record<string, Observable>;
   readonly damaged: boolean;
   /**

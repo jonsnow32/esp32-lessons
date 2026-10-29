@@ -328,7 +328,14 @@ impl Soc {
             let apb = (self.cycles + used) / CPU_PER_APB;
             let mut bus = CoreBus { mem: &mut self.mem, periph: &mut self.periph, cpu: core, apb };
             match self.cpus[core].step(&mut bus) {
-                Step::Ok => used += 1,
+                Step::Ok => {
+                    used += 1;
+                    // FreeRTOS yields by raising a cross-CPU interrupt on its own core and expects
+                    // to be switched out before its next instruction, as the hardware does
+                    if std::mem::take(&mut self.periph.irq_dirty) {
+                        self.refresh_lines();
+                    }
+                }
                 Step::Waiting => {
                     self.cpus[core].tick((QUANTUM - used) as u32);
                     used = QUANTUM;
@@ -347,17 +354,7 @@ impl Soc {
     fn sync(&mut self) {
         let apb = self.apb();
         self.periph.update(apb);
-        let sources: [bool; SOURCES] = self.periph.sources();
-        for core in 0..2 {
-            let lines = self.periph.cpu_lines(core, &sources);
-            let cpu = &mut self.cpus[core];
-            // Edge-triggered CPU interrupts latch on a rising line
-            let edge = xtensa_core::cpu::INT_EDGE;
-            let rising = lines & !self.edge_prev[core] & edge;
-            cpu.interrupt |= rising;
-            self.edge_prev[core] = lines;
-            cpu.irq_lines = lines & !edge;
-        }
+        self.refresh_lines();
         if !self.running[1] && self.periph.appcpu_released() {
             let addr = self.periph.appcpu_boot_addr.unwrap();
             let ccount = self.cpus[0].ccount;
@@ -375,6 +372,22 @@ impl Soc {
                 self.last_pads[k] = p;
                 self.pad_events.push(PadEvent { cycles: self.cycles, gpio: k, state: p });
             }
+        }
+    }
+
+    /// Hand the interrupt sources to the CPUs through the interrupt matrix.
+    fn refresh_lines(&mut self) {
+        self.periph.irq_dirty = false;
+        let sources: [bool; SOURCES] = self.periph.sources();
+        for core in 0..2 {
+            let lines = self.periph.cpu_lines(core, &sources);
+            let cpu = &mut self.cpus[core];
+            // Edge-triggered CPU interrupts latch on a rising line
+            let edge = xtensa_core::cpu::INT_EDGE;
+            let rising = lines & !self.edge_prev[core] & edge;
+            cpu.interrupt |= rising;
+            self.edge_prev[core] = lines;
+            cpu.irq_lines = lines & !edge;
         }
     }
 

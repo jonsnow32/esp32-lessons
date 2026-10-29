@@ -1,0 +1,141 @@
+{
+  "id": "neopixel-ring",
+  "order": 13,
+  "title": "Vòng LED cầu vồng",
+  "summary": "Vòng 12 LED WS2812B chạy hiệu ứng cầu vồng, biến trở chỉnh độ sáng. Thư viện Adafruit NeoPixel gửi 24 bit màu cho mỗi LED bằng khối RMT của ESP32: mỗi bit là một xung HIGH ngắn (0) hoặc dài (1), tất cả trên một dây.",
+  "tryIt": [
+    "Bấm Chạy rồi kéo \"position\" của biến trở: vòng LED sáng lên hoặc tối đi, Serial in độ sáng.",
+    "Xem dòng điện ở nguồn 5V khi vặn sáng hết cỡ: mỗi LED kéo tới 60 mA, 12 LED đã gần giới hạn của cổng USB.",
+    "Đổi \"count\" của vòng LED thành 8 hay 16: sketch vẫn gửi 12 LED, LED thừa không sáng, LED thiếu thì dữ liệu đi ra DOUT."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "neopixel-ring",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "pot1",
+        "type": "potentiometer",
+        "props": {
+          "resistance": 10000,
+          "position": 50
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "a5",
+          "rot": 0
+        }
+      },
+      {
+        "id": "ring1",
+        "type": "neopixel",
+        "props": {
+          "layout": "ring",
+          "count": 12
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "a20",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "3V3"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e7"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "board",
+          "pin": "D34"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e6"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e5"
+        },
+        "b": {
+          "kind": "board",
+          "pin": "GND.L"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e20"
+        },
+        "b": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w5",
+        "a": {
+          "kind": "board",
+          "pin": "VIN"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e21"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w6",
+        "a": {
+          "kind": "board",
+          "pin": "D5"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e22"
+        },
+        "color": "#30a46c"
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

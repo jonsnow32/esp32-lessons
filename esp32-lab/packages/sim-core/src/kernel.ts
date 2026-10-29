@@ -9,6 +9,7 @@
 import {
   resolveProps,
   type I2cTarget,
+  type PulseTrain,
   type Observable,
   type PartBehavior,
   type PartEnv,
@@ -170,6 +171,10 @@ export class SimKernel {
     this.lastSolve = this.now;
     this.build();
     opts.mcu.setI2cBus?.((tx) => this.i2c(tx));
+    opts.mcu.setPulseSink?.((pad, train) => {
+      const net = this.netlist.net(keyOf.pad(pad));
+      if (net !== undefined) this.deliver(net, train);
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -183,6 +188,11 @@ export class SimKernel {
       random: this.random,
       invalidate: () => {
         this.dirty = true;
+      },
+      emit: (terminal, train) => {
+        const inst = this.instances.get(partId);
+        const net = inst?.nets[terminal];
+        if (net !== undefined) this.deliver(net, train, inst);
       },
     };
   }
@@ -467,6 +477,29 @@ export class SimKernel {
         this.dirty = true;
         this.diagnostics.push({ severity: 'error', code: 'damaged', part: inst.id, message: `${inst.id} was destroyed` });
       }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Pulse trains
+  // -------------------------------------------------------------------------
+
+  private delivering = 0;
+
+  /** Hand a pulse train to every part terminal on `net` but the sender's. */
+  private deliver(net: number, train: PulseTrain, from?: Instance): void {
+    // A chain wired back onto itself would pass the data round for ever
+    if (this.delivering > 64) return;
+    this.delivering++;
+    try {
+      for (const inst of this.instances.values()) {
+        if (inst === from || !inst.behavior.pulses || inst.behavior.damaged) continue;
+        for (const [terminal, n] of Object.entries(inst.nets)) {
+          if (n === net) inst.behavior.pulses(terminal, train);
+        }
+      }
+    } finally {
+      this.delivering--;
     }
   }
 

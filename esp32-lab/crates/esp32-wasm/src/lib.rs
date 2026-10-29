@@ -161,6 +161,21 @@ pub unsafe extern "C" fn soc_i2c_answer(soc: *mut Soc, ptr: *const u8, len: u32)
     soc.answer_i2c(&Reply { acks: acks.iter().map(|&a| a != 0).collect(), data: data.to_vec() });
 }
 
+/// RMT transmissions finished since the last call, at `scratch_ptr` as little-endian u32
+/// words: per frame, GPIO (255 = not routed), start cycle (low, high word), pulse count, then
+/// each pulse as duration in ns with the level in bit 31.
+#[no_mangle]
+pub unsafe extern "C" fn soc_rmt_take(soc: *mut Soc) -> u32 {
+    let soc = &mut *soc;
+    let mut words: Vec<u32> = Vec::new();
+    for (pad, f) in soc.periph.take_rmt() {
+        let start = f.start_apb * esp32_soc::soc::CPU_PER_APB;
+        words.extend([pad.map_or(255, |n| n as u32), start as u32, (start >> 32) as u32, f.pulses.len() as u32]);
+        words.extend(f.pulses.iter().map(|&(level, ns)| ns.min(0x7fff_ffff) | ((level as u32) << 31)));
+    }
+    scratch(words.iter().flat_map(|w| w.to_le_bytes()).collect())
+}
+
 /// Pad state bits: 0 output enabled, 1 level, 2 pull-up, 3 pull-down, 4 input enabled,
 /// 8..9 drive strength.
 #[no_mangle]
