@@ -1,0 +1,10 @@
+{
+  "LiquidCrystal_I2C.h": "marcoschwartz/LiquidCrystal_I2C@^1.1.4",
+  "Adafruit_SSD1306.h": "adafruit/Adafruit SSD1306@^2.5.17",
+  "Adafruit_GFX.h": "adafruit/Adafruit GFX Library@^1.13.0",
+  "ESP32Servo.h": "madhephaestus/ESP32Servo@^3.2.1",
+  "OneWire.h": "paulstoffregen/OneWire@^2.3.8",
+  "DallasTemperature.h": "milesburton/DallasTemperature@^4.0.6",
+  "DHT.h": "adafruit/DHT sensor library@^1.4.7",
+  "Keypad.h": "chris--a/Keypad@^3.1.1"
+}

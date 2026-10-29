@@ -99,6 +99,10 @@ function create(_props: PartProps, env: PartEnv): PartBehavior {
         env.schedule(env.now() + TICK, 'tick');
       }
     },
+    persist: () => ({ angle, target, pulse }),
+    restore(state) {
+      ({ angle, target, pulse } = state as { angle: number; target: number; pulse: number });
+    },
     observables: () => ({ powered, angle, target, pulseUs: pulse / US, moving }),
   };
 }

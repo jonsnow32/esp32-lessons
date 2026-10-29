@@ -5,6 +5,7 @@
 //! found when bringing up new firmware.
 
 pub mod gpio;
+pub mod i2c;
 pub mod ledc;
 pub mod sens;
 pub mod spi;
@@ -24,6 +25,8 @@ pub const SENS: u32 = 0x3ff4_8800;
 pub const IO_MUX: u32 = 0x3ff4_9000;
 pub const UART1: u32 = 0x3ff5_0000;
 pub const LEDC: u32 = 0x3ff5_9000;
+pub const I2C0: u32 = 0x3ff5_3000;
+pub const I2C1: u32 = 0x3ff6_7000;
 pub const EFUSE: u32 = 0x3ff5_a000;
 pub const TIMG0: u32 = 0x3ff5_f000;
 pub const TIMG1: u32 = 0x3ff6_0000;
@@ -38,9 +41,13 @@ pub const SRC_TG0_LACT: usize = 17;
 pub const SRC_TG1_T0: usize = 18;
 pub const SRC_FROM_CPU0: usize = 24;
 pub const SRC_UART0: usize = 34;
+pub const SRC_I2C0: usize = 49;
 const PRO_INTR_MAP: u32 = 0x104;
 const APP_INTR_MAP: u32 = 0x218;
 const CPU_INTR_FROM_CPU: u32 = 0xdc;
+/// DPORT_PERIP_RST_EN: peripheral resets (the I2C driver resets a controller after a NACK).
+const PERIP_RST_EN: u32 = 0xc4;
+const RST_I2C: [u32; 2] = [1 << 7, 1 << 18];
 
 // --- DPORT: APP_CPU control ---------------------------------------------------------------
 const APPCPU_CTRL_A: u32 = 0x2c; // RESETTING
@@ -61,6 +68,7 @@ pub struct Periph {
     pub gpio: gpio::Gpio,
     /// LED PWM controller; its outputs reach pads through the GPIO matrix.
     pub ledc: ledc::Ledc,
+    pub i2c: [i2c::I2c; 2],
     /// SAR ADCs, fed with pad voltages by the circuit simulator.
     pub sens: sens::Sens,
     /// SPI0 (cache) and SPI1 (direct flash access) controllers.
@@ -85,6 +93,7 @@ impl Periph {
             uart: Default::default(),
             gpio: Default::default(),
             ledc: Default::default(),
+            i2c: Default::default(),
             sens: Default::default(),
             spi: Default::default(),
             timg: Default::default(),
@@ -145,6 +154,8 @@ impl Periph {
             GPIO => self.gpio.read(off),
             IO_MUX => self.gpio.read_iomux(off),
             LEDC => self.ledc.read(off),
+            I2C0 => self.i2c[0].read(off),
+            I2C1 => self.i2c[1].read(off),
             SPI0 => self.spi[0].read(off),
             SPI1 => self.spi[1].read(off),
             TIMG0 => self.timg[0].read(off, apb),
@@ -197,6 +208,16 @@ impl Periph {
                 // A new duty or frequency changes what the attached pads put out
                 self.gpio.dirty = true;
             }
+            I2C0 => self.i2c[0].write(off, v, apb),
+            I2C1 => self.i2c[1].write(off, v, apb),
+            DPORT if off == PERIP_RST_EN => {
+                for (k, bit) in RST_I2C.iter().enumerate() {
+                    if v & bit != 0 {
+                        self.i2c[k] = Default::default();
+                    }
+                }
+                self.regs.insert(addr, v);
+            }
             TIMG0 => self.timg[0].write(off, v, apb),
             TIMG1 => self.timg[1].write(off, v, apb),
             EFUSE => {}
@@ -229,6 +250,11 @@ impl Periph {
         let mut p = self.gpio.pad(n);
         let sel = self.gpio.out_sel(n);
         let sig = sel & 0x1ff;
+        // I2C pins are open drain and the bus idles HIGH: the pad lets go, the pull-ups hold it
+        if i2c::SIG_SCL.contains(&sig) || i2c::SIG_SDA.contains(&sig) {
+            p.output_enabled = false;
+            return p;
+        }
         if (ledc::SIG_HS0..=ledc::SIG_LS7).contains(&sig) {
             let invert = sel & gpio::OUT_SEL_INV != 0;
             // OEN_SEL clear: the peripheral enables the output (LEDC always does)
@@ -245,6 +271,12 @@ impl Periph {
             }
         }
         p
+    }
+
+    /// GPIOs carrying SDA and SCL of I2C controller `port` (through the GPIO matrix), if routed.
+    pub fn i2c_pins(&self, port: usize) -> (Option<usize>, Option<usize>) {
+        let find = |sig: u32| (0..gpio::PADS).find(|&n| self.gpio.out_sel(n) & 0x1ff == sig);
+        (find(i2c::SIG_SDA[port]), find(i2c::SIG_SCL[port]))
     }
 
     /// APP_CPU may run: clock enabled, out of reset, not stalled, boot address set.
@@ -268,6 +300,9 @@ impl Periph {
         for k in 0..3 {
             s[SRC_UART0 + k] = self.uart[k].irq();
         }
+        for k in 0..2 {
+            s[SRC_I2C0 + k] = self.i2c[k].irq();
+        }
         s
     }
 
@@ -288,10 +323,14 @@ impl Periph {
         for t in &mut self.timg {
             t.update(apb);
         }
+        for i in &mut self.i2c {
+            i.update(apb);
+        }
     }
 
     pub fn apb_until_event(&self, apb: u64) -> Option<u64> {
-        self.timg.iter().filter_map(|t| t.apb_until_event(apb)).min()
+        let timers = self.timg.iter().filter_map(|t| t.apb_until_event(apb));
+        timers.chain(self.i2c.iter().filter_map(|i| i.apb_until_event(apb))).min()
     }
 }
 

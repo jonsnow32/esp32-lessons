@@ -19,12 +19,14 @@ import ds18b20 from '@esp32lab-parts/ds18b20';
 import gasSensor from '@esp32lab-parts/gas-sensor';
 import joystick from '@esp32lab-parts/joystick';
 import keypad from '@esp32lab-parts/keypad';
+import lcd1602 from '@esp32lab-parts/lcd1602';
 import ledBar from '@esp32lab-parts/led-bar';
 import relay from '@esp32lab-parts/relay';
 import rotaryEncoder from '@esp32lab-parts/rotary-encoder';
 import servo from '@esp32lab-parts/servo';
 import sevenSegment from '@esp32lab-parts/seven-segment';
 import soilMoisture from '@esp32lab-parts/soil-moisture';
+import ssd1306 from '@esp32lab-parts/ssd1306';
 import board from '../boards/esp32-devkit-v1/board.json';
 import half400 from '../breadboards/half-400/breadboard.json';
 
@@ -48,11 +50,13 @@ export const PARTS = {
   joystick,
   keypad,
   'led-bar': ledBar,
+  lcd1602,
   relay,
   'rotary-encoder': rotaryEncoder,
   'seven-segment': sevenSegment,
   servo,
   'soil-moisture': soilMoisture,
+  ssd1306,
 };
 export const BOARD = board as BoardDef;
 export const BREADBOARDS: Record<string, BreadboardDef> = { 'half-400': half400 as BreadboardDef };

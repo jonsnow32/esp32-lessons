@@ -86,6 +86,8 @@ importers:
 
   parts/keypad: {}
 
+  parts/lcd1602: {}
+
   parts/led: {}
 
   parts/led-bar: {}
@@ -113,6 +115,8 @@ importers:
   parts/slide-switch: {}
 
   parts/soil-moisture: {}
+
+  parts/ssd1306: {}
 
   parts/thermistor: {}
 

@@ -72,6 +72,11 @@ function create(props: RelayProps, env: PartEnv): PartBehavior {
       clicks++;
       env.invalidate();
     },
+    // The armature stays where it was; the coil is re-derived from IN on the first solve
+    persist: () => ({ toNo, coil, driven, clicks }),
+    restore(state) {
+      ({ toNo, coil, driven, clicks } = state as { toNo: boolean; coil: boolean; driven: boolean; clicks: number });
+    },
     observables: () => ({ driven, energized: coil, closed: toNo, clicks, current }),
   };
 }

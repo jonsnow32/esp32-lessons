@@ -8,6 +8,7 @@
 
 import {
   resolveProps,
+  type I2cTarget,
   type Observable,
   type PartBehavior,
   type PartEnv,
@@ -28,7 +29,7 @@ import {
   type Project,
 } from '@esp32lab/project-model';
 import { padBehavior, supplyBehavior } from './builtins';
-import type { McuModel, PadInput } from './mcu';
+import type { I2cReply, I2cTransaction, McuModel, PadInput } from './mcu';
 import { edgeCurrents, terminalCurrents, type Edge, type FlowEdge } from './flow';
 import { bindContext, solve, type Stamper } from './mna';
 import { GROUND_KEY, Netlist, UnionFind } from './netlist';
@@ -46,6 +47,8 @@ export interface KernelOptions {
    * MCU, which keeps running: the new kernel continues from the MCU's current time.
    */
   startTime?: SimTime;
+  /** Part state from the kernel this one replaces (`carryState()`), restored by part id and type. */
+  carry?: ReadonlyMap<string, { type: string; state: unknown }>;
 }
 
 export interface Diagnostic {
@@ -76,6 +79,22 @@ interface Instance {
   keys: Record<string, string>;
   /** Terminal name → net index, filled after the netlist is frozen */
   nets: Record<string, number>;
+  type?: string;
+  /** I2C devices: the terminals carrying SDA and SCL. */
+  bus?: { sda: string; scl: string };
+}
+
+/** Why an I2C bus answered nothing, for explanations. */
+export type I2cBusFault = 'not-routed' | 'same-net' | 'no-pull-up';
+
+/** The last transaction on an I2C port: who was addressed and who answered. */
+export interface I2cActivity {
+  port: number;
+  sda?: string;
+  scl?: string;
+  fault?: I2cBusFault;
+  /** 7-bit addresses the controller called, and whether a device ACKed each. */
+  addressed: { address: number; acked: boolean }[];
 }
 
 // Netlist keys for every kind of connection point
@@ -140,12 +159,17 @@ export class SimKernel {
   private pwmByNet = new Map<number, PwmSignal>();
   /** Numeric observables that differ between PWM stretches, averaged over the period. */
   private averaged = new Map<string, Record<string, number>>();
+  /** Per I2C port: the device addressed since the last START, and whether the next byte is an address. */
+  private i2cState = new Map<number, { target: I2cTarget | null; address: boolean }>();
+  /** Latest transaction per I2C port. */
+  readonly i2cActivity = new Map<number, I2cActivity>();
 
   constructor(private readonly opts: KernelOptions) {
     this.random = prng(opts.project.seed ?? 1);
     this.now = opts.startTime ?? 0;
     this.lastSolve = this.now;
     this.build();
+    opts.mcu.setI2cBus?.((tx) => this.i2c(tx));
   }
 
   // -------------------------------------------------------------------------
@@ -163,8 +187,19 @@ export class SimKernel {
     };
   }
 
-  private addInstance(id: string, behavior: PartBehavior, keys: Record<string, string>): void {
-    this.instances.set(id, { id, behavior, keys, nets: {} });
+  private addInstance(id: string, behavior: PartBehavior, keys: Record<string, string>, type?: string, bus?: Instance['bus']): void {
+    const carried = type === undefined ? undefined : this.opts.carry?.get(id);
+    if (carried && carried.type === type) behavior.restore?.(carried.state);
+    this.instances.set(id, { id, behavior, keys, nets: {}, type, bus });
+  }
+
+  /** State of every part that keeps some across rebuilds, for the kernel that replaces this one. */
+  carryState(): Map<string, { type: string; state: unknown }> {
+    const out = new Map<string, { type: string; state: unknown }>();
+    for (const inst of this.instances.values()) {
+      if (inst.type !== undefined && inst.behavior.persist) out.set(inst.id, { type: inst.type, state: inst.behavior.persist() });
+    }
+    return out;
   }
 
   private build(): void {
@@ -217,7 +252,7 @@ export class SimKernel {
         if (node) link(keys[t.name]!, boardNodeKey(node), 'onboard', id);
       }
       manifests.set(id, module.manifest);
-      this.addInstance(id, module.create(resolveProps(module.manifest, part.props), this.env(id)), keys);
+      this.addInstance(id, module.create(resolveProps(module.manifest, part.props), this.env(id)), keys, part.type, module.bus);
     }
 
     // User parts: legs land in breadboard holes
@@ -244,7 +279,7 @@ export class SimKernel {
         }
       }
       manifests.set(part.id, module.manifest);
-      this.addInstance(part.id, module.create(resolveProps(module.manifest, part.props), this.env(part.id)), keys);
+      this.addInstance(part.id, module.create(resolveProps(module.manifest, part.props), this.env(part.id)), keys, part.type, module.bus);
     }
 
     // In-part shorts (pushbutton legs) behave like zero-length wires
@@ -284,6 +319,8 @@ export class SimKernel {
 
   /** Advance virtual time, running the MCU and part timers, re-solving whenever something changed. */
   advanceTo(target: SimTime): void {
+    // The MCU must see a solved circuit (powered devices, pulled-up buses) from its first step
+    if (this.dirty) this.solve();
     for (;;) {
       const next = Math.min(this.queue[0]?.t ?? Infinity, target);
       const step = this.opts.mcu.runUntil(next);
@@ -431,6 +468,77 @@ export class SimKernel {
         this.diagnostics.push({ severity: 'error', code: 'damaged', part: inst.id, message: `${inst.id} was destroyed` });
       }
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // I2C
+  // -------------------------------------------------------------------------
+
+  /**
+   * The devices that can hear the controller: SDA and SCL routed to two different nets, both
+   * pulled up to a valid HIGH at rest (open-drain lines read LOW, or nothing, without a pull-up),
+   * and the device's SDA / SCL terminals on those nets.
+   */
+  private i2cTargets(tx: I2cTransaction): { targets: I2cTarget[]; fault?: I2cBusFault } {
+    if (!tx.sda || !tx.scl) return { targets: [], fault: 'not-routed' };
+    const sda = this.netlist.net(keyOf.pad(tx.sda));
+    const scl = this.netlist.net(keyOf.pad(tx.scl));
+    if (sda === undefined || scl === undefined) return { targets: [], fault: 'not-routed' };
+    if (sda === scl) return { targets: [], fault: 'same-net' };
+    const vdd = this.voltages[this.netlist.net(keyOf.net(this.opts.mcu.electrical.vddNet)) ?? 0] ?? 3.3;
+    const high = (n: number) => !this.floating[n] && (this.voltages[n] ?? 0) >= 0.7 * vdd;
+    if (!high(sda) || !high(scl)) return { targets: [], fault: 'no-pull-up' };
+    const targets: I2cTarget[] = [];
+    for (const inst of this.instances.values()) {
+      const t = inst.behavior.i2c;
+      if (t && inst.bus && inst.nets[inst.bus.sda] === sda && inst.nets[inst.bus.scl] === scl) targets.push(t);
+    }
+    return { targets };
+  }
+
+  /** Play one command list on the bus: START, address, data, STOP, as the devices answer. */
+  private i2c(tx: I2cTransaction): I2cReply {
+    const { targets, fault } = this.i2cTargets(tx);
+    const st = this.i2cState.get(tx.port) ?? { target: null, address: false };
+    this.i2cState.set(tx.port, st);
+    const activity = this.i2cActivity.get(tx.port);
+    const addressed = activity && activity.sda === tx.sda && !activity.fault === !fault ? activity.addressed : [];
+    const acks: boolean[] = [];
+    const data: number[] = [];
+    let aborted = false;
+    for (const op of tx.ops) {
+      if (op.kind === 'start') st.address = true;
+      else if (op.kind === 'stop') {
+        st.target?.end?.();
+        st.target = null;
+      } else if (op.kind === 'write') {
+        for (const b of op.bytes) {
+          let ack = false;
+          if (!aborted && st.address) {
+            st.address = false;
+            const t = targets.find((d) => d.address === b >> 1) ?? null;
+            if (st.target && st.target !== t) st.target.end?.();
+            st.target = t && t.begin((b & 1) === 1) ? t : null;
+            ack = st.target !== null;
+            addressed.push({ address: b >> 1, acked: ack });
+          } else if (!aborted && st.target) {
+            ack = st.target.write(b);
+          }
+          acks.push(ack);
+          // The controller gives up at the first answer it was not told to expect
+          if (op.ackCheck && ack === op.ackExp) aborted = true;
+        }
+      } else if (op.kind === 'read') {
+        for (let i = 0; i < op.len; i++) data.push(!aborted && st.target ? st.target.read() & 0xff : 0xff);
+      }
+    }
+    if (aborted) {
+      st.target?.end?.();
+      st.target = null;
+    }
+    // Keep the last few addresses: enough to tell what a sketch talks to
+    this.i2cActivity.set(tx.port, { port: tx.port, sda: tx.sda, scl: tx.scl, fault, addressed: addressed.slice(-16) });
+    return { acks, data };
   }
 
   // -------------------------------------------------------------------------

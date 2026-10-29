@@ -35,13 +35,14 @@ async function boot(id: string) {
   let serial = '';
   mcu.onSerial((_port, bytes) => (serial += new TextDecoder().decode(bytes)));
   const project = projectOf(id);
-  const make = (p: Project, startTime = 0) => new SimKernel({ project: p, board: BOARD, breadboards: BREADBOARDS, parts: PARTS, mcu, startTime });
+  const make = (p: Project, startTime = 0, carry?: ReturnType<SimKernel['carryState']>) =>
+    new SimKernel({ project: p, board: BOARD, breadboards: BREADBOARDS, parts: PARTS, mcu, startTime, carry });
   const b = { k: make(project), mcu, project, serial: () => serial };
   /** Change a prop the way the app does: rebuild the circuit around the running chip. */
   const setProp = (part: string, key: string, value: number | string | boolean) => {
     const p = b.project.parts.find((x) => x.id === part)!;
     p.props = { ...p.props, [key]: value };
-    b.k = make(b.project, b.k.now);
+    b.k = make(b.project, b.k.now, b.k.carryState());
     b.k.solve();
   };
   /** Hold a button for `ms`, then let go. */
@@ -242,6 +243,22 @@ describe.skipIf(!existsSync(wasmPath))('featured projects on the emulated ESP32'
     expect(b.k.observables('servo1').angle as number).toBeGreaterThan(175);
     expect(brightness()).toBeGreaterThan(half * 1.5);
     expect(b.serial()).toMatch(/Goc 1[78]\d do/);
+  });
+
+  it('i2c-displays shows the temperature on the LCD and graphs it on the OLED', async () => {
+    const b = await boot('i2c-displays');
+    if (!b) return;
+    b.k.advanceTo(1.5 * S);
+    expect(b.serial()).toContain('LCD 0x27: co, OLED 0x3C: co');
+    const lcd = () => b.k.observables('lcd1');
+    expect(lcd()).toMatchObject({ line1: 'Nhiet do:       ', backlight: true, display: true });
+    expect(String(lcd().line2)).toMatch(/^ +2[45]\.\d#C/);
+    const oled = b.k.observables('oled1');
+    expect(oled.on).toBe(true);
+    expect(oled.pixels as number).toBeGreaterThan(100);
+    b.setProp('ntc1', 'temperature', 45);
+    b.k.advanceTo(b.k.now + 1 * S);
+    expect(String(lcd().line2)).toMatch(/^ +4[4-6]\.\d#C/);
   });
 
   it('relay-lamp toggles the lamp through the relay contacts', async () => {

@@ -1,0 +1,69 @@
+{
+  "id": "ssd1306",
+  "version": "0.1.0",
+  "name": "Màn hình OLED 0,96\" SSD1306 (I2C)",
+  "category": "display",
+  "tags": [
+    "module",
+    "i2c",
+    "oled",
+    "128x64"
+  ],
+  "terminals": [
+    {
+      "name": "gnd",
+      "dx": 0,
+      "dy": 0,
+      "label": "GND"
+    },
+    {
+      "name": "vcc",
+      "dx": 1,
+      "dy": 0,
+      "label": "VCC (3,3–5 V)"
+    },
+    {
+      "name": "scl",
+      "dx": 2,
+      "dy": 0,
+      "label": "SCL"
+    },
+    {
+      "name": "sda",
+      "dx": 3,
+      "dy": 0,
+      "label": "SDA"
+    }
+  ],
+  "props": {
+    "address": {
+      "type": "enum",
+      "default": "0x3C",
+      "options": [
+        "0x3C",
+        "0x3D"
+      ]
+    },
+    "color": {
+      "type": "enum",
+      "default": "white",
+      "options": [
+        "white",
+        "blue"
+      ]
+    }
+  },
+  "learn": {
+    "summary": "Màn hình OLED 128 × 64 điểm, mỗi điểm tự phát sáng nên không cần đèn nền, nhìn rõ cả trong tối. Vẽ được chữ, số, đường, hình và ảnh nhỏ qua I2C.",
+    "howToPlug": [
+      "Thứ tự chân trên module: GND, VCC, SCL, SDA (xem kỹ, có loại đảo GND và VCC).",
+      "VCC nối 3V3, SCL nối GPIO22, SDA nối GPIO21.",
+      "Module thường đã có điện trở kéo lên cho SDA, SCL."
+    ],
+    "tips": [
+      "Thư viện Adafruit_SSD1306 + Adafruit_GFX: display.begin(SSD1306_SWITCHCAPVCC, 0x3C); rồi vẽ, cuối cùng display.display() mới gửi hình lên màn.",
+      "Mỗi lần display() gửi 1024 byte: ở 400 kHz mất khoảng 25 ms, ở 100 kHz khoảng 95 ms.",
+      "Không hiện gì? Kiểm tra địa chỉ 0x3C / 0x3D bằng sketch quét I2C."
+    ]
+  }
+}

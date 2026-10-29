@@ -1,0 +1,69 @@
+{
+  "id": "lcd1602",
+  "version": "0.1.0",
+  "name": "Màn hình LCD 1602 I2C",
+  "category": "display",
+  "tags": [
+    "module",
+    "i2c",
+    "hd44780",
+    "pcf8574"
+  ],
+  "terminals": [
+    {
+      "name": "gnd",
+      "dx": 0,
+      "dy": 0,
+      "label": "GND"
+    },
+    {
+      "name": "vcc",
+      "dx": 1,
+      "dy": 0,
+      "label": "VCC (5 V)"
+    },
+    {
+      "name": "sda",
+      "dx": 2,
+      "dy": 0,
+      "label": "SDA"
+    },
+    {
+      "name": "scl",
+      "dx": 3,
+      "dy": 0,
+      "label": "SCL"
+    }
+  ],
+  "props": {
+    "address": {
+      "type": "enum",
+      "default": "0x27",
+      "options": [
+        "0x27",
+        "0x3F"
+      ]
+    },
+    "color": {
+      "type": "enum",
+      "default": "blue",
+      "options": [
+        "blue",
+        "green"
+      ]
+    }
+  },
+  "learn": {
+    "summary": "Màn hình 2 dòng × 16 ký tự, có thêm bo mạch PCF8574 phía sau để chỉ cần 2 dây tín hiệu I2C (SDA, SCL) thay vì 6–10 dây. Hiện chữ, số và tối đa 8 ký tự tự vẽ.",
+    "howToPlug": [
+      "GND nối GND, VCC nối VIN (5 V): ở 3,3 V chữ rất mờ hoặc không thấy.",
+      "SDA nối GPIO21, SCL nối GPIO22: hai chân I2C mặc định của Wire.begin().",
+      "Bo PCF8574 đã có sẵn điện trở kéo lên cho SDA, SCL."
+    ],
+    "tips": [
+      "Thư viện LiquidCrystal_I2C: LiquidCrystal_I2C lcd(0x27, 16, 2); lcd.init(); lcd.backlight(); lcd.print(\"Xin chao\");",
+      "Không thấy gì? Chạy sketch quét I2C để biết địa chỉ (0x27 hay 0x3F), rồi vặn biến trở xanh sau lưng để chỉnh độ tương phản.",
+      "lcd.setCursor(cột, dòng) đếm từ 0: dòng thứ hai là setCursor(0, 1)."
+    ]
+  }
+}

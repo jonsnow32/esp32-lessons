@@ -31,6 +31,28 @@ export interface PadElectrical {
   currentMax: number;
 }
 
+/** One step of an I2C command list, as an MCU's controller clocks it out. */
+export type I2cOp =
+  | { kind: 'start' }
+  | { kind: 'write'; bytes: number[]; ackCheck: boolean; ackExp: boolean }
+  | { kind: 'read'; len: number; nack: boolean }
+  | { kind: 'stop' }
+  | { kind: 'end' };
+
+export interface I2cTransaction {
+  port: number;
+  /** Pads carrying the controller's SDA and SCL; undefined if not routed to any pad. */
+  sda?: string;
+  scl?: string;
+  ops: I2cOp[];
+}
+
+/** The bus's answer: per written byte its ACK (true = ACK), then the bytes read. */
+export interface I2cReply {
+  acks: boolean[];
+  data: number[];
+}
+
 export interface McuStep {
   /** Time actually reached; earlier than requested when a pad drive changed. */
   t: SimTime;
@@ -52,6 +74,8 @@ export interface McuModel {
   /** The circuit destroyed a pad's output stage (sustained overcurrent). */
   padDamaged?(pad: string): void;
   onSerial?(listener: (port: number, bytes: Uint8Array) => void): void;
+  /** Who answers the MCU's I2C transactions; without one, nobody does (every address NACKed). */
+  setI2cBus?(bus: ((tx: I2cTransaction) => I2cReply) | null): void;
 }
 
 /** ESP32 pad characteristics (datasheet §5, approximate – to be calibrated against real boards). */
@@ -77,6 +101,7 @@ export class ScriptedMcu implements McuModel {
   /** Every logic-level change seen on an input pad: what a logic analyzer on the pin would show. */
   readonly edges: { t: SimTime; pad: string; level: 0 | 1 }[] = [];
   readonly damagedPads = new Set<string>();
+  private i2cBus: ((tx: I2cTransaction) => I2cReply) | null = null;
 
   constructor(
     readonly pads: readonly string[],
@@ -86,9 +111,22 @@ export class ScriptedMcu implements McuModel {
     this.electrical = electrical;
   }
 
+  setI2cBus(bus: ((tx: I2cTransaction) => I2cReply) | null): void {
+    this.i2cBus = bus;
+  }
+
+  /** Clock a command list out on the I2C bus, as a controller on these pads would. */
+  i2c(ops: I2cOp[], sda = 'GPIO21', scl = 'GPIO22', port = 0): I2cReply {
+    return this.i2cBus?.({ port, sda, scl, ops }) ?? { acks: [], data: [] };
+  }
+
   set(pad: string, drive: Partial<PadDrive>, at: SimTime = this.now): this {
     const prev = this.script.filter((s) => s.pad === pad).at(-1)?.drive ?? this.drive(pad);
-    this.script.push({ t: at, pad, drive: { ...prev, ...drive } });
+    const next = { ...prev, ...drive };
+    // Already due: the pad drives it now (the first solve sees it); the script entry still
+    // reports the change on the next run so a solved circuit is solved again
+    if (at <= this.now) this.drives.set(pad, next);
+    this.script.push({ t: at, pad, drive: next });
     this.script.sort((a, b) => a.t - b.t);
     return this;
   }

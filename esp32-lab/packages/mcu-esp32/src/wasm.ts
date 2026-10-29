@@ -2,7 +2,17 @@
 // cores, exchanging only pad drive states and pad voltages with the circuit simulator.
 
 import type { SimTime } from '@esp32lab/part-sdk';
-import { ESP32_PAD_ELECTRICAL, type McuModel, type McuStep, type PadDrive, type PadElectrical, type PadInput } from '@esp32lab/sim-core';
+import {
+  ESP32_PAD_ELECTRICAL,
+  type I2cOp,
+  type I2cReply,
+  type I2cTransaction,
+  type McuModel,
+  type McuStep,
+  type PadDrive,
+  type PadElectrical,
+  type PadInput,
+} from '@esp32lab/sim-core';
 
 /** Emulated CPU clock: 240 cycles per µs. */
 const CYCLES_PER_NS = 0.24;
@@ -23,6 +33,8 @@ interface Exports {
   soc_pad_state(soc: number, gpio: number): number;
   soc_pad_pwm_period(soc: number, gpio: number): number;
   soc_pad_pwm_high(soc: number, gpio: number): number;
+  soc_i2c_take(soc: number): number;
+  soc_i2c_answer(soc: number, ptr: number, len: number): void;
   soc_set_pad_input(soc: number, gpio: number, level: number): void;
   soc_set_pad_volts(soc: number, gpio: number, volts: number): void;
   soc_set_board_pull_ups(soc: number, lo: number, hi: number): void;
@@ -30,7 +42,7 @@ interface Exports {
 
 const REQUIRED_EXPORTS = [
   'alloc', 'dealloc', 'scratch_ptr', 'last_error_len', 'soc_new', 'soc_free', 'soc_run_until', 'soc_cycles',
-  'soc_uart_take', 'soc_uart_push', 'soc_pad_state', 'soc_pad_pwm_period', 'soc_pad_pwm_high', 'soc_set_pad_input', 'soc_set_pad_volts', 'soc_set_board_pull_ups',
+  'soc_uart_take', 'soc_uart_push', 'soc_pad_state', 'soc_pad_pwm_period', 'soc_pad_pwm_high', 'soc_i2c_take', 'soc_i2c_answer', 'soc_set_pad_input', 'soc_set_pad_volts', 'soc_set_board_pull_ups',
 ] as const satisfies readonly Exclude<keyof Exports, 'memory'>[];
 
 /** A PlatformIO build: .pio/build/<env>/{firmware.elf, firmware.bin, bootloader.bin, partitions.bin}. */
@@ -62,7 +74,7 @@ export class Esp32Wasm {
     return new Uint8Array(this.x.memory.buffer, this.x.scratch_ptr(), len).slice();
   }
 
-  private copyIn(data: Uint8Array | undefined): [number, number] {
+  copyIn(data: Uint8Array | undefined): [number, number] {
     if (!data || data.length === 0) return [0, 0];
     const ptr = this.x.alloc(data.length);
     new Uint8Array(this.x.memory.buffer, ptr, data.length).set(data);
@@ -81,6 +93,17 @@ export class Esp32Wasm {
   boot(fw: Firmware): Esp32Mcu {
     return new Esp32Mcu(this.x, this, fw);
   }
+}
+
+/** Nobody on the bus: every byte NACKed, every byte read 0xFF. */
+function emptyReply(tx: I2cTransaction): I2cReply {
+  const acks: boolean[] = [];
+  const data: number[] = [];
+  for (const op of tx.ops) {
+    if (op.kind === 'write') acks.push(...op.bytes.map(() => false));
+    if (op.kind === 'read') data.push(...Array<number>(op.len).fill(0xff));
+  }
+  return { acks, data };
 }
 
 /** GPIO number for each pad name the board uses ("GPIO18" → 18); EN is handled separately. */
@@ -110,6 +133,7 @@ export class Esp32Mcu implements McuModel {
   private bootedAt: SimTime = 0;
   /** Number of times EN has rebooted the chip. */
   resets = 0;
+  private i2cBus: ((tx: I2cTransaction) => I2cReply) | null = null;
 
   constructor(
     private readonly x: Exports,
@@ -202,7 +226,9 @@ export class Esp32Mcu implements McuModel {
 
   runUntil(t: SimTime): McuStep {
     if (this.halted || this.inReset) return { t, padsChanged: false };
-    const code = this.x.soc_run_until(this.soc, Math.ceil((t - this.bootedAt) * CYCLES_PER_NS));
+    let code: number;
+    // An I2C transaction is answered on the spot and the chip runs on
+    while ((code = this.x.soc_run_until(this.soc, Math.ceil((t - this.bootedAt) * CYCLES_PER_NS))) === 3) this.answerI2c();
     this.flushSerial();
     if (code === 2) {
       this.halted = new TextDecoder().decode(this.wasm.scratch(this.x.last_error_len()));
@@ -213,6 +239,36 @@ export class Esp32Mcu implements McuModel {
       return { t: Math.min(t, this.now), padsChanged: true };
     }
     return { t, padsChanged: false };
+  }
+
+  setI2cBus(bus: ((tx: I2cTransaction) => I2cReply) | null): void {
+    this.i2cBus = bus;
+  }
+
+  private answerI2c(): void {
+    const b = this.wasm.scratch(this.x.soc_i2c_take(this.soc));
+    if (b.length < 4) return;
+    const pad = (n: number) => (n === 255 ? undefined : `GPIO${n}`);
+    const ops: I2cOp[] = [];
+    let i = 4;
+    for (let k = 0; k < b[3]!; k++) {
+      const kind = b[i++]!;
+      if (kind === 0) ops.push({ kind: 'start' });
+      else if (kind === 1) {
+        const [ackCheck, ackExp, len] = [b[i]!, b[i + 1]!, b[i + 2]!];
+        ops.push({ kind: 'write', ackCheck: ackCheck !== 0, ackExp: ackExp !== 0, bytes: [...b.subarray(i + 3, i + 3 + len)] });
+        i += 3 + len;
+      } else if (kind === 2) {
+        ops.push({ kind: 'read', len: b[i]!, nack: b[i + 1] !== 0 });
+        i += 2;
+      } else ops.push({ kind: kind === 3 ? 'stop' : 'end' });
+    }
+    const tx: I2cTransaction = { port: b[0]!, sda: pad(b[1]!), scl: pad(b[2]!), ops };
+    const reply = this.i2cBus?.(tx) ?? emptyReply(tx);
+    const out = new Uint8Array([...reply.acks.map((a) => (a ? 0 : 1)), ...reply.data]);
+    const [ptr, len] = this.wasm.copyIn(out);
+    this.x.soc_i2c_answer(this.soc, ptr, len);
+    if (len) this.x.dealloc(ptr, len);
   }
 
   padDamaged(pad: string): void {

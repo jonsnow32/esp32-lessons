@@ -88,6 +88,10 @@ function create(_props: PartProps, env: PartEnv): PartBehavior {
         }
       }
     },
+    persist: () => position,
+    restore(state) {
+      position = state as number;
+    },
     observables: () => ({ position, clk: !a, dt: !b, pressed, turning }),
   };
 }

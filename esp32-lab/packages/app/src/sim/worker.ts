@@ -48,7 +48,8 @@ function rebuild(): void {
   const board = BOARDS[project.board.type];
   if (!board) return post({ type: 'error', message: `Unknown board ${project.board.type}` });
   const startTime = kernel?.now ?? 0;
-  kernel = new SimKernel({ project, board, breadboards: BREADBOARDS, parts: PARTS, mcu, startTime });
+  // Displays keep what they show, servos where they point: the firmware does not start over
+  kernel = new SimKernel({ project, board, breadboards: BREADBOARDS, parts: PARTS, mcu, startTime, carry: kernel?.carryState() });
   for (const [part, keys] of held) for (const key of keys) kernel.press(part, key);
   kernel.solve();
   publish(0);

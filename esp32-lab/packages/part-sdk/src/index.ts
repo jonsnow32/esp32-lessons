@@ -128,7 +128,26 @@ export interface PartEnv {
 
 export type Observable = number | string | boolean;
 
+/**
+ * A device on an I2C bus, at transaction level: the kernel decodes START, the address byte, data
+ * bytes and STOP from what the MCU's controller clocks out, once the bus is electrically sound.
+ */
+export interface I2cTarget {
+  /** 7-bit address the device answers to. */
+  readonly address: number;
+  /** START + its address: ACK (true) to take part, false to stay silent (e.g. unpowered). */
+  begin(read: boolean): boolean;
+  /** A byte from the controller; true = ACK. */
+  write(byte: number): boolean;
+  /** The next byte for the controller. */
+  read(): number;
+  /** STOP, or a repeated START that addresses someone else. */
+  end?(): void;
+}
+
 export interface PartBehavior {
+  /** Present on I2C devices; the part's `bus` terminals carry SDA and SCL. */
+  readonly i2c?: I2cTarget;
   stamp?(ctx: StampContext): void;
   stampNonlinear?(ctx: NonlinearContext): void;
   /** Called once per converged solve: update observables, check ratings. */
@@ -136,6 +155,13 @@ export interface PartBehavior {
   onEvent?(ev: PartEvent): void;
   observables(): Record<string, Observable>;
   readonly damaged: boolean;
+  /**
+   * State that must outlive a circuit rebuild (a wire moved, a prop changed while the firmware
+   * runs on): what a display shows, where a servo points. The new instance of the same part
+   * gets it back through `restore`. Anything electrical is re-derived from the solve instead.
+   */
+  persist?(): unknown;
+  restore?(state: unknown): void;
 }
 
 export type PartProps = Record<string, number | string | boolean>;
@@ -168,6 +194,8 @@ export interface PartModule<P extends PartProps = PartProps> {
   control?: PartControl | PartControl[];
   /** The part's detail page: key figures and drawings (UI language: Vietnamese). */
   doc?: PartDoc<P>;
+  /** Terminals of an I2C device's bus lines (its behavior provides `i2c`). */
+  bus?: { sda: string; scl: string };
 }
 
 // ---------------------------------------------------------------------------

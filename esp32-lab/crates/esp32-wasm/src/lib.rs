@@ -6,6 +6,7 @@
 //!
 //! Times are in CPU cycles (240 MHz) passed as f64, which is exact up to 2^53 cycles (≈ 433 days).
 
+use esp32_soc::periph::i2c::{Op, Reply};
 use esp32_soc::{Soc, Stop};
 
 static mut SCRATCH: Vec<u8> = Vec::new();
@@ -63,6 +64,7 @@ pub unsafe extern "C" fn soc_new(
     match result {
         Ok(mut soc) => {
             soc.stop_on_pad_change = true;
+            soc.i2c_host = true;
             Box::into_raw(Box::new(soc))
         }
         Err(e) => {
@@ -84,12 +86,14 @@ pub extern "C" fn last_error_len() -> u32 {
 }
 
 /// Run until `until` cycles or a pad change. 0 = reached, 1 = pad changed, 2 = stopped
-/// (message via scratch: BREAK, unimplemented ROM function, reset).
+/// (message via scratch: BREAK, unimplemented ROM function, reset), 3 = an I2C transaction
+/// waits for the bus (`soc_i2c_take`, then `soc_i2c_answer`).
 #[no_mangle]
 pub unsafe extern "C" fn soc_run_until(soc: *mut Soc, until: f64) -> u32 {
     match (*soc).run(until as u64) {
         Stop::Timeout => 0,
         Stop::PadChange => 1,
+        Stop::I2c => 3,
         other => {
             scratch(format!("{other:?}").into_bytes());
             2
@@ -112,6 +116,49 @@ pub unsafe extern "C" fn soc_uart_take(soc: *mut Soc, port: u32) -> u32 {
 #[no_mangle]
 pub unsafe extern "C" fn soc_uart_push(soc: *mut Soc, port: u32, byte: u32) {
     (*soc).periph.uart[port as usize % 3].rx.push_back(byte as u8);
+}
+
+/// The I2C transaction waiting for the bus, at `scratch_ptr`: port, SDA GPIO, SCL GPIO (255 =
+/// not routed), op count, then each op: 0 start | 1 write, ack_check, ack_exp, len, bytes… |
+/// 2 read, len, nack | 3 stop | 4 end. Length 0 if none.
+#[no_mangle]
+pub unsafe extern "C" fn soc_i2c_take(soc: *const Soc) -> u32 {
+    let soc = &*soc;
+    let Some(port) = soc.pending_i2c() else { return scratch(vec![]) };
+    let ops = soc.periph.i2c[port].pending.as_ref().unwrap();
+    let (sda, scl) = soc.periph.i2c_pins(port);
+    let mut out = vec![port as u8, sda.map_or(255, |n| n as u8), scl.map_or(255, |n| n as u8), ops.len() as u8];
+    for op in ops {
+        match op {
+            Op::Start => out.push(0),
+            Op::Write { bytes, ack_check, ack_exp } => {
+                out.extend([1, *ack_check as u8, *ack_exp as u8, bytes.len() as u8]);
+                out.extend(bytes);
+            }
+            Op::Read { len, nack } => out.extend([2, *len, *nack as u8]),
+            Op::Stop => out.push(3),
+            Op::End => out.push(4),
+        }
+    }
+    scratch(out)
+}
+
+/// Answer the waiting I2C transaction: one byte per written byte (0 = ACK, 1 = NACK), then the
+/// bytes read, in op order.
+#[no_mangle]
+pub unsafe extern "C" fn soc_i2c_answer(soc: *mut Soc, ptr: *const u8, len: u32) {
+    let soc = &mut *soc;
+    let Some(port) = soc.pending_i2c() else { return };
+    let written: usize = soc.periph.i2c[port]
+        .pending
+        .as_ref()
+        .unwrap()
+        .iter()
+        .map(|op| if let Op::Write { bytes, .. } = op { bytes.len() } else { 0 })
+        .sum();
+    let bytes = slice(ptr, len).unwrap_or(&[]);
+    let (acks, data) = bytes.split_at(written.min(bytes.len()));
+    soc.answer_i2c(&Reply { acks: acks.iter().map(|&a| a != 0).collect(), data: data.to_vec() });
 }
 
 /// Pad state bits: 0 output enabled, 1 level, 2 pull-up, 3 pull-down, 4 input enabled,

@@ -1,0 +1,235 @@
+{
+  "id": "i2c-displays",
+  "order": 12,
+  "title": "Nhiệt độ trên LCD và OLED",
+  "summary": "Hai màn hình dùng chung một bus I2C (SDA = GPIO21, SCL = GPIO22), mỗi màn hình một địa chỉ: LCD 1602 ở 0x27 hiện nhiệt độ bằng chữ, OLED ở 0x3C vẽ biểu đồ nhiệt độ theo thời gian. Thư viện LiquidCrystal_I2C và Adafruit SSD1306 được tự thêm khi biên dịch.",
+  "tryIt": [
+    "Bấm Chạy, chọn nhiệt điện trở rồi kéo \"temperature\": LCD đổi số, OLED vẽ đường lên xuống.",
+    "Đổi địa chỉ LCD sang 0x3F trong Inspector: LCD trắng trơn, Serial báo không tìm thấy nó. Sửa LCD_ADDR trong code cho khớp.",
+    "Rút dây VCC của LCD sang 3V3: chữ mờ hẳn, vì tinh thể lỏng cần khoảng 5 V."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "i2c-displays",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "ntc1",
+        "type": "thermistor",
+        "props": {
+          "temperature": 25
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "j5",
+          "rot": 0
+        }
+      },
+      {
+        "id": "r2",
+        "type": "resistor",
+        "props": {
+          "resistance": 10000
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "i6",
+          "rot": 90
+        }
+      },
+      {
+        "id": "lcd1",
+        "type": "lcd1602",
+        "props": {
+          "address": "0x27",
+          "color": "blue"
+        },
+        "placement": null,
+        "bench": {
+          "x": 17,
+          "y": 41,
+          "rot": 0
+        }
+      },
+      {
+        "id": "oled1",
+        "type": "ssd1306",
+        "props": {
+          "address": "0x3C",
+          "color": "white"
+        },
+        "placement": null,
+        "bench": {
+          "x": 51,
+          "y": 12,
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn1"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "board",
+          "pin": "3V3"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "g5"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "board",
+          "pin": "D34"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f6"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "part",
+          "part": "lcd1",
+          "terminal": "gnd"
+        },
+        "b": {
+          "kind": "board",
+          "pin": "GND.L"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w5",
+        "a": {
+          "kind": "board",
+          "pin": "VIN"
+        },
+        "b": {
+          "kind": "part",
+          "part": "lcd1",
+          "terminal": "vcc"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w6",
+        "a": {
+          "kind": "board",
+          "pin": "D21"
+        },
+        "b": {
+          "kind": "part",
+          "part": "lcd1",
+          "terminal": "sda"
+        },
+        "color": "#3e63dd"
+      },
+      {
+        "id": "w7",
+        "a": {
+          "kind": "board",
+          "pin": "D22"
+        },
+        "b": {
+          "kind": "part",
+          "part": "lcd1",
+          "terminal": "scl"
+        },
+        "color": "#30a46c"
+      },
+      {
+        "id": "w8",
+        "a": {
+          "kind": "part",
+          "part": "oled1",
+          "terminal": "gnd"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn25"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w9",
+        "a": {
+          "kind": "board",
+          "pin": "3V3"
+        },
+        "b": {
+          "kind": "part",
+          "part": "oled1",
+          "terminal": "vcc"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w10",
+        "a": {
+          "kind": "part",
+          "part": "lcd1",
+          "terminal": "sda"
+        },
+        "b": {
+          "kind": "part",
+          "part": "oled1",
+          "terminal": "sda"
+        },
+        "color": "#3e63dd"
+      },
+      {
+        "id": "w11",
+        "a": {
+          "kind": "part",
+          "part": "lcd1",
+          "terminal": "scl"
+        },
+        "b": {
+          "kind": "part",
+          "part": "oled1",
+          "terminal": "scl"
+        },
+        "color": "#30a46c"
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

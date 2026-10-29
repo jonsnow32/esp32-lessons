@@ -335,6 +335,38 @@ export function explain(ctx: ExplainContext): Note[] {
     if (caps?.inputOnly && o.output !== 'z') notes.push({ level: 'error', text: `${name} chỉ dùng làm chân đọc, không xuất được.`, highlight: [key] });
   }
 
+  // --- I2C buses: what the last transactions found -------------------------------------------
+  const pinOf = (pad?: string) => board.pins.find((p) => 'pad' in p.connect && p.connect.pad === pad)?.name ?? pad ?? '?';
+  const hex = (a: number) => `0x${a.toString(16).toUpperCase().padStart(2, '0')}`;
+  for (const a of kernel.i2cActivity.values()) {
+    if (a.fault === 'not-routed') continue;
+    const where = `SDA ${pinOf(a.sda)}, SCL ${pinOf(a.scl)}`;
+    const highlight = [a.sda, a.scl].filter((p): p is string => !!p).map((p) => keyOf.pad(p));
+    if (a.fault === 'same-net') {
+      notes.push({ level: 'error', text: `SDA và SCL đang nối chung một đường (${where}): bus I2C không thể hoạt động. Tách hai dây ra.`, highlight });
+      continue;
+    }
+    if (a.fault === 'no-pull-up') {
+      notes.push({ level: 'warn', text: `Bus I2C (${where}) không lên được mức HIGH khi rảnh: thiếu điện trở kéo lên (4,7–10 kΩ lên 3,3 V) hoặc module chưa có nguồn, nên không thiết bị nào trả lời.`, highlight });
+      continue;
+    }
+    const called = [...new Set(a.addressed.map((x) => x.address))];
+    const answered = called.filter((addr) => a.addressed.some((x) => x.address === addr && x.acked));
+    const silent = called.filter((addr) => !answered.includes(addr));
+    if (called.length >= 8) {
+      // A scanner trying every address
+      notes.push({ level: 'info', text: `Sketch đang quét bus I2C (${where}). Thiết bị trả lời: ${answered.length ? answered.map(hex).join(', ') : 'không có'}.`, highlight });
+    } else if (silent.length) {
+      notes.push({
+        level: 'warn',
+        text: `ESP32 gọi địa chỉ ${silent.map(hex).join(', ')} trên bus I2C (${where}) nhưng không thiết bị nào trả lời. Kiểm tra địa chỉ trong code, dây SDA / SCL có bị đảo không, và nguồn của module.`,
+        highlight,
+      });
+    } else if (answered.length) {
+      notes.push({ level: 'ok', text: `Bus I2C (${where}): ${answered.map(hex).join(', ')} đang trả lời ESP32.`, highlight });
+    }
+  }
+
   const order: Record<NoteLevel, number> = { error: 0, warn: 1, ok: 2, info: 3 };
   return notes.sort((a, b) => order[a.level] - order[b.level]);
 }

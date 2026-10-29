@@ -127,6 +127,9 @@ pub enum Stop {
     /// A pad's drive state changed (only with `stop_on_pad_change`), so the circuit must be
     /// re-solved before going on.
     PadChange,
+    /// An I2C controller started a command list and waits for the bus (only with `i2c_host`):
+    /// answer it with `answer_i2c` before going on.
+    I2c,
     Break { cpu: usize, pc: u32, s: u8, t: u8 },
     /// Firmware called a ROM function the HLE layer does not implement.
     Rom(String),
@@ -156,6 +159,9 @@ pub struct Soc {
     pub exceptions: Vec<(u64, usize, u32, u32)>,
     /// Return Stop::PadChange from `run` as soon as a pad changes (circuit co-simulation).
     pub stop_on_pad_change: bool,
+    /// The bus devices live outside (the circuit simulator): stop with Stop::I2c for each
+    /// transaction. Otherwise the bus is empty and every address is NACKed.
+    pub i2c_host: bool,
 }
 
 impl Soc {
@@ -207,6 +213,7 @@ impl Soc {
             edge_prev: [0; 2],
             exceptions: vec![],
             stop_on_pad_change: false,
+            i2c_host: false,
         };
         for k in 0..crate::periph::gpio::PADS {
             soc.last_pads[k] = soc.periph.pad(k);
@@ -280,6 +287,17 @@ impl Soc {
             self.sync();
             if self.stop_on_pad_change && self.pad_events.len() != events {
                 return Stop::PadChange;
+            }
+            if self.pending_i2c().is_some() {
+                if self.i2c_host {
+                    return Stop::I2c;
+                }
+                for i in &mut self.periph.i2c {
+                    if let Some(ops) = &i.pending {
+                        let empty = crate::periph::i2c::Reply::empty(ops);
+                        i.resolve(&empty);
+                    }
+                }
             }
             self.skip_idle(until);
         }
@@ -357,6 +375,18 @@ impl Soc {
                 self.last_pads[k] = p;
                 self.pad_events.push(PadEvent { cycles: self.cycles, gpio: k, state: p });
             }
+        }
+    }
+
+    /// The I2C controller waiting for the bus, if any.
+    pub fn pending_i2c(&self) -> Option<usize> {
+        self.periph.i2c.iter().position(|i| i.pending.is_some())
+    }
+
+    /// Answer the transaction of `pending_i2c`.
+    pub fn answer_i2c(&mut self, reply: &crate::periph::i2c::Reply) {
+        if let Some(port) = self.pending_i2c() {
+            self.periph.i2c[port].resolve(reply);
         }
     }
 

@@ -33,7 +33,7 @@ UI thread (Svelte)                     Sim Worker (Web Worker)
 | `packages/sim-core` | `SimKernel`, `Netlist`, MNA solver, `McuModel` interface, `ScriptedMcu`, pad/supply builtins | M0 ✅ |
 | `packages/lesson-engine` | Evaluates declarative lesson checks | M0 ✅ |
 | `packages/mcu-esp32` | ESP32 pad capabilities; `Esp32Mcu`: the WASM emulator as an `McuModel` | M3 ✅ |
-| `parts/*` | One package per part: `resistor`, `led`, `pushbutton` (M0); `rgb-led`, `potentiometer`, `photoresistor`, `diode`, `slide-switch`, `buzzer` (common DC parts); `thermistor`, `tilt-switch`, `pir-sensor`, `ultrasonic` (HC-SR04), `dht` (DHT11/22), `ds18b20` (1-Wire, Search/Match ROM), `soil-moisture`, `gas-sensor` (MQ-2) (common sensors); `seven-segment`, `led-bar`, `relay`, `keypad` (4×4), `joystick`, `rotary-encoder` (KY-040) (GPIO-only modules); `servo` (SG90, reads the PWM waveform) | M0 ✅ |
+| `parts/*` | One package per part: `resistor`, `led`, `pushbutton` (M0); `rgb-led`, `potentiometer`, `photoresistor`, `diode`, `slide-switch`, `buzzer` (common DC parts); `thermistor`, `tilt-switch`, `pir-sensor`, `ultrasonic` (HC-SR04), `dht` (DHT11/22), `ds18b20` (1-Wire, Search/Match ROM), `soil-moisture`, `gas-sensor` (MQ-2) (common sensors); `seven-segment`, `led-bar`, `relay`, `keypad` (4×4), `joystick`, `rotary-encoder` (KY-040) (GPIO-only modules); `servo` (SG90, reads the PWM waveform); `lcd1602` (PCF8574 + HD44780), `ssd1306` (I2C devices, see I2C below) | M0 ✅ |
 | `boards/*`, `breadboards/*`, `lessons/*` | Pure JSON definitions | M0 ✅ |
 | `projects/*` | Featured projects: `project.json` (circuit, card text, things to try) + `main.cpp`; listed on the home screen, opened as their own workspace | ✅ |
 | `crates/xtensa-core` | Xtensa LX6 decoder, objdump-syntax disassembler, interpreter | M1 ✅ |
@@ -138,7 +138,12 @@ time.
 `PartEnv` gives each part `now()`, `schedule(at, tag)`, a seeded `random()` (runs are
 reproducible) and `invalidate()` (ask for a re-solve). See [PART_AUTHORING.md](PART_AUTHORING.md).
 
-Planned extension: protocol devices (I2C/SPI/1-Wire sensors, displays) implement `BusDevice` on
+I2C: the emulated controller hands each command list to the kernel (`setI2cBus`), which plays it
+against parts exposing `i2c: I2cTarget` on the nets of SDA/SCL, only when both lines are pulled up.
+Parts keep state across rebuilds via `persist()` / `restore()`. Sketch builds add `lib_deps` for
+known headers (`packages/lab-server/libraries.json`). Planned: SPI devices the same way.
+
+Previously planned: protocol devices (I2C/SPI/1-Wire sensors, displays) implement `BusDevice` on
 top of `PartBehavior`. They are driven at edge level, and switch to a transaction-level fast path
 once the bus is electrically valid (pull-ups present, unique addresses).
 
