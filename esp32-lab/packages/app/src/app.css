@@ -1,13 +1,75 @@
-:root { font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif; color: #1c2024; background: #fbfaf7; }
+/* Design tokens. Light lab-bench workspace, a dark instrument bezel on top, copper for action,
+   and a signal teal for nets. Square corners throughout: everything reads as board outline. */
+:root {
+  /* Surfaces, light to sunken */
+  --bg: #eceee9;          /* the bench, behind the circuit */
+  --surface: #ffffff;     /* panels, cards, controls */
+  --surface-2: #f6f7f4;   /* side columns */
+  --surface-3: #edefeb;   /* wells, idle chips, tracks */
+  --bezel: #181c20;       /* top bar and floating readouts */
+  --bezel-2: #252a30;
+  --bezel-line: #3a4148;
+  --term: #0f1215;        /* serial and build log */
+
+  /* Ink */
+  --ink: #15191d;
+  --ink-2: #3b434b;
+  --ink-3: #626b74;       /* secondary text, AA on all light surfaces */
+  --ink-4: #8a929a;       /* placeholders, decorations */
+  --ink-inv: #e8ecef;
+  --ink-inv-2: #9aa4ad;
+
+  /* Lines */
+  --line: #d3d8da;
+  --line-soft: #e4e7e6;
+  --line-strong: #aeb6bc;
+
+  /* Accent: copper for action and selection, teal for signals and nets */
+  --accent: #c4500a;      /* fills and text on light, 4.7:1 with white */
+  --accent-hi: #f76b15;   /* strokes on the bench, hover traces */
+  --accent-soft: #fbeadd;
+  --signal: #0e7c72;
+  --signal-soft: #e2f3f0;
+
+  /* Semantic */
+  --ok: #1a7f4b;      --ok-soft: #e6f4ec;      --ok-dot: #30a46c;
+  --warn: #8f4a00;    --warn-soft: #fdf1e2;    --warn-dot: #f5a524;
+  --error: #b8232b;   --error-soft: #fcebeb;   --error-line: #f3c9cb;
+  --info: #1d5fae;    --info-soft: #e8f1fb;    --info-line: #cddff3;
+
+  /* Type */
+  --font-ui: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+  --fs-label: 10.5px;     /* mono uppercase section labels */
+  --fs-xs: 11.5px;
+  --fs-sm: 12.5px;
+  --fs-md: 13px;
+
+  /* Space and elevation: borders first, a single shadow for things that float */
+  --s1: 4px; --s2: 6px; --s3: 8px; --s4: 12px; --s5: 16px; --s6: 24px;
+  --shadow-float: 0 1px 0 #0000000d, 0 6px 16px -4px #0000002e;
+  --focus: #1d6fd8;
+
+  font-family: var(--font-ui);
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
 body { margin: 0; }
-button, select, input { font: inherit; font-size: 13px; padding: 4px 10px; border: 1px solid #d9d9e0; border-radius: 0; background: #fff; }
+button, select, input { font: inherit; font-size: var(--fs-md); padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: 0; background: var(--surface); color: var(--ink); }
 button { cursor: pointer; }
-button:hover { background-color: #f4f4f5; }
+button:hover { background-color: var(--surface-2); }
+button:active:not(:disabled) { background-color: var(--surface-3); }
+button:disabled, select:disabled, input:disabled { color: var(--ink-4); border-color: var(--line); cursor: not-allowed; }
+input::placeholder { color: var(--ink-4); }
+:is(button, select, input, [tabindex], a):focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+input[type='range'], input[type='checkbox'] { accent-color: var(--accent); }
+::selection { background: #f76b1533; }
 
 /* Circuit look: square corners everywhere; on hover the border becomes a dashed trace whose
    dashes run around the element, like current along a wire. Buttons, selects and anything
    with class "trace" get it. */
-:root { --trace: #f76b15; --dash: 8px; }
+:root { --trace: var(--accent-hi); --dash: 8px; }
 :is(button, select, .trace):hover:not(:disabled, .on) {
   border-color: transparent;
   background-image:
@@ -27,7 +89,18 @@ button:hover { background-color: #f4f4f5; }
 @media (prefers-reduced-motion: reduce) {
   :is(button, select, .trace):hover { animation: none; }
 }
-code { font-size: 11px; }
+code { font: 11px var(--font-mono); background: var(--surface-3); padding: 0 3px; }
+
+/* Every h2 is a section label (mono caps, set per panel); it sits behind a small copper pad */
+h2::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 7px;
+  vertical-align: 1px;
+  background: var(--accent);
+}
 
 /* Fingers need bigger targets */
 @media (pointer: coarse) {

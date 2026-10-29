@@ -1,4 +1,5 @@
 import { Junction, Overstress, type PartBehavior, type PartEnv, type PartModule } from '@esp32lab/part-sdk';
+import { doc } from './doc';
 import manifest from './part.json';
 
 export type LedColor = 'red' | 'yellow' | 'green' | 'blue' | 'white';
@@ -109,5 +110,5 @@ function view(props: LedProps, obs: Record<string, unknown>): string {
     ${dead ? `<g opacity="0.55"><circle cx="0.3" cy="-3.6" r="0.4" fill="#8a8a8a"/><circle cx="0.8" cy="-4.2" r="0.55" fill="#a0a0a0"/><circle cx="0.4" cy="-4.9" r="0.45" fill="#b5b5b5"/></g>` : ''}`;
 }
 
-export const led: PartModule<LedProps> = { manifest: manifest as PartModule['manifest'], create, view, defs, icon: '-1 -2.6 3 3.4' };
+export const led: PartModule<LedProps> = { manifest: manifest as PartModule['manifest'], create, view, defs, icon: '-1 -2.6 3 3.4', doc };
 export default led;

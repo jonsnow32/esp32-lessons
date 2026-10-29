@@ -58,16 +58,18 @@
 {/if}
 
 <style>
-  section { padding: 10px 12px; border-bottom: 1px solid #e4e2dd; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #6f6e77; margin: 0 0 6px; }
-  h3 { font-size: 12px; margin: 12px 0 4px; }
+  section { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  h2 { font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .09em; color: var(--ink-3); margin: 0 0 6px; }
+  h3 { font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); margin: 14px 0 4px; padding-top: 10px; border-top: 1px dashed var(--line); }
   ol { list-style: none; padding: 0; margin: 4px 0 0; font-size: 13px; }
-  li { display: flex; gap: 8px; margin: 7px 0; line-height: 1.4; }
-  .mark { flex: 0 0 20px; height: 20px; border-radius: 0; background: #efeee9; color: #6f6e77; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
-  .pass .mark { background: #30a46c; color: #fff; }
-  .hint { font-size: 12px; color: #6f6e77; margin-top: 2px; }
-  .fail { font-size: 12px; color: #e5484d; }
+  li { display: flex; gap: 9px; margin: 7px 0; line-height: 1.4; }
+  /* Step marks are test points: hollow until the check passes */
+  .mark { flex: 0 0 20px; height: 20px; box-sizing: border-box; border-radius: 0; background: var(--surface); border: 1px solid var(--line-strong); color: var(--ink-3); font: 700 11px var(--font-mono); display: grid; place-items: center; }
+  .pass .mark { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .pass > div { color: var(--ink-3); }
+  .hint { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+  .fail { font-size: 12px; color: var(--error); }
   .small { margin-top: 4px; font-size: 12px; padding: 2px 8px; }
-  .about { font-size: 13px; line-height: 1.5; margin: 0 0 6px; color: #3a3d42; }
-  .src { font-size: 11px; color: #8b8d98; margin: 10px 0 0; }
+  .about { font-size: 13px; line-height: 1.5; margin: 0 0 6px; color: var(--ink-2); }
+  .src { font-size: 11px; color: var(--ink-3); margin: 12px 0 0; }
 </style>

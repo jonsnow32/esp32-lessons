@@ -5,14 +5,19 @@ import type { Lesson } from '@esp32lab/lesson-engine';
 import type { PartModule } from '@esp32lab/part-sdk';
 import type { BoardDef, BreadboardDef, Project } from '@esp32lab/project-model';
 import buzzer from '@esp32lab-parts/buzzer';
+import dht from '@esp32lab-parts/dht';
 import diode from '@esp32lab-parts/diode';
 import led from '@esp32lab-parts/led';
 import photoresistor from '@esp32lab-parts/photoresistor';
+import pirSensor from '@esp32lab-parts/pir-sensor';
 import potentiometer from '@esp32lab-parts/potentiometer';
 import pushbutton from '@esp32lab-parts/pushbutton';
 import resistor from '@esp32lab-parts/resistor';
 import rgbLed from '@esp32lab-parts/rgb-led';
 import slideSwitch from '@esp32lab-parts/slide-switch';
+import thermistor from '@esp32lab-parts/thermistor';
+import tiltSwitch from '@esp32lab-parts/tilt-switch';
+import ultrasonic from '@esp32lab-parts/ultrasonic';
 import devkitc from '../../../../boards/esp32-devkitc-v4/board.json';
 import devkit from '../../../../boards/esp32-devkit-v1/board.json';
 import nodemcu32s from '../../../../boards/nodemcu-32s/board.json';
@@ -32,6 +37,11 @@ export const PARTS: Record<string, PartModule<any>> = {
   pushbutton,
   'slide-switch': slideSwitch,
   buzzer,
+  thermistor,
+  'tilt-switch': tiltSwitch,
+  'pir-sensor': pirSensor,
+  ultrasonic,
+  dht,
 };
 export const BOARDS: Record<string, BoardDef> = {
   'esp32-devkit-v1': devkit as unknown as BoardDef,

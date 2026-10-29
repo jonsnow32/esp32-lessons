@@ -1,0 +1,45 @@
+{
+  "id": "tilt-switch",
+  "version": "0.1.0",
+  "name": "Công tắc nghiêng bi SW-520D",
+  "category": "sensor",
+  "tags": [
+    "through-hole",
+    "digital",
+    "switch"
+  ],
+  "terminals": [
+    {
+      "name": "a",
+      "dx": 0,
+      "dy": 0
+    },
+    {
+      "name": "b",
+      "dx": 1,
+      "dy": 0
+    }
+  ],
+  "props": {
+    "tilted": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "ratings": {
+    "currentMax": 0.02,
+    "overstressTime": 2000000000
+  },
+  "learn": {
+    "summary": "Bên trong ống kim loại có hai viên bi. Đứng thẳng thì bi chạm hai chân nên mạch đóng; nghiêng quá ~45° thì bi lăn ra và mạch hở. Dùng để phát hiện đổ, rung hay lật.",
+    "howToPlug": [
+      "Một chân nối vào chân GPIO, chân kia xuống GND (không có chiều).",
+      "Trong code dùng pinMode(chân, INPUT_PULLUP): đứng thẳng đọc LOW, nghiêng đọc HIGH.",
+      "Bấm vào công tắc (hoặc tích \"tilted\") để nghiêng nó."
+    ],
+    "tips": [
+      "Bi lăn lạch cạch nên tín hiệu cũng bị dội như nút nhấn: nên chống dội trong code.",
+      "Chỉ cho dòng nhỏ (vài mA) đi qua, đừng dùng nó để bật tải trực tiếp."
+    ]
+  }
+}

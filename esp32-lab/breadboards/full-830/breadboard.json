@@ -61,5 +61,11 @@
       "groupSize": 5,
       "groupGap": 1
     }
-  ]
+  ],
+  "learn": {
+    "summary": "Breadboard cỡ lớn: 63 cột, 830 lỗ, hai thanh nguồn ở mỗi cạnh. Đủ chỗ cho board ESP32 cùng nhiều linh kiện.",
+    "tips": [
+      "Trên nhiều breadboard thật, thanh nguồn bị cắt đôi ở giữa (vạch đỏ/xanh đứt quãng). Nếu vậy cần nối cầu hai nửa bằng một sợi dây."
+    ]
+  }
 }

@@ -133,6 +133,12 @@ pub unsafe extern "C" fn soc_set_pad_input(soc: *mut Soc, gpio: u32, level: i32)
     (*soc).drive_pad(gpio as usize % 40, if level < 0 { None } else { Some(level != 0) });
 }
 
+/// Voltage the circuit presents at a pad, for the ADCs (analogRead).
+#[no_mangle]
+pub unsafe extern "C" fn soc_set_pad_volts(soc: *mut Soc, gpio: u32, volts: f64) {
+    (*soc).set_pad_volts(gpio as usize % 40, volts);
+}
+
 /// Board-level pull-ups used when no circuit is attached; set 0 when the circuit models them.
 #[no_mangle]
 pub unsafe extern "C" fn soc_set_board_pull_ups(soc: *mut Soc, mask_lo: u32, mask_hi: u32) {

@@ -18,6 +18,14 @@ export interface BreadboardDef {
   blocks: { rows: string[]; y0: number }[];
   /** Power rails: one continuous strip each, holes grouped in fives. */
   rails: { id: string; polarity: '+' | '-'; y: number; x0: number; groups: number; groupSize: number; groupGap: number }[];
+  /** Introduction on its detail page (UI language: Vietnamese). */
+  learn?: BoardLearn;
+}
+
+/** A board's or breadboard's introduction on its detail page (UI language: Vietnamese). */
+export interface BoardLearn {
+  summary: string;
+  tips?: string[];
 }
 
 export interface Hole {
@@ -113,6 +121,7 @@ export interface BoardDef {
   onboard: BoardPart[];
   /** How the UI draws it; DevKit V1 look (blue PCB, ESP32-WROOM-32, CP2102) when omitted. */
   look?: { pcb?: 'blue' | 'black'; module?: string; usbChip?: string };
+  learn?: BoardLearn;
 }
 
 // ---------------------------------------------------------------------------

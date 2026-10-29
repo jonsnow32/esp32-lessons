@@ -186,6 +186,8 @@ export function explain(ctx: ExplainContext): Note[] {
     if (type === 'rgb-led') return `${id} (LED RGB, ${volts(drop)})`;
     if (type === 'buzzer') return `${id} (còi, ${volts(drop)})`;
     if (type === 'slide-switch') return `${id} (công tắc gạt về ${p.position})`;
+    if (type === 'thermistor') return `${id} (NTC ${ohms(Math.round(Number(kernel.observables(id).resistance)))} ở ${p.temperature} °C, sụt ${volts(drop)})`;
+    if (type === 'tilt-switch') return `${id} (công tắc nghiêng đang đứng thẳng)`;
     return id;
   }
 
@@ -256,6 +258,27 @@ export function explain(ctx: ExplainContext): Note[] {
       const backwards = ['red', 'green', 'blue'].some((ch) => (cathode ? vc - v(keys[ch]!) : v(keys[ch]!) - vc) > 1.5);
       if (backwards)
         notes.push({ level: 'warn', text: `${p.id} không sáng vì phân cực ngược: loại chung ${cathode ? 'cathode thì chân chung (dài nhất) phải nối GND' : 'anode thì chân chung (dài nhất) phải nối 3,3 V'}. Kiểm tra lại, hoặc đổi "common" trong bảng thuộc tính nếu LED của bạn là loại kia.`, highlight: [p.id] });
+    } else if (p.type === 'thermistor') {
+      notes.push({ level: 'info', text: `${p.id}: ở ${p.props?.temperature ?? 25} °C nhiệt điện trở có ${ohms(Math.round(Number(obs.resistance)))}. Nóng hơn thì nhỏ hơn, lạnh hơn thì lớn hơn.`, highlight: [p.id] });
+    } else if (p.type === 'tilt-switch') {
+      notes.push({ level: 'info', text: obs.closed ? `${p.id} đang đứng thẳng: hai viên bi chạm nhau nên hai chân thông nhau. Bấm vào nó để nghiêng.` : `${p.id} đang nghiêng: bi lăn ra nên hai chân bị hở.`, highlight: [p.id] });
+    } else if ((p.type === 'pir-sensor' || p.type === 'ultrasonic' || p.type === 'dht') && !obs.powered) {
+      const need = p.type === 'dht' ? '3,3–5 V' : '5 V (chân VIN)';
+      notes.push({ level: 'warn', text: `${p.id} chưa có điện: giữa VCC và GND chỉ có ${volts(v(keys.vcc!) - v(keys.gnd!))}, module cần ${need}.`, highlight: [p.id] });
+    } else if (p.type === 'ultrasonic') {
+      // Echo swings to VCC (5 V): wired straight to a pad it exceeds the 3,6 V the ESP32 takes
+      const n = net(keys.echo!);
+      const pad = n === undefined ? undefined : nl.keysOf(n).find((k) => k.startsWith('pad:'))?.slice(4);
+      if (pad && v(keys.vcc!) - v(keys.gnd!) > 3.6)
+        notes.push({ level: 'warn', text: `${p.id}: chân Echo nối thẳng vào ${pad}. Khi đo, Echo lên ${volts(v(keys.vcc!) - v(keys.gnd!))}, quá mức 3,6 V chân ESP32 chịu được. Đi qua cầu phân áp 1 kΩ / 2 kΩ để hạ xuống khoảng 3,3 V.`, highlight: [p.id] });
+      else {
+        const cm = Number(p.props?.distance ?? 50);
+        notes.push({ level: 'info', text: cm > 400 ? `${p.id}: vật cách ${cm} cm, ngoài tầm đo 4 m: mỗi lần đo chân Echo giữ HIGH khoảng 38 ms rồi bỏ cuộc.` : `${p.id}: vật cách ${cm} cm, mỗi lần đo chân Echo giữ HIGH khoảng ${num(Math.max(2, cm) * 0.0583, 2)} ms.`, highlight: [p.id] });
+      }
+    } else if (p.type === 'pir-sensor') {
+      notes.push({ level: 'info', text: obs.output ? `${p.id} đang báo có người: OUT ở 3,3 V.` : `${p.id} không thấy chuyển động: OUT ở 0 V. Nhấn giữ vào mái vòm để giả lập có người đi qua.`, highlight: [p.id] });
+    } else if (p.type === 'dht') {
+      notes.push({ level: 'info', text: `${p.id} (${p.props?.model ?? 'DHT11'}) đang đo ${p.props?.temperature ?? 28} °C, ${p.props?.humidity ?? 65} %. Nó chỉ gửi số đo khi ESP32 kéo chân DATA xuống thấp để hỏi (đã trả lời ${obs.replies} lần).`, highlight: [p.id] });
     } else if (p.type === 'slide-switch') {
       notes.push({ level: 'info', text: `${p.id} đang gạt về phía ${p.props?.position ?? 'a'}: chân giữa nối với chân ${p.props?.position === 'b' ? 'phải (b)' : 'trái (a)'}. Bấm vào cần gạt để đổi.`, highlight: [p.id] });
     }

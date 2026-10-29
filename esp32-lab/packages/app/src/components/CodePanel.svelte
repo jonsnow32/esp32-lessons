@@ -105,16 +105,21 @@
 </section>
 
 <style>
-  section { display: flex; flex-direction: column; height: 100%; min-height: 0; background: #fff; border-top: 1px solid #e4e2dd; }
-  .bar { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #eee; flex-wrap: wrap; }
-  .bar b { font: 600 13px ui-monospace, monospace; }
-  .status { font-size: 12px; color: #6f6e77; }
-  .status.ok { color: #18794e; }
-  .status.failed { color: #ce2c31; }
+  section { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface); border-top: 1px solid var(--line); }
+  .bar { display: flex; gap: 8px; align-items: center; padding: 5px 10px; border-bottom: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap; }
+  .bar b { font: 600 12px var(--font-mono); background: var(--surface); border: 1px solid var(--line); box-shadow: inset 0 2px 0 var(--accent); padding: 2px 10px; }
+  .status { font-size: 12px; color: var(--ink-3); }
+  .status.ok { color: var(--ok); }
+  .status.failed { color: var(--error); font-weight: 600; }
   .spacer { flex: 1; }
-  .errors { margin: 0; padding: 6px 12px; list-style: none; background: #fff0f0; font-size: 12.5px; color: #a3161b; max-height: 80px; overflow: auto; }
-  .link { border: none; background: none; padding: 0 4px 0 0; color: #a3161b; font-weight: 700; text-decoration: underline; cursor: pointer; }
+  .bar button { font: 12px var(--font-mono); padding: 2px 10px; }
+  .errors { margin: 0; padding: 6px 12px; list-style: none; background: var(--error-soft); border-bottom: 1px solid var(--error-line); box-shadow: inset 3px 0 0 var(--error); font-size: 12.5px; color: var(--error); max-height: 80px; overflow: auto; }
+  .link { border: none; background: none; padding: 0 4px 0 0; color: var(--error); font: 700 12px var(--font-mono); text-decoration: underline; cursor: pointer; }
   .body { flex: 1; min-height: 0; display: flex; }
   .editor { flex: 1; min-width: 0; overflow: hidden; }
-  .log { flex: 0 0 45%; margin: 0; padding: 8px; background: #111316; color: #cfd6df; font: 11.5px/1.4 ui-monospace, monospace; overflow: auto; white-space: pre-wrap; }
+  .editor :global(.cm-gutters) { background: var(--surface-2); border-right: 1px solid var(--line); color: var(--ink-4); }
+  .editor :global(.cm-activeLineGutter) { background: var(--surface-3); color: var(--ink-2); }
+  .editor :global(.cm-activeLine) { background: #f76b150a; }
+  .editor :global(.cm-focused) { outline: none; }
+  .log { flex: 0 0 45%; margin: 0; padding: 8px 10px; background: var(--term); color: #c9d2da; border-left: 1px solid #000; font: 11.5px/1.45 var(--font-mono); overflow: auto; white-space: pre-wrap; }
 </style>

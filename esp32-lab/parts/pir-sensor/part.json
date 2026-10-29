@@ -1,0 +1,57 @@
+{
+  "id": "pir-sensor",
+  "version": "0.1.0",
+  "name": "Cảm biến chuyển động PIR HC-SR501",
+  "category": "sensor",
+  "tags": [
+    "module",
+    "digital",
+    "motion"
+  ],
+  "terminals": [
+    {
+      "name": "vcc",
+      "dx": 0,
+      "dy": 0,
+      "label": "VCC (5 V)"
+    },
+    {
+      "name": "out",
+      "dx": 1,
+      "dy": 0,
+      "label": "OUT"
+    },
+    {
+      "name": "gnd",
+      "dx": 2,
+      "dy": 0,
+      "label": "GND"
+    }
+  ],
+  "props": {
+    "hold": {
+      "type": "number",
+      "default": 3,
+      "unit": " s",
+      "options": [
+        3,
+        5,
+        10,
+        30
+      ]
+    }
+  },
+  "learn": {
+    "summary": "Cảm biến PIR thấy được tia hồng ngoại từ cơ thể người. Khi có người di chuyển trước mái vòm, chân OUT lên 3,3 V và giữ thêm vài giây sau khi hết chuyển động, rồi về 0 V.",
+    "howToPlug": [
+      "VCC nối chân VIN (5 V) của board: module cần 4,5–20 V, cắm 3,3 V sẽ không chạy.",
+      "GND nối GND; OUT nối thẳng vào một chân GPIO (OUT chỉ ra 3,3 V nên an toàn cho ESP32).",
+      "Trong code dùng pinMode(chân, INPUT) và digitalRead(): HIGH là có người.",
+      "Nhấn giữ vào mái vòm để giả lập có người đi qua."
+    ],
+    "tips": [
+      "\"hold\" là thời gian giữ HIGH sau khi hết chuyển động; trên module thật chỉnh bằng biến trở Tx (khoảng 3 s đến 5 phút).",
+      "Module thật cần khoảng 1 phút khởi động sau khi cấp điện mới đo ổn định."
+    ]
+  }
+}

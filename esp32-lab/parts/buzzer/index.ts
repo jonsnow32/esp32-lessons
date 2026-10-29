@@ -1,4 +1,5 @@
 import { Overstress, type PartBehavior, type PartEnv, type PartModule } from '@esp32lab/part-sdk';
+import { doc } from './doc';
 import manifest from './part.json';
 
 export type BuzzerProps = Record<string, never>;
@@ -16,7 +17,7 @@ const G_MIN = 1e-12;
  * reversed, then a resistor. softplus keeps the curve smooth so Newton converges without
  * limiting: I = s·ln(1 + e^((v − V_KNEE)/s)) / R_ON.
  */
-function load(v: number): { i: number; g: number } {
+export function load(v: number): { i: number; g: number } {
   const x = (v - V_KNEE) / SMOOTH;
   const soft = x > 30 ? x : Math.log1p(Math.exp(x));
   const sigmoid = x > 30 ? 1 : Math.exp(x) / (1 + Math.exp(x));
@@ -89,5 +90,6 @@ export const buzzer: PartModule<BuzzerProps> = {
   view,
   defs,
   icon: '-2.5 -1 6.2 5',
+  doc,
 };
 export default buzzer;

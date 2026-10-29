@@ -427,5 +427,12 @@
       "x": 1.7,
       "y": 20.6
     }
-  ]
+  ],
+  "learn": {
+    "summary": "Board 38 chân của Ai-Thinker dùng module ESP-32S, chip USB CH340C. Bố trí chân giống DevKitC nhưng tên in trên mạch kiểu P04, P22… Có LED xanh ở GPIO2.",
+    "tips": [
+      "Máy tính cần driver CH340 thì mới thấy cổng COM của board.",
+      "Tên chân P04 nghĩa là GPIO4: trong code vẫn viết 4."
+    ]
+  }
 }

@@ -1,4 +1,5 @@
 import { Overstress, type PartBehavior, type PartEnv, type PartModule } from '@esp32lab/part-sdk';
+import { doc } from './doc';
 import manifest from './part.json';
 
 export interface SlideSwitchProps {
@@ -64,5 +65,6 @@ export const slideSwitch: PartModule<SlideSwitchProps> = {
   icon: '-0.8 -2.6 3.6 2.9',
   // Tapping anywhere on the shell slides the lever across
   control: { kind: 'toggle', prop: 'position', cx: 1, cy: -1.2, r: 0.95 },
+  doc,
 };
 export default slideSwitch;

@@ -1,8 +1,12 @@
 <script lang="ts">
   // Home: one card per lesson plus the sandbox, then the featured projects. Each keeps its own
   // bench and code, so a card resumes where you left off.
-  import { FEATURED, LESSONS, PARTS } from '../lib/catalog';
+  import { BOARDS, BREADBOARDS, FEATURED, LESSONS, PARTS } from '../lib/catalog';
+  import { breadboard, breadboardBox } from '../lib/geometry';
+  import BoardView from './BoardView.svelte';
+  import BreadboardView from './BreadboardView.svelte';
   import CircuitThumb from './CircuitThumb.svelte';
+  import { SCENE_DEFS } from '../lib/scene';
   import { FREE, lab, loadWorkspace } from '../lib/lab.svelte';
 
   const cards = LESSONS.map((l) => {
@@ -22,6 +26,12 @@
 
   /** The user's projects with their saved bench, for the thumbnails. */
   let mine = $derived(lab.myProjects.map((p) => ({ p, ws: loadWorkspace(p.id), from: FEATURED.find((f) => f.id === p.from) })));
+
+  /** Each part at rest, for the component cards. */
+  const parts = Object.entries(PARTS).map(([type, m]) => {
+    const props = Object.fromEntries(Object.entries(m.manifest.props).map(([k, s]) => [k, s.default]));
+    return { type, m, svg: m.view?.(props as never, m.doc?.active ?? {}) ?? '' };
+  });
 
   const when = (t: number) => new Date(t).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
 </script>
@@ -68,6 +78,37 @@
     {/each}
   </div>
 
+  <h2>Linh kiện</h2>
+  <p class="lead">Mỗi linh kiện có một trang riêng: hình dạng, sơ đồ chân, cấu tạo bên trong, đặc tuyến và cách nối với ESP32.</p>
+  <svg width="0" height="0" style="position: absolute"><defs>{@html SCENE_DEFS}</defs></svg>
+  <div class="parts">
+    {#each parts as { type, m, svg } (type)}
+      <button class="part" onclick={() => (lab.docPage = type)}>
+        <svg viewBox={m.icon ?? '-1 -3 6 6.5'}>{@html svg}</svg>
+        <span>{m.manifest.name}</span>
+      </button>
+    {/each}
+  </div>
+
+  <h2>Board và breadboard</h2>
+  <p class="lead">Sơ đồ chân từng board (chân nào đọc analog, chân nào nên tránh) và bên trong breadboard: lỗ nào nối với lỗ nào.</p>
+  <div class="parts">
+    {#each Object.entries(BOARDS) as [type, b] (type)}
+      {@const right = Math.max(...b.pins.map((p) => p.x))}
+      <button class="part" onclick={() => (lab.docPage = `board:${type}`)}>
+        <svg viewBox="-1.6 -3.9 {right + 3.2} {b.height + 3.4}"><BoardView board={b} net={new Set()} observables={{}} pinFill={() => 'url(#gold)'} pinHint={() => ''} onpress={() => {}} onrelease={() => {}} /></svg>
+        <span>{b.name.replace(/ \(.*/, '')}</span>
+      </button>
+    {/each}
+    {#each Object.entries(BREADBOARDS) as [type, d] (type)}
+      {@const bx = breadboardBox(type)!}
+      <button class="part" onclick={() => (lab.docPage = `bb:${type}`)}>
+        <svg viewBox="{bx.x - 0.3} {bx.y - 0.3} {bx.w + 0.6} {bx.h + 0.6}"><BreadboardView id={type} bb={breadboard(type)!} net={new Set()} here={null} /></svg>
+        <span>{d.name}</span>
+      </button>
+    {/each}
+  </div>
+
   {#if mine.length}
     <h2>Dự án của tôi</h2>
     <p class="lead">Bản sao bạn đã sửa từ các dự án mẫu, lưu trên trình duyệt này.</p>
@@ -91,28 +132,36 @@
 
 <style>
   main { max-width: 980px; margin: 0 auto; padding: 40px 24px; }
-  header h1 { font-size: 28px; margin: 0 0 6px; }
-  header p { color: #60646c; margin: 0 0 28px; max-width: 640px; line-height: 1.5; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #6f6e77; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-  .card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-align: left; padding: 18px; border-radius: 0; border: 1px solid #e4e2dd; background: #fff; cursor: pointer; min-height: 190px; box-shadow: 0 1px 2px #0000000d; transition: transform .1s, box-shadow .1s; }
-  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px #00000014; background-color: #fff; }
-  .num { font: 700 13px ui-monospace, monospace; color: #f76b15; background: #fff1e7; border-radius: 0; padding: 2px 8px; }
-  .free .num { background: #eef6ff; }
-  .title { font-size: 17px; font-weight: 700; }
-  .summary { font-size: 13.5px; color: #60646c; line-height: 1.5; flex: 1; }
-  .progress { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6f6e77; width: 100%; }
-  .bar { flex: 1; height: 6px; border-radius: 0; background: #efeee9; overflow: hidden; }
-  .bar span { display: block; height: 100%; background: #30a46c; }
-  .lead { color: #60646c; font-size: 13.5px; margin: -4px 0 12px; }
-  h2:not(:first-of-type) { margin-top: 34px; }
+  /* Title block, like the corner of a schematic sheet */
+  header { border: 1px solid var(--line-strong); border-left: 4px solid var(--accent); background: var(--surface); padding: 18px 22px; margin-bottom: 28px; }
+  header h1 { font-size: 26px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 6px; }
+  header p { color: var(--ink-3); margin: 0; max-width: 640px; line-height: 1.55; font-size: 14px; }
+  h2 { font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .09em; color: var(--ink-3); padding-bottom: 7px; border-bottom: 1px solid var(--line); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-align: left; padding: 16px 18px; border-radius: 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; min-height: 190px; }
+  .card:hover { background-color: var(--surface); }
+  .num { font: 700 12px var(--font-mono); color: var(--accent); background: var(--accent-soft); border: 1px solid #f1c7a6; border-radius: 0; padding: 1px 7px; letter-spacing: .04em; }
+  .free .num { background: var(--signal-soft); border-color: #bfe2dc; }
+  .title { font-size: 16.5px; font-weight: 700; line-height: 1.3; }
+  .summary { font-size: 13.5px; color: var(--ink-3); line-height: 1.5; flex: 1; }
+  .progress { display: flex; align-items: center; gap: 8px; font: 11.5px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink-3); width: 100%; }
+  /* Bar graph: lit segments over a dark track */
+  .bar { flex: 1; height: 6px; border-radius: 0; background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--line-soft); overflow: hidden; }
+  .bar span { display: block; height: 100%; background: repeating-linear-gradient(90deg, var(--ok-dot) 0 7px, transparent 7px 9px); }
+  .lead { color: var(--ink-3); font-size: 13.5px; margin: -4px 0 12px; }
+  h2:not(:first-of-type) { margin-top: 36px; }
   .project { padding: 0 0 16px; overflow: hidden; }
   .project > :not(.thumb) { margin: 0 18px; }
-  .thumb { display: block; width: 100%; height: 150px; padding: 8px; box-sizing: border-box; background: radial-gradient(circle at 50% 120%, #fbf3e4, #f1ece2); border-bottom: 1px solid #ece7dc; margin-bottom: 4px; }
+  .thumb { display: block; width: 100%; height: 150px; padding: 8px; box-sizing: border-box; background-color: var(--bg); background-image: linear-gradient(#0000000a 1px, transparent 1px), linear-gradient(90deg, #0000000a 1px, transparent 1px); background-size: 12px 12px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
   .actions { display: flex; align-items: center; gap: 6px; width: calc(100% - 36px); }
   .actions .cta { flex: 1; }
   .actions button { font-size: 12px; padding: 2px 8px; }
   .chips { display: flex; flex-wrap: wrap; gap: 4px; }
-  .chips span { font-size: 11px; color: #5b5e66; background: #f3f2ee; border-radius: 0; padding: 1px 6px; }
-  .cta { font-size: 13px; font-weight: 600; color: #f76b15; }
+  .chips span { font: 10.5px var(--font-mono); color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); border-radius: 0; padding: 0 5px; }
+  .parts { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .part { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 8px; border: 1px solid var(--line); background: var(--surface); text-align: center; }
+  .part svg { width: 100%; height: 76px; background-color: var(--bg); background-image: linear-gradient(#0000000a 1px, transparent 1px), linear-gradient(90deg, #0000000a 1px, transparent 1px); background-size: 8px 8px; border: 1px solid var(--line-soft); }
+  .part span { font-size: 12px; font-weight: 600; line-height: 1.3; }
+  .part:hover { border-color: var(--accent); background-color: var(--surface); }
+  .cta { font: 600 12px var(--font-mono); letter-spacing: .02em; color: var(--accent); }
 </style>

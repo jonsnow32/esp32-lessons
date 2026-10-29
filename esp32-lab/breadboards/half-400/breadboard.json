@@ -61,5 +61,11 @@
       "groupSize": 5,
       "groupGap": 1
     }
-  ]
+  ],
+  "learn": {
+    "summary": "Breadboard nửa cỡ: 30 cột, 400 lỗ, có thanh nguồn + và − ở cả hai cạnh. Cỡ hay dùng nhất cho các bài thực hành nhỏ.",
+    "tips": [
+      "Đưa 3V3 và GND của board ra thanh nguồn trước, rồi lấy điện cho linh kiện từ đó: dây gọn và ít nhầm hơn."
+    ]
+  }
 }

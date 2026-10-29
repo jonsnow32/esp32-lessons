@@ -1,0 +1,76 @@
+{
+  "id": "dht",
+  "version": "0.1.0",
+  "name": "Cảm biến nhiệt độ, độ ẩm DHT11 / DHT22",
+  "category": "sensor",
+  "tags": [
+    "through-hole",
+    "digital",
+    "temperature",
+    "humidity"
+  ],
+  "terminals": [
+    {
+      "name": "vcc",
+      "dx": 0,
+      "dy": 0,
+      "label": "VCC"
+    },
+    {
+      "name": "data",
+      "dx": 1,
+      "dy": 0,
+      "label": "DATA"
+    },
+    {
+      "name": "nc",
+      "dx": 2,
+      "dy": 0,
+      "label": "NC (không dùng)"
+    },
+    {
+      "name": "gnd",
+      "dx": 3,
+      "dy": 0,
+      "label": "GND"
+    }
+  ],
+  "props": {
+    "model": {
+      "type": "enum",
+      "default": "DHT11",
+      "options": [
+        "DHT11",
+        "DHT22"
+      ]
+    },
+    "temperature": {
+      "type": "number",
+      "default": 28,
+      "unit": " °C",
+      "min": -40,
+      "max": 80
+    },
+    "humidity": {
+      "type": "number",
+      "default": 65,
+      "unit": " %",
+      "min": 0,
+      "max": 100
+    }
+  },
+  "learn": {
+    "summary": "DHT11 (vỏ xanh) và DHT22 (vỏ trắng, chính xác hơn) đo nhiệt độ và độ ẩm rồi gửi về qua một dây DATA duy nhất: ESP32 kéo dây xuống thấp để \"gọi\", cảm biến trả lời 40 bit, mỗi bit là một xung HIGH ngắn (0) hoặc dài (1).",
+    "howToPlug": [
+      "Chân 1 VCC nối 3V3, chân 4 GND nối GND, chân 3 bỏ trống.",
+      "Chân 2 DATA nối một chân GPIO (ví dụ GPIO4), thêm điện trở kéo lên 10 kΩ từ DATA lên 3V3.",
+      "Trong code dùng thư viện DHT (Adafruit) hoặc DHTesp: dht.readTemperature(), dht.readHumidity().",
+      "Chọn cảm biến rồi kéo \"temperature\" và \"humidity\" để đổi số đo."
+    ],
+    "tips": [
+      "DHT11: 0–50 °C, 20–90 %, số nguyên. DHT22: −40–80 °C, 0–100 %, lẻ 0,1. Ngoài dải này cảm biến báo giá trị ở mép dải.",
+      "Không đọc quá nhanh: DHT11 tối đa 1 lần/giây, DHT22 1 lần mỗi 2 giây.",
+      "Byte cuối là tổng kiểm tra (checksum) của 4 byte đầu: sai thì thư viện trả về NaN."
+    ]
+  }
+}

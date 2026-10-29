@@ -22,8 +22,14 @@ interface Exports {
   soc_uart_push(soc: number, port: number, byte: number): void;
   soc_pad_state(soc: number, gpio: number): number;
   soc_set_pad_input(soc: number, gpio: number, level: number): void;
+  soc_set_pad_volts(soc: number, gpio: number, volts: number): void;
   soc_set_board_pull_ups(soc: number, lo: number, hi: number): void;
 }
+
+const REQUIRED_EXPORTS = [
+  'alloc', 'dealloc', 'scratch_ptr', 'last_error_len', 'soc_new', 'soc_free', 'soc_run_until', 'soc_cycles',
+  'soc_uart_take', 'soc_uart_push', 'soc_pad_state', 'soc_set_pad_input', 'soc_set_pad_volts', 'soc_set_board_pull_ups',
+] as const satisfies readonly Exclude<keyof Exports, 'memory'>[];
 
 /** A PlatformIO build: .pio/build/<env>/{firmware.elf, firmware.bin, bootloader.bin, partitions.bin}. */
 export interface Firmware {
@@ -41,6 +47,12 @@ export class Esp32Wasm {
       source instanceof Response || source instanceof Promise
         ? (await WebAssembly.instantiateStreaming(source, {})).instance
         : (await WebAssembly.instantiate(source, {})).instance;
+    // A module built before the TypeScript side last changed (or a stale cached copy) would
+    // otherwise fail later with "x.soc_... is not a function"
+    const missing = REQUIRED_EXPORTS.filter((name) => typeof module.exports[name] !== 'function');
+    if (missing.length) {
+      throw new Error(`ESP32 emulator (esp32.wasm) is out of date, it lacks ${missing.join(', ')}: run scripts/build-wasm.sh and reload the page`);
+    }
     return new Esp32Wasm(module.exports as unknown as Exports);
   }
 
@@ -85,6 +97,8 @@ export class Esp32Mcu implements McuModel {
   halted: string | null = null;
   private drives = new Map<string, PadDrive>();
   private levels = new Map<string, 0 | 1>();
+  /** Last voltage handed to the ADCs at each pad. */
+  private volts = new Map<string, number>();
   private serialListeners: ((port: number, bytes: Uint8Array) => void)[] = [];
   private damaged = new Set<string>();
   private soc: number;
@@ -114,6 +128,7 @@ export class Esp32Mcu implements McuModel {
     this.x.soc_set_board_pull_ups(soc, 0, 0);
     this.soc = soc;
     this.levels.clear();
+    this.volts.clear();
     this.refreshDrives();
     return soc;
   }
@@ -173,6 +188,10 @@ export class Esp32Mcu implements McuModel {
         this.levels.set(pad, level);
         this.x.soc_set_pad_input(this.soc, n, level);
       }
+      // The ADCs see the voltage itself (a floating pin reads whatever the solver left there)
+      if (Math.abs(input.volts - (this.volts.get(pad) ?? NaN)) < 1e-4) continue;
+      this.volts.set(pad, input.volts);
+      this.x.soc_set_pad_volts(this.soc, n, input.volts);
     }
     return false;
   }

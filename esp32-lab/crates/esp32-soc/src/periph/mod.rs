@@ -5,6 +5,7 @@
 //! found when bringing up new firmware.
 
 pub mod gpio;
+pub mod sens;
 pub mod spi;
 pub mod timg;
 pub mod uart;
@@ -18,6 +19,7 @@ pub const SPI0: u32 = 0x3ff4_3000;
 pub const GPIO: u32 = 0x3ff4_4000;
 pub const RTC_CNTL: u32 = 0x3ff4_8000;
 pub const RTCIO: u32 = 0x3ff4_8400;
+pub const SENS: u32 = 0x3ff4_8800;
 pub const IO_MUX: u32 = 0x3ff4_9000;
 pub const UART1: u32 = 0x3ff5_0000;
 pub const EFUSE: u32 = 0x3ff5_a000;
@@ -55,6 +57,8 @@ const RTC_STORE5: u32 = 0xb4;
 pub struct Periph {
     pub uart: [uart::Uart; 3],
     pub gpio: gpio::Gpio,
+    /// SAR ADCs, fed with pad voltages by the circuit simulator.
+    pub sens: sens::Sens,
     /// SPI0 (cache) and SPI1 (direct flash access) controllers.
     pub spi: [spi::Spi; 2],
     pub timg: [timg::TimerGroup; 2],
@@ -76,6 +80,7 @@ impl Periph {
         let mut p = Self {
             uart: Default::default(),
             gpio: Default::default(),
+            sens: Default::default(),
             spi: Default::default(),
             timg: Default::default(),
             // Reset value of every map register is 16 (unused); 16+ is treated as unrouted
@@ -114,6 +119,9 @@ impl Periph {
         self.efuse.insert(0x008, w2);
         // RDATA3: CHIP_VER_REV1 (bit 15), package D0WD (bits 11:9 = 0)
         self.efuse.insert(0x00c, 1 << 15);
+        // RDATA4: ADC_VREF [12:8] = sign-magnitude −0 × 7 mV: "burned", reference exactly 1100 mV.
+        // Without it ESP-IDF has no ADC calibration and analogReadMilliVolts() fails
+        self.efuse.insert(0x010, 0x10 << 8);
         // RDATA5: CHIP_VER_REV2 (bit 20)
         self.efuse.insert(0x014, 1 << 20);
     }
@@ -151,6 +159,7 @@ impl Periph {
                 self.rng ^= self.rng << 5;
                 self.rng
             }
+            _ if (SENS..SENS + 0x100).contains(&addr) => self.sens.read(addr - SENS),
             RTC_CNTL if off == RTC_TIME_UPDATE => 1 << 30, // TIME_VALID
             RTC_CNTL if off == RTC_TIME0 || off == RTC_TIME1 => {
                 // RTC slow clock ≈ 150 kHz = APB / 533
@@ -180,6 +189,7 @@ impl Periph {
             TIMG0 => self.timg[0].write(off, v, apb),
             TIMG1 => self.timg[1].write(off, v, apb),
             EFUSE => {}
+            _ if (SENS..SENS + 0x100).contains(&addr) => self.sens.write(addr - SENS, v),
             DPORT if (PRO_INTR_MAP..APP_INTR_MAP).contains(&off) => {
                 self.intr_map[0][((off - PRO_INTR_MAP) / 4) as usize % SOURCES] = (v & 0x1f) as u8
             }

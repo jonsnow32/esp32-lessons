@@ -1,4 +1,5 @@
 import { Overstress, type PartBehavior, type PartEnv, type PartModule } from '@esp32lab/part-sdk';
+import { doc } from './doc';
 import manifest from './part.json';
 
 export interface ResistorProps {
@@ -69,5 +70,5 @@ function view(props: ResistorProps, obs: Record<string, unknown>): string {
     <path d="${body}" fill="url(#res-shade)"/>`;
 }
 
-export const resistor: PartModule<ResistorProps> = { manifest: manifest as PartModule['manifest'], create, view, defs, icon: '-0.4 -1.6 4.8 3.2' };
+export const resistor: PartModule<ResistorProps> = { manifest: manifest as PartModule['manifest'], create, view, defs, icon: '-0.4 -1.6 4.8 3.2', doc };
 export default resistor;

@@ -1,7 +1,7 @@
-//! `esp32-cli run <pio-build-dir> [--seconds N] [--trace-gpio] [--press GPIO@START-END ...]`:
-//! boot a PlatformIO build (firmware.elf + firmware.bin + bootloader.bin + partitions.bin) and
-//! print what UART0 says. `--press 0@2.0-2.3` holds GPIO0 (the BOOT button) LOW from 2.0 s
-//! to 2.3 s.
+//! `esp32-cli run <pio-build-dir> [--seconds N] [--trace-gpio] [--press GPIO@START-END ...]
+//! [--volts GPIO=V ...]`: boot a PlatformIO build (firmware.elf + firmware.bin + bootloader.bin +
+//! partitions.bin) and print what UART0 says. `--press 0@2.0-2.3` holds GPIO0 (the BOOT button)
+//! LOW from 2.0 s to 2.3 s; `--volts 34=1.65` puts 1.65 V on GPIO34 for the ADC.
 
 use esp32_soc::{Soc, Stop, CPU_HZ};
 use std::io::Write;
@@ -30,6 +30,14 @@ pub fn run(args: &[String]) -> i32 {
         .flat_map(|&(g, a, b)| [((a * CPU_HZ as f64) as u64, g, Some(false)), ((b * CPU_HZ as f64) as u64, g, None)])
         .collect();
     edges.sort_by_key(|e| e.0);
+    let volts: Vec<(usize, f64)> = args
+        .windows(2)
+        .filter(|w| w[0] == "--volts")
+        .filter_map(|w| {
+            let (pin, v) = w[1].split_once('=')?;
+            Some((pin.parse().ok()?, v.parse().ok()?))
+        })
+        .collect();
     let mut next_edge = 0;
     let dir = Path::new(dir);
     let read = |f: &str| std::fs::read(dir.join(f)).ok();
@@ -44,6 +52,10 @@ pub fn run(args: &[String]) -> i32 {
             return 1;
         }
     };
+
+    for &(gpio, v) in &volts {
+        soc.set_pad_volts(gpio, v);
+    }
 
     let started = std::time::Instant::now();
     let end = (seconds * CPU_HZ as f64) as u64;

@@ -2,14 +2,19 @@ import { ESP32_PAD_NAMES } from '@esp32lab/mcu-esp32';
 import type { BoardDef, BreadboardDef, PartInstance, Project, Wire } from '@esp32lab/project-model';
 import { ScriptedMcu, SimKernel } from '@esp32lab/sim-core';
 import buzzer from '@esp32lab-parts/buzzer';
+import dht from '@esp32lab-parts/dht';
 import diode from '@esp32lab-parts/diode';
 import led from '@esp32lab-parts/led';
 import photoresistor from '@esp32lab-parts/photoresistor';
+import pirSensor from '@esp32lab-parts/pir-sensor';
 import potentiometer from '@esp32lab-parts/potentiometer';
 import pushbutton from '@esp32lab-parts/pushbutton';
 import resistor from '@esp32lab-parts/resistor';
 import rgbLed from '@esp32lab-parts/rgb-led';
 import slideSwitch from '@esp32lab-parts/slide-switch';
+import thermistor from '@esp32lab-parts/thermistor';
+import tiltSwitch from '@esp32lab-parts/tilt-switch';
+import ultrasonic from '@esp32lab-parts/ultrasonic';
 import board from '../boards/esp32-devkit-v1/board.json';
 import half400 from '../breadboards/half-400/breadboard.json';
 
@@ -23,6 +28,11 @@ export const PARTS = {
   pushbutton,
   'slide-switch': slideSwitch,
   buzzer,
+  thermistor,
+  'tilt-switch': tiltSwitch,
+  'pir-sensor': pirSensor,
+  ultrasonic,
+  dht,
 };
 export const BOARD = board as BoardDef;
 export const BREADBOARDS: Record<string, BreadboardDef> = { 'half-400': half400 as BreadboardDef };

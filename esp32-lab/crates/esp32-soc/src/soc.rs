@@ -251,6 +251,11 @@ impl Soc {
         g.dirty = true;
     }
 
+    /// Voltage the circuit presents at a pad, for the ADCs.
+    pub fn set_pad_volts(&mut self, gpio: usize, volts: f64) {
+        self.periph.sens.volts[gpio] = volts;
+    }
+
     pub fn apb(&self) -> u64 {
         self.cycles / CPU_PER_APB
     }
@@ -291,7 +296,7 @@ impl Soc {
                 continue;
             }
             let pc = self.cpus[core].pc;
-            if (ROM_BASE..ROM_END).contains(&pc) && !self.cpus[core].waiting {
+            if ((ROM_BASE..ROM_END).contains(&pc) || self.rom.native.contains(&pc)) && !self.cpus[core].waiting {
                 match crate::rom::call(self, core) {
                     Ok(cost) => {
                         // The core stalls for the function's duration; CCOUNT advances meanwhile

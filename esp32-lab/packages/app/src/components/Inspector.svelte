@@ -64,6 +64,7 @@
       </div>
     {/if}
     <div class="actions">
+      <button onclick={() => (lab.docPage = part.type)}>Trang chi tiết</button>
       <button onclick={() => lab.rotateSelected()}>Xoay (R)</button>
       <button onclick={() => lab.deleteSelected()}>Xoá (Del)</button>
     </div>
@@ -82,29 +83,37 @@
   <section>
     <h2>{bbInst.id} <span class="type">{bb.def.name}</span></h2>
     <p class="note">{bb.holes.size} lỗ · kéo để di chuyển.{#if plugged} Xoá breadboard sẽ xoá luôn {plugged} linh kiện đang cắm trên nó.{/if}</p>
-    <button onclick={() => lab.deleteSelected()}>Xoá breadboard (Del)</button>
+    <div class="actions">
+      <button onclick={() => (lab.docPage = `bb:${bbInst.type}`)}>Trang chi tiết</button>
+      <button onclick={() => lab.deleteSelected()}>Xoá breadboard (Del)</button>
+    </div>
   </section>
 {:else if lab.selection?.kind === 'board'}
   <section>
     <h2>Board <span class="type">{BOARDS[lab.project.board.type]?.name}</span></h2>
     <p class="note">Kéo để di chuyển. Đổi board ở mục Board bên trái: dây nối giữ nguyên theo chân GPIO.</p>
+    <button onclick={() => (lab.docPage = `board:${lab.project.board.type}`)}>Sơ đồ chân và trang chi tiết</button>
   </section>
 {/if}
 
 <style>
-  section { padding: 10px 12px; border-bottom: 1px solid #e4e2dd; }
-  h2 { font-size: 14px; margin: 0 0 8px; }
-  .type { font-weight: 400; color: #8b8d98; font-size: 12px; }
-  label { display: flex; justify-content: space-between; align-items: center; font-size: 13px; margin: 4px 0; }
+  section { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  h2 { font: 700 13px var(--font-mono); margin: 0 0 10px; display: flex; align-items: baseline; gap: 2px; flex-wrap: wrap; }
+  .type { font: 400 12px var(--font-ui); color: var(--ink-3); margin-left: 6px; }
+  label { display: flex; justify-content: space-between; align-items: center; font: 12px var(--font-mono); color: var(--ink-2); margin: 0; padding: 4px 0; border-bottom: 1px dotted var(--line); }
   .range { display: flex; align-items: center; gap: 6px; }
   .range input { width: 120px; }
-  .range output { font-family: ui-monospace, monospace; font-size: 12px; min-width: 3.5em; text-align: right; }
-  dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; margin: 8px 0; }
-  dt { color: #8b8d98; } dd { margin: 0; font-family: ui-monospace, monospace; }
-  .bad { color: #e5484d; font-weight: 700; }
-  .actions { display: flex; gap: 6px; }
-  .note { font-size: 12.5px; color: #6f6e77; margin: 0 0 8px; }
-  .learn { font-size: 12.5px; line-height: 1.5; background: #f6f8ff; border: 1px solid #dfe6ff; border-radius: 0; padding: 8px 10px; margin: 8px 0; }
+  .range output { font: 12px var(--font-mono); font-variant-numeric: tabular-nums; min-width: 3.5em; text-align: right; color: var(--ink); }
+  /* Live readings in a meter window */
+  dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 12px; margin: 10px 0; padding: 7px 10px; background: var(--surface-2); border: 1px solid var(--line); }
+  dl:empty { display: none; }
+  dt { color: var(--ink-3); font-family: var(--font-mono); }
+  dd { margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--ink); }
+  .bad { color: var(--error); font-weight: 700; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .note { font-size: 12.5px; color: var(--ink-3); margin: 0 0 8px; line-height: 1.5; }
+  .learn { font-size: 12.5px; line-height: 1.5; background: var(--info-soft); border: 1px solid var(--info-line); box-shadow: inset 3px 0 0 var(--info); border-radius: 0; padding: 8px 10px 8px 13px; margin: 8px 0; }
   .learn p { margin: 0 0 6px; }
+  .learn b { font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--info); }
   .learn ul { margin: 2px 0 6px; padding-left: 18px; }
 </style>

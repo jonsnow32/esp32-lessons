@@ -1,4 +1,5 @@
 import { Overstress, type PartBehavior, type PartEnv, type PartModule } from '@esp32lab/part-sdk';
+import { doc } from './doc';
 import manifest from './part.json';
 
 export interface PhotoresistorProps {
@@ -68,5 +69,6 @@ export const photoresistor: PartModule<PhotoresistorProps> = {
   view,
   defs,
   icon: '-0.9 -2.8 2.8 3.1',
+  doc,
 };
 export default photoresistor;

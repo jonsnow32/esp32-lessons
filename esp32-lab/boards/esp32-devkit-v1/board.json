@@ -358,5 +358,13 @@
       "x": 1.7,
       "y": 16.6
     }
-  ]
+  ],
+  "learn": {
+    "summary": "Board ESP32 phổ biến và rẻ nhất: 30 chân, module ESP32-WROOM-32 (chip ESP32-D0WD lõi kép 240 MHz, Wi-Fi, Bluetooth, 4 MB flash), cổng micro-USB qua chip CP2102 để nạp code và mở Serial. Có sẵn LED xanh ở GPIO2 để thử blink ngay.",
+    "tips": [
+      "Board rộng gần bằng cả breadboard half: cắm vắt qua rãnh giữa thì mỗi bên chỉ còn một hàng lỗ trống. Dùng hai breadboard ghép lại hoặc nối dây từ chân board.",
+      "Chân VIN nối thẳng với 5 V của cổng USB; 3V3 ra từ ổn áp AMS1117. Không cấp điện vào hai chân này khi đang cắm USB.",
+      "Nếu nạp code báo \"Failed to connect\", giữ nút BOOT trong lúc nạp."
+    ]
+  }
 }

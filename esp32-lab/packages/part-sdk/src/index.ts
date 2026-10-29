@@ -149,6 +149,73 @@ export interface PartModule<P extends PartProps = PartProps> {
    * slide switch). Props survive circuit rebuilds, events do not, hence the two kinds.
    */
   control?: { cx: number; cy: number; r: number } & ({ kind: 'press' } | { kind: 'toggle'; prop: string });
+  /** The part's detail page: key figures and drawings (UI language: Vietnamese). */
+  doc?: PartDoc<P>;
+}
+
+// ---------------------------------------------------------------------------
+// Detail page
+// ---------------------------------------------------------------------------
+
+/**
+ * What the part's detail page shows besides the manifest (pinout, ratings and the learn card
+ * are drawn from the manifest). Figures are a function of the props the reader picks on the
+ * page, so a curve can mark the chosen value and a wiring diagram can show the chosen variant.
+ */
+export interface PartDoc<P extends PartProps = PartProps> {
+  /** Key figures as label / value rows, e.g. ['Điện áp thuận', '1,8 V']. */
+  specs(props: P): [string, string][];
+  /** Observables that show the part at work (a lit LED, a pressed button), next to it at rest. */
+  active?: Record<string, Observable>;
+  figures(props: P): DocFigure[];
+}
+
+export type DocFigure = { title: string; caption?: string } & (
+  /** Hand-drawn SVG; classes from schematic.ts pick up the page's colours. */
+  | { kind: 'svg'; viewBox: string; svg: string }
+  | { kind: 'chart'; x: ChartAxis; y: ChartAxis; series: ChartSeries[]; marks?: ChartMark[] }
+  | { kind: 'timing'; end: number; signals: TimingSignal[]; spans?: TimingSpan[] }
+);
+
+export interface ChartAxis {
+  label: string;
+  min: number;
+  max: number;
+  /** Logarithmic scale (min must be > 0); ticks default to the decades. */
+  log?: boolean;
+  ticks?: number[];
+  format?: (v: number) => string;
+}
+
+export interface ChartSeries {
+  points: [number, number][];
+  label?: string;
+  color?: string;
+  /** Drawn thin and grey behind the others, e.g. the LED colours not picked. */
+  muted?: boolean;
+}
+
+/** A point when both x and y are given, else a dashed line across the plot at x or y. */
+export interface ChartMark {
+  x?: number;
+  y?: number;
+  label: string;
+  tone?: 'accent' | 'error' | 'signal';
+}
+
+/** One digital line in a timing diagram: [time, level 0 | 1] wherever it changes, from time 0. */
+export interface TimingSignal {
+  name: string;
+  steps: [number, 0 | 1][];
+  color?: string;
+}
+
+/** A bracket under signal `row` between two times, labelled with the real duration. */
+export interface TimingSpan {
+  row: number;
+  from: number;
+  to: number;
+  label: string;
 }
 
 /** Fill in defaults from the manifest for any prop the project did not set. */
@@ -233,3 +300,5 @@ export class Overstress {
     return this.accumulated > this.limit;
   }
 }
+
+export * as sch from './schematic';

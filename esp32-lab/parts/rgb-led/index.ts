@@ -1,4 +1,5 @@
 import { Junction, Overstress, type PartBehavior, type PartEnv, type PartModule } from '@esp32lab/part-sdk';
+import { doc } from './doc';
 import manifest from './part.json';
 
 export interface RgbLedProps {
@@ -10,7 +11,7 @@ const CHANNELS = ['red', 'green', 'blue'] as const;
 type Channel = (typeof CHANNELS)[number];
 
 /** Forward voltage of each die at 20 mA, typical for 5 mm RGB LEDs. */
-const FORWARD_VOLTAGE: Record<Channel, number> = { red: 2.0, green: 3.0, blue: 3.1 };
+export const FORWARD_VOLTAGE: Record<Channel, number> = { red: 2.0, green: 3.0, blue: 3.1 };
 const I_REF = 0.02;
 const EMISSION = 2;
 
@@ -90,5 +91,6 @@ export const rgbLed: PartModule<RgbLedProps> = {
   view,
   defs,
   icon: '-0.5 -3.6 4 4',
+  doc,
 };
 export default rgbLed;

@@ -1,4 +1,5 @@
 import { Junction, Overstress, type PartBehavior, type PartEnv, type PartModule } from '@esp32lab/part-sdk';
+import { doc } from './doc';
 import manifest from './part.json';
 
 export type DiodeModel = '1N4148' | '1N4007';
@@ -9,7 +10,7 @@ export interface DiodeProps {
 }
 
 /** SPICE junction parameters and datasheet ratings per model (series resistance ignored). */
-const MODELS: Record<DiodeModel, { is: number; n: number; currentMax: number; currentAbsMax: number; reverseVoltageMax: number }> = {
+export const MODELS: Record<DiodeModel, { is: number; n: number; currentMax: number; currentAbsMax: number; reverseVoltageMax: number }> = {
   '1N4148': { is: 2.52e-9, n: 1.752, currentMax: 0.2, currentAbsMax: 1, reverseVoltageMax: 100 },
   '1N4007': { is: 7.03e-9, n: 1.808, currentMax: 1, currentAbsMax: 30, reverseVoltageMax: 1000 },
 };
@@ -72,5 +73,6 @@ export const diode: PartModule<DiodeProps> = {
   view,
   defs,
   icon: '-0.4 -1.6 4.8 3.2',
+  doc,
 };
 export default diode;

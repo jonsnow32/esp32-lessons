@@ -1,4 +1,5 @@
 import { MS, US, type PartBehavior, type PartEnv, type PartModule } from '@esp32lab/part-sdk';
+import { doc } from './doc';
 import manifest from './part.json';
 
 export interface PushbuttonProps {
@@ -103,5 +104,6 @@ export const pushbutton: PartModule<PushbuttonProps> = {
   icon: '-0.6 -0.6 3.2 4.2',
   // The cap presses the button; the rest of the body drags it
   control: { kind: 'press', cx: 1, cy: 1.5, r: 0.85 },
+  doc,
 };
 export default pushbutton;

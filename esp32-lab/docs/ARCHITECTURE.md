@@ -33,7 +33,7 @@ UI thread (Svelte)                     Sim Worker (Web Worker)
 | `packages/sim-core` | `SimKernel`, `Netlist`, MNA solver, `McuModel` interface, `ScriptedMcu`, pad/supply builtins | M0 ✅ |
 | `packages/lesson-engine` | Evaluates declarative lesson checks | M0 ✅ |
 | `packages/mcu-esp32` | ESP32 pad capabilities; `Esp32Mcu`: the WASM emulator as an `McuModel` | M3 ✅ |
-| `parts/*` | One package per part: `resistor`, `led`, `pushbutton` (M0); `rgb-led`, `potentiometer`, `photoresistor`, `diode`, `slide-switch`, `buzzer` (common DC parts) | M0 ✅ |
+| `parts/*` | One package per part: `resistor`, `led`, `pushbutton` (M0); `rgb-led`, `potentiometer`, `photoresistor`, `diode`, `slide-switch`, `buzzer` (common DC parts); `thermistor`, `tilt-switch`, `pir-sensor`, `ultrasonic` (HC-SR04), `dht` (DHT11/22) (common sensors) | M0 ✅ |
 | `boards/*`, `breadboards/*`, `lessons/*` | Pure JSON definitions | M0 ✅ |
 | `projects/*` | Featured projects: `project.json` (circuit, card text, things to try) + `main.cpp`; listed on the home screen, opened as their own workspace | ✅ |
 | `crates/xtensa-core` | Xtensa LX6 decoder, objdump-syntax disassembler, interpreter | M1 ✅ |

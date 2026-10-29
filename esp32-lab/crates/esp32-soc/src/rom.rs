@@ -8,6 +8,9 @@
 //!
 //! Anything not implemented stops the machine with [`Stop::Rom`] naming the function, which is
 //! the to-do list when bringing up new firmware.
+//!
+//! A few functions the firmware carries in flash are emulated the same way ([`FLASH_NATIVE`]):
+//! their bodies use instructions this emulator does not model.
 
 use crate::mem::{Memory, ROM_BASE, ROM_END};
 use crate::periph::Periph;
@@ -16,6 +19,12 @@ use std::collections::HashMap;
 use xtensa_core::cpu::{PS_CALLINC, PS_CALLINC_SHIFT, PS_INTLEVEL};
 use xtensa_core::Bus;
 
+/// Firmware (flash) functions run natively instead of instruction by instruction. libgcc's
+/// `__divsf3` is built from the FPU's divide-assist instructions (DIV0.S, NEXP01.S, MADDN.S,
+/// MKDADJ.S, ADDEXP.S, DIVN.S...), whose exact bit-level behaviour is not documented; the host's
+/// IEEE division gives the correctly rounded result they compute.
+const FLASH_NATIVE: [&str; 1] = ["__divsf3"];
+
 pub struct Rom {
     /// ROM function address → every name the firmware knows it by (esp_rom_* aliases too).
     pub names: HashMap<u32, Vec<String>>,
@@ -23,6 +32,8 @@ pub struct Rom {
     /// Analog registers behind the internal I2C bus (rom_i2c_*): (block, reg) → value.
     i2c: HashMap<(u32, u32), u32>,
     pub calls: HashMap<String, u64>,
+    /// Addresses of the [`FLASH_NATIVE`] functions in this firmware.
+    pub native: Vec<u32>,
 }
 
 impl Rom {
@@ -33,10 +44,17 @@ impl Rom {
                 names.entry(addr).or_default().push(name.clone());
             }
         }
+        let mut native = vec![];
+        for name in FLASH_NATIVE {
+            if let Some(&addr) = symbols.get(name).filter(|&&a| !(ROM_BASE..ROM_END).contains(&a)) {
+                names.entry(addr).or_default().push(name.to_string());
+                native.push(addr);
+            }
+        }
         for list in names.values_mut() {
             list.sort();
         }
-        Self { names, symbols: symbols.clone(), i2c: HashMap::new(), calls: HashMap::new() }
+        Self { names, symbols: symbols.clone(), i2c: HashMap::new(), calls: HashMap::new(), native }
     }
 
     /// ROM .data/.bss variables the firmware reads, as the ROM and bootloader leave them.

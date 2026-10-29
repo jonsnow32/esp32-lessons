@@ -33,13 +33,15 @@
 
 <style>
   section { padding: 10px 12px; }
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #6f6e77; margin: 0 0 6px; }
-  .empty { font-size: 12px; color: #8b8d98; margin: 0; }
-  ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-  li { display: flex; gap: 8px; font-size: 13px; line-height: 1.45; padding: 6px 8px; border-radius: 0; background: #f4f4f2; cursor: pointer; border: 1px solid transparent; }
-  li.pinned { border-color: #f5a524; }
-  li.error { background: #fff0f0; color: #a3161b; }
-  li.warn { background: #fff7ed; color: #8a3d00; }
-  li.ok { background: #eefaf3; color: #14532d; font-weight: 500; }
+  h2 { font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .09em; color: var(--ink-3); margin: 0 0 8px; }
+  .empty { font-size: 12px; color: var(--ink-3); margin: 0; line-height: 1.5; }
+  ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+  /* Notes as probe readings: a coloured lead on the left says what kind */
+  li { display: flex; gap: 8px; font-size: 13px; line-height: 1.45; padding: 6px 8px; border-radius: 0; background: var(--surface); cursor: pointer; border: 1px solid var(--line-soft); box-shadow: inset 3px 0 0 var(--line-strong); }
+  li.pinned { border-color: var(--accent-hi); background-color: var(--accent-soft); }
+  li.info { box-shadow: inset 3px 0 0 var(--info); }
+  li.error { background-color: var(--error-soft); color: var(--error); box-shadow: inset 3px 0 0 var(--error); }
+  li.warn { background-color: var(--warn-soft); color: var(--warn); box-shadow: inset 3px 0 0 var(--warn-dot); }
+  li.ok { background-color: var(--ok-soft); color: #14532d; font-weight: 500; box-shadow: inset 3px 0 0 var(--ok-dot); }
   .icon { flex: 0 0 auto; }
 </style>

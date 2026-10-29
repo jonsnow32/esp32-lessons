@@ -128,6 +128,24 @@ describe.skipIf(!existsSync(wasmPath))('featured projects on the emulated ESP32'
     expect(b.serial()).toContain('Troi toi -> bat den');
   });
 
+  it('thermometer reads the NTC through the ADC', async () => {
+    const b = await boot('thermometer');
+    if (!b) return;
+    /** Last temperature the sketch printed. */
+    const celsius = () => Number([...b.serial().matchAll(/\| +(-?[\d.]+) C/g)].at(-1)?.[1]);
+    b.k.advanceTo(1.2 * S);
+    expect(celsius()).toBeCloseTo(25, 0);
+    expect(lit(b.k, 'led1')).toBe(false);
+    b.setProp('ntc1', 'temperature', 50);
+    b.k.advanceTo(b.k.now + 600 * MS);
+    expect(Math.abs(celsius() - 50)).toBeLessThan(1.5);
+    expect(lit(b.k, 'led1')).toBe(true);
+    b.setProp('ntc1', 'temperature', 5);
+    b.k.advanceTo(b.k.now + 600 * MS);
+    expect(Math.abs(celsius() - 5)).toBeLessThan(1.5);
+    expect(lit(b.k, 'led1')).toBe(false);
+  });
+
   it('mode-switch blinks slow or fast with the lever', async () => {
     const b = await boot('mode-switch');
     if (!b) return;

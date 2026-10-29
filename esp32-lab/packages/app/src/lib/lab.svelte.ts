@@ -141,6 +141,8 @@ class Lab {
   myProjects = $state<MyProject[]>(loadMyProjects());
   /** One-off message for the user (e.g. "a copy was made"), dismissed by them. */
   notice = $state<string | null>(null);
+  /** Detail page open over everything else: a part type, `board:<type>` or `bb:<type>`. */
+  docPage = $state<string | null>(null);
   /** Undo/redo: earlier and undone versions of the bench, as JSON. */
   private past = $state<string[]>([]);
   private future = $state<string[]>([]);

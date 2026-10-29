@@ -1,4 +1,5 @@
 import { Overstress, type PartBehavior, type PartEnv, type PartModule } from '@esp32lab/part-sdk';
+import { doc } from './doc';
 import manifest from './part.json';
 
 export interface PotentiometerProps {
@@ -89,5 +90,6 @@ export const potentiometer: PartModule<PotentiometerProps> = {
   view,
   defs,
   icon: '-0.6 -3.1 3.2 3.4',
+  doc,
 };
 export default potentiometer;

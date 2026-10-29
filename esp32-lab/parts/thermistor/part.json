@@ -1,0 +1,48 @@
+{
+  "id": "thermistor",
+  "version": "0.1.0",
+  "name": "Nhiệt điện trở NTC 10 kΩ (B3950)",
+  "category": "sensor",
+  "tags": [
+    "through-hole",
+    "analog",
+    "temperature"
+  ],
+  "terminals": [
+    {
+      "name": "a",
+      "dx": 0,
+      "dy": 0
+    },
+    {
+      "name": "b",
+      "dx": 1,
+      "dy": 0
+    }
+  ],
+  "props": {
+    "temperature": {
+      "type": "number",
+      "default": 25,
+      "unit": " °C",
+      "min": -20,
+      "max": 100
+    }
+  },
+  "ratings": {
+    "powerMax": 0.05,
+    "overstressTime": 2000000000
+  },
+  "learn": {
+    "summary": "Nhiệt điện trở NTC là điện trở giảm khi nóng lên: 10 kΩ ở 25 °C, khoảng 33 kΩ ở 0 °C và chỉ còn ~0,7 kΩ ở 100 °C. Nó không có chiều.",
+    "howToPlug": [
+      "Ghép với một điện trở 10 kΩ thành cầu phân áp: 3,3 V → NTC → điểm giữa → 10 kΩ → GND.",
+      "Nối điểm giữa vào chân ADC1 (ví dụ GPIO34) và đọc bằng analogRead().",
+      "Chọn nhiệt điện trở rồi kéo \"temperature\" để giả lập nóng hay lạnh."
+    ],
+    "tips": [
+      "Đổi điện áp ra nhiệt độ bằng công thức Beta: 1/T = 1/298,15 + ln(R/10000)/3950 (T tính bằng K).",
+      "Dòng qua NTC làm chính nó ấm lên, nên dùng điện trở phân áp đủ lớn (≥ 10 kΩ)."
+    ]
+  }
+}

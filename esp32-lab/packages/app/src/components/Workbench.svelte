@@ -780,7 +780,7 @@
   .bench {
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 50% 40%, #fdfcf9, #f1eee7);
+    background: radial-gradient(circle at 50% 40%, #f5f6f3, var(--bg));
     touch-action: none;
     user-select: none;
     -webkit-user-select: none;
@@ -798,7 +798,7 @@
   }
   .outline {
     fill: none;
-    stroke: #f76b15;
+    stroke: var(--accent-hi);
     stroke-width: 0.14;
     stroke-dasharray: 0.6 0.35;
     animation: march 0.6s linear infinite;
@@ -823,11 +823,12 @@
     top: 50%;
     transform: translateY(-50%);
     white-space: nowrap;
-    font-size: 12.5px;
+    font: 12px var(--font-mono);
     padding: 6px 10px;
-    background: #1f2023;
-    color: #fff;
-    box-shadow: 0 1px 3px #0003;
+    background: var(--bezel);
+    color: var(--ink-inv);
+    border: 1px solid var(--bezel-line);
+    box-shadow: var(--shadow-float);
     pointer-events: none;
   }
   .wire-seg {
@@ -838,7 +839,7 @@
   }
   .grip {
     fill: #fff;
-    stroke: #f76b15;
+    stroke: var(--accent-hi);
     stroke-width: 0.1;
   }
   .wire.selected path:nth-child(3) {
@@ -904,7 +905,7 @@
   .seg {
     display: inline-flex;
     pointer-events: auto;
-    box-shadow: 0 1px 3px #0002;
+    box-shadow: var(--shadow-float);
     border-radius: 0;
     width: max-content;
   }
@@ -918,15 +919,21 @@
   .seg button:last-child {
     border-radius: 0;
   }
+  .seg button {
+    font: 600 11.5px var(--font-mono);
+    letter-spacing: .02em;
+  }
   .seg button.on {
-    background: #1c2024;
-    color: #fff;
-    border-color: #1c2024;
+    background: var(--bezel);
+    color: var(--ink-inv);
+    border-color: var(--bezel);
+    box-shadow: inset 0 -2px 0 var(--accent-hi);
   }
   .legend {
     font-size: 12px;
-    color: #4b4d57;
-    background: #ffffffd9;
+    color: var(--ink-2);
+    background: #ffffffe6;
+    border: 1px solid var(--line);
     padding: 4px 8px;
     border-radius: 0;
     max-width: 330px;
@@ -956,18 +963,20 @@
     position: absolute;
     left: 12px;
     bottom: 12px;
-    background: #1c2024;
-    color: #fff;
-    font: 13px ui-monospace, 'JetBrains Mono', monospace;
+    background: var(--bezel);
+    color: #9ee6bd;
+    font: 13px var(--font-mono);
+    font-variant-numeric: tabular-nums;
     padding: 6px 10px;
+    border: 1px solid var(--bezel-line);
     border-radius: 0;
-    box-shadow: 0 2px 8px #0003;
+    box-shadow: var(--shadow-float);
     pointer-events: none;
     max-width: calc(100% - 90px);
   }
   .leg {
     fill: #ffffff01;
-    stroke: #f76b15;
+    stroke: var(--accent-hi);
     stroke-width: 0;
     cursor: crosshair;
   }
@@ -988,6 +997,6 @@
     height: 40px;
     font-size: 18px;
     border-radius: 0;
-    box-shadow: 0 1px 3px #0002;
+    box-shadow: var(--shadow-float);
   }
 </style>

@@ -24,5 +24,11 @@
       "y0": 7
     }
   ],
-  "rails": []
+  "rails": [],
+  "learn": {
+    "summary": "Breadboard mini: 17 cột, 170 lỗ, không có thanh nguồn. Nhỏ gọn để thử một cảm biến hoặc vài linh kiện.",
+    "tips": [
+      "Không có thanh nguồn: dành riêng một cột cho 3V3 và một cột cho GND để chia điện cho các linh kiện."
+    ]
+  }
 }

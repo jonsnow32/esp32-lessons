@@ -427,5 +427,12 @@
       "x": 1.7,
       "y": 20.6
     }
-  ]
+  ],
+  "learn": {
+    "summary": "Board chính hãng của Espressif: 38 chân, module ESP32-WROOM-32, chip USB CP2102N. Đưa ra nhiều chân hơn DevKit V1, kể cả 6 chân nối với bộ nhớ flash. Chỉ có LED đỏ báo nguồn, không có LED nối GPIO.",
+    "tips": [
+      "Sáu chân SD0–SD3, CLK, CMD (GPIO6–11) nối với flash bên trong module: đừng nối gì vào đó, board sẽ treo.",
+      "Muốn thử blink thì cắm thêm một LED và điện trở 220 Ω vào một GPIO."
+    ]
+  }
 }
