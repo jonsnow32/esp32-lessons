@@ -106,6 +106,8 @@ importers:
 
   parts/rotary-encoder: {}
 
+  parts/servo: {}
+
   parts/seven-segment: {}
 
   parts/slide-switch: {}

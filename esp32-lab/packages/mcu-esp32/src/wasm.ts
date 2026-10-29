@@ -21,6 +21,8 @@ interface Exports {
   soc_uart_take(soc: number, port: number): number;
   soc_uart_push(soc: number, port: number, byte: number): void;
   soc_pad_state(soc: number, gpio: number): number;
+  soc_pad_pwm_period(soc: number, gpio: number): number;
+  soc_pad_pwm_high(soc: number, gpio: number): number;
   soc_set_pad_input(soc: number, gpio: number, level: number): void;
   soc_set_pad_volts(soc: number, gpio: number, volts: number): void;
   soc_set_board_pull_ups(soc: number, lo: number, hi: number): void;
@@ -28,7 +30,7 @@ interface Exports {
 
 const REQUIRED_EXPORTS = [
   'alloc', 'dealloc', 'scratch_ptr', 'last_error_len', 'soc_new', 'soc_free', 'soc_run_until', 'soc_cycles',
-  'soc_uart_take', 'soc_uart_push', 'soc_pad_state', 'soc_set_pad_input', 'soc_set_pad_volts', 'soc_set_board_pull_ups',
+  'soc_uart_take', 'soc_uart_push', 'soc_pad_state', 'soc_pad_pwm_period', 'soc_pad_pwm_high', 'soc_set_pad_input', 'soc_set_pad_volts', 'soc_set_board_pull_ups',
 ] as const satisfies readonly Exclude<keyof Exports, 'memory'>[];
 
 /** A PlatformIO build: .pio/build/<env>/{firmware.elf, firmware.bin, bootloader.bin, partitions.bin}. */
@@ -143,10 +145,12 @@ export class Esp32Mcu implements McuModel {
       const n = gpioNumber(pad);
       if (n === undefined) continue;
       const s = this.x.soc_pad_state(this.soc, n);
+      const periodNs = this.x.soc_pad_pwm_period(this.soc, n);
       this.drives.set(pad, {
         output: s & 1 ? (s & 2 ? 'high' : 'low') : 'z',
         pull: s & 4 ? 'up' : s & 8 ? 'down' : 'none',
         strength: (s >> 8) & 3,
+        ...(periodNs > 0 && { pwm: { periodNs, highNs: this.x.soc_pad_pwm_high(this.soc, n) } }),
       });
     }
   }

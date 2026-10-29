@@ -111,7 +111,7 @@ export function explain(ctx: ExplainContext): Note[] {
     const pad = padOfPin(pin.name);
     const n = net(keyOf.boardPin(pin.name));
     if (n === undefined || !userWired(n)) continue;
-    if (pad && kernel.observables(`mcu.${pad}`).output === 'high') sources.push({ key: keyOf.pad(pad), label: pin.name });
+    if (pad && ['high', 'pwm'].includes(String(kernel.observables(`mcu.${pad}`).output))) sources.push({ key: keyOf.pad(pad), label: pin.name });
     if ('net' in pin.connect && pin.connect.net !== 'GND') sources.push({ key: keyOf.net(pin.connect.net), label: pin.connect.net });
   }
   const seenSources = new Set<number>();
@@ -307,6 +307,15 @@ export function explain(ctx: ExplainContext): Note[] {
           pv < 3.0
             ? `${name} đang HIGH, nhưng chân chỉ còn ${volts(pv)} thay vì 3,3 V vì phải cấp dòng lớn (${amps(padAmps)}): mạch ngoài đang "kéo sụt" chân.`
             : `${name} đang HIGH: chip xuất ${volts(pv)} ra chân này (digitalWrite HIGH).`,
+        highlight: [key],
+      });
+    } else if (o.output === 'pwm') {
+      const freq = Number(o.freq);
+      const hz = freq >= 1000 ? `${String(+(freq / 1000).toFixed(1)).replace('.', ',')} kHz` : `${String(+freq.toFixed(1)).replace('.', ',')} Hz`;
+      const duty = Math.round(Number(o.duty) * 100);
+      notes.push({
+        level: 'info',
+        text: `${name} đang xuất PWM ${hz}: HIGH ${duty} % thời gian, LOW phần còn lại (analogWrite / ledcWrite). Đồng hồ đo thấy trung bình ${volts(state?.v ?? 3.3 * Number(o.duty))}; đèn LED nối vào sáng khoảng ${duty} % độ sáng tối đa.`,
         highlight: [key],
       });
     } else if (o.output === 'low') {

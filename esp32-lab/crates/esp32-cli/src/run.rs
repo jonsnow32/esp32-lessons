@@ -78,12 +78,20 @@ pub fn run(args: &[String]) -> i32 {
         printed = out.len();
         if trace_gpio {
             for e in &soc.pad_events[pads_printed..] {
+                let level = if e.state.pwm_period_ns > 0 {
+                    let (period, high) = (e.state.pwm_period_ns as f64, e.state.pwm_high_ns as f64);
+                    format!("PWM {:.1} Hz, HIGH {:.1} µs ({:.1} %)", 1e9 / period, high / 1e3, 100.0 * high / period)
+                } else if e.state.level {
+                    "HIGH".into()
+                } else {
+                    "LOW".into()
+                };
                 eprintln!(
                     "[{:10.6} s] GPIO{:<2} {} {}",
                     e.cycles as f64 / CPU_HZ as f64,
                     e.gpio,
                     if e.state.output_enabled { "OUT" } else { "in " },
-                    if e.state.level { "HIGH" } else { "LOW" }
+                    level
                 );
             }
             pads_printed = soc.pad_events.len();

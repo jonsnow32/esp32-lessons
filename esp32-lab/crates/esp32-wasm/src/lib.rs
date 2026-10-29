@@ -118,13 +118,24 @@ pub unsafe extern "C" fn soc_uart_push(soc: *mut Soc, port: u32, byte: u32) {
 /// 8..9 drive strength.
 #[no_mangle]
 pub unsafe extern "C" fn soc_pad_state(soc: *const Soc, gpio: u32) -> u32 {
-    let p = (*soc).periph.gpio.pad(gpio as usize % 40);
+    let p = (*soc).periph.pad(gpio as usize % 40);
     (p.output_enabled as u32)
         | ((p.level as u32) << 1)
         | ((p.pull_up as u32) << 2)
         | ((p.pull_down as u32) << 3)
         | ((p.input_enabled as u32) << 4)
         | ((p.drive as u32) << 8)
+}
+
+/// PWM waveform on a pad, or 0 if none: the period in ns; `soc_pad_pwm_high` gives the time HIGH.
+#[no_mangle]
+pub unsafe extern "C" fn soc_pad_pwm_period(soc: *const Soc, gpio: u32) -> f64 {
+    (*soc).periph.pad(gpio as usize % 40).pwm_period_ns as f64
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn soc_pad_pwm_high(soc: *const Soc, gpio: u32) -> f64 {
+    (*soc).periph.pad(gpio as usize % 40).pwm_high_ns as f64
 }
 
 /// Logic level the circuit presents at a pad: 0, 1, or −1 to release (chip decides alone).

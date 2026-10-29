@@ -17,6 +17,12 @@ const ENABLE1_W1TS: u32 = 0x30;
 const ENABLE1_W1TC: u32 = 0x34;
 const IN: u32 = 0x3c;
 const IN1: u32 = 0x40;
+/// GPIO_FUNCn_OUT_SEL_CFG: which matrix signal drives pad n.
+const FUNC_OUT_SEL: u32 = 0x530;
+/// Signal 256: the pad follows GPIO_OUT (the reset value).
+pub const SIG_GPIO_OUT: u32 = 256;
+pub const OUT_SEL_INV: u32 = 1 << 9;
+pub const OUT_SEL_OEN_FROM_GPIO: u32 = 1 << 10;
 
 /// IO_MUX register offset for each GPIO (TRM table "IO_MUX Pad Summary"); 0 = no pad.
 pub const IO_MUX_OFFSET: [u32; PADS] = [
@@ -53,6 +59,9 @@ pub struct PadState {
     pub pull_down: bool,
     pub input_enabled: bool,
     pub drive: u8,
+    /// A PWM signal drives the pad: its period and time HIGH (ns); 0 = no waveform, `level` holds.
+    pub pwm_period_ns: u32,
+    pub pwm_high_ns: u32,
 }
 
 pub struct Gpio {
@@ -103,7 +112,14 @@ impl Gpio {
             pull_down: mux & MUX_FUN_WPD != 0 || self.rtc_pull_down & (1 << n) != 0,
             input_enabled: mux & MUX_FUN_IE != 0,
             drive: ((mux >> 10) & 3) as u8,
+            pwm_period_ns: 0,
+            pwm_high_ns: 0,
         }
+    }
+
+    /// GPIO_FUNCn_OUT_SEL_CFG of pad `n`.
+    pub fn out_sel(&self, n: usize) -> u32 {
+        self.regs.get(&(FUNC_OUT_SEL + 4 * n as u32)).copied().unwrap_or(SIG_GPIO_OUT)
     }
 
     /// Level at every pad: an external driver wins, otherwise the pad's own output, otherwise

@@ -1,0 +1,138 @@
+{
+  "id": "servo-knob",
+  "order": 11,
+  "title": "Servo theo núm vặn",
+  "summary": "Xoay biến trở: servo quay theo, đèn xanh trên board sáng dần. Cả hai dùng PWM của khối LEDC: servo nhận xung 50 Hz rộng 0,5–2,5 ms (ledcAttach + ledcWrite), đèn nhận analogWrite 1 kHz với độ rộng xung tỉ lệ với độ sáng.",
+  "tryIt": [
+    "Bấm Chạy rồi kéo \"position\" của biến trở: servo quay theo, Serial in góc và độ rộng xung.",
+    "Bật lớp Điện áp: chân GPIO2 hiện điện áp trung bình của xung PWM, giống đồng hồ vạn năng đo được.",
+    "Nối dây đỏ của servo sang 3V3: servo đứng im vì thiếu điện. Trên mạch thật nó còn có thể làm ESP32 khởi động lại."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "servo-knob",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "pot1",
+        "type": "potentiometer",
+        "props": {
+          "resistance": 10000,
+          "position": 50
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "a5",
+          "rot": 0
+        }
+      },
+      {
+        "id": "servo1",
+        "type": "servo",
+        "props": {},
+        "placement": {
+          "bb": "bb1",
+          "hole": "a15",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "3V3"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e7"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "board",
+          "pin": "D34"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e6"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e5"
+        },
+        "b": {
+          "kind": "board",
+          "pin": "GND.L"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e15"
+        },
+        "b": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w5",
+        "a": {
+          "kind": "board",
+          "pin": "VIN"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e16"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w6",
+        "a": {
+          "kind": "board",
+          "pin": "D18"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e17"
+        },
+        "color": "#f76b15"
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

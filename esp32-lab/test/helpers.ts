@@ -22,6 +22,7 @@ import keypad from '@esp32lab-parts/keypad';
 import ledBar from '@esp32lab-parts/led-bar';
 import relay from '@esp32lab-parts/relay';
 import rotaryEncoder from '@esp32lab-parts/rotary-encoder';
+import servo from '@esp32lab-parts/servo';
 import sevenSegment from '@esp32lab-parts/seven-segment';
 import soilMoisture from '@esp32lab-parts/soil-moisture';
 import board from '../boards/esp32-devkit-v1/board.json';
@@ -50,6 +51,7 @@ export const PARTS = {
   relay,
   'rotary-encoder': rotaryEncoder,
   'seven-segment': sevenSegment,
+  servo,
   'soil-moisture': soilMoisture,
 };
 export const BOARD = board as BoardDef;

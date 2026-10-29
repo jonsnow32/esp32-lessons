@@ -14,6 +14,7 @@ import {
   type PartEvent,
   type PartManifest,
   type PartModule,
+  type PwmSignal,
   type SimTime,
 } from '@esp32lab/part-sdk';
 import {
@@ -53,6 +54,20 @@ export interface Diagnostic {
   part?: string;
   message: string;
 }
+
+/**
+ * One stretch of a PWM period during which every PWM pad holds one level: `w` is its share of
+ * the period, `levels` which pads are HIGH, `v` / `floating` the circuit solved for it.
+ */
+interface Segment {
+  w: number;
+  levels: Map<string, boolean>;
+  v: Float64Array;
+  floating: boolean[];
+}
+
+/** Re-solves a single solve() may trigger (a part failing, the MCU entering reset...). */
+const MAX_RESOLVES = 8;
 
 interface Instance {
   id: string;
@@ -118,6 +133,13 @@ export class SimKernel {
   private floating: boolean[] = [];
   private lastSolve: SimTime = 0;
   private readonly random: () => number;
+  /** The PWM stretches of the present operating point; empty when no pad puts out PWM. */
+  private segments: Segment[] = [];
+  /** Level of each PWM pad in the stretch being solved or reported; null outside that. */
+  private pwmLevels: Map<string, boolean> | null = null;
+  private pwmByNet = new Map<number, PwmSignal>();
+  /** Numeric observables that differ between PWM stretches, averaged over the period. */
+  private averaged = new Map<string, Record<string, number>>();
 
   constructor(private readonly opts: KernelOptions) {
     this.random = prng(opts.project.seed ?? 1);
@@ -175,7 +197,7 @@ export class SimKernel {
       this.addInstance(`board.supply.${supply.net}`, supplyBehavior(supply), { out: keyOf.net(supply.net), gnd: GROUND_KEY });
     }
     for (const pad of mcu.pads) {
-      this.addInstance(`mcu.${pad}`, padBehavior(mcu, pad), {
+      this.addInstance(`mcu.${pad}`, padBehavior(mcu, pad, () => this.pwmLevels?.get(pad)), {
         pad: keyOf.pad(pad),
         vdd: keyOf.net(mcu.electrical.vddNet),
         gnd: GROUND_KEY,
@@ -282,7 +304,7 @@ export class SimKernel {
   // Solve
   // -------------------------------------------------------------------------
 
-  solve(): void {
+  solve(depth = 0): void {
     const elements: Stamper[] = [];
     for (const inst of this.instances.values()) {
       const b = inst.behavior;
@@ -294,12 +316,30 @@ export class SimKernel {
         },
       });
     }
-    const result = solve(this.netlist.netCount, elements, this.voltages);
-    if (!result.converged) {
-      this.diagnostics.push({ severity: 'warning', code: 'not-converged', message: `Solver did not converge at t=${this.now} ns` });
+    const n = this.netlist.netCount;
+    const segments = this.pwmSegments();
+    let guess = this.voltages;
+    for (const seg of segments) {
+      this.pwmLevels = seg.levels;
+      const result = solve(n, elements, guess);
+      if (!result.converged) {
+        this.diagnostics.push({ severity: 'warning', code: 'not-converged', message: `Solver did not converge at t=${this.now} ns` });
+      }
+      seg.v = result.v;
+      seg.floating = result.floating;
+      guess = result.v;
     }
-    this.voltages = result.v;
-    this.floating = result.floating;
+    this.pwmLevels = null;
+    // What a meter (and a slow input) sees: the average over the period
+    this.voltages = new Float64Array(n);
+    this.floating = Array.from({ length: n }, () => false);
+    for (const seg of segments) {
+      for (let i = 0; i < n; i++) {
+        this.voltages[i]! += seg.w * (seg.v[i] ?? 0);
+        this.floating[i] ||= seg.floating[i] ?? true;
+      }
+    }
+    this.segments = segments.length > 1 ? segments : [];
     this.dirty = false;
     this.lastSolve = this.now;
     this.notifySolved(0);
@@ -311,14 +351,80 @@ export class SimKernel {
     }
     if (this.opts.mcu.setInputs(inputs, this.now) === true) this.dirty = true;
     // A part destroyed by this operating point changed the circuit; damage only happens once per
-    // part (and the MCU only enters or leaves reset once per edge), so this terminates
-    if (this.dirty) this.solve();
+    // part (and the MCU only enters or leaves reset once per edge), so this terminates. Parts
+    // that flip with every PWM stretch would not, hence the cap
+    if (this.dirty && depth < MAX_RESOLVES) this.solve(depth + 1);
+  }
+
+  /**
+   * Split the PWM period at every pad's duty: in stretch i, the pads whose duty reaches past it
+   * are HIGH. Duties are compared as if every waveform started HIGH at the same moment, which
+   * gives each part the right share of time at each level as long as it hangs off one pad.
+   */
+  private pwmSegments(): Segment[] {
+    const pwm: { pad: string; duty: number }[] = [];
+    this.pwmByNet.clear();
+    for (const pad of this.opts.mcu.pads) {
+      const d = this.opts.mcu.drive(pad);
+      if (!d.pwm || d.output === 'z') continue;
+      pwm.push({ pad, duty: d.pwm.highNs / d.pwm.periodNs });
+      this.pwmByNet.set(this.netlist.net(keyOf.pad(pad))!, d.pwm);
+    }
+    const cuts = [0, ...new Set(pwm.map((p) => p.duty).sort((a, b) => a - b)), 1];
+    const out: Segment[] = [];
+    for (let i = 0; i + 1 < cuts.length; i++) {
+      const w = cuts[i + 1]! - cuts[i]!;
+      if (w <= 0) continue;
+      out.push({ w, levels: new Map(pwm.map((p) => [p.pad, p.duty > cuts[i]!])), v: new Float64Array(0), floating: [] });
+    }
+    // Report the longest stretch last: parts keep the state of the last one they saw
+    return out.sort((a, b) => a.w - b.w);
   }
 
   private notifySolved(dt: SimTime): void {
+    if (this.segments.length === 0) {
+      this.averaged.clear();
+      this.report(this.voltages, dt);
+      return;
+    }
+    const sums = new Map<string, Record<string, number>>();
+    const varies = new Map<string, Set<string>>();
+    const first = new Map<string, Record<string, Observable>>();
+    for (const seg of this.segments) {
+      this.pwmLevels = seg.levels;
+      this.report(seg.v, dt * seg.w);
+      for (const inst of this.instances.values()) {
+        const obs = inst.behavior.observables();
+        const sum = sums.get(inst.id) ?? {};
+        const seen = first.get(inst.id) ?? obs;
+        const diff = varies.get(inst.id) ?? new Set<string>();
+        for (const [key, value] of Object.entries(obs)) {
+          if (typeof value !== 'number') continue;
+          sum[key] = (sum[key] ?? 0) + seg.w * value;
+          if (value !== seen[key]) diff.add(key);
+        }
+        sums.set(inst.id, sum);
+        first.set(inst.id, seen);
+        varies.set(inst.id, diff);
+      }
+    }
+    this.pwmLevels = null;
+    this.averaged.clear();
+    for (const [id, diff] of varies) {
+      if (diff.size) this.averaged.set(id, Object.fromEntries([...diff].map((key) => [key, sums.get(id)![key]!])));
+    }
+  }
+
+  /** Hand one operating point to every part. */
+  private report(voltages: Float64Array, dt: SimTime): void {
     for (const inst of this.instances.values()) {
       const wasDamaged = inst.behavior.damaged;
-      inst.behavior.onSolved?.({ v: (t) => this.voltages[inst.nets[t]!] ?? 0, dt, t: this.now });
+      inst.behavior.onSolved?.({
+        v: (t) => voltages[inst.nets[t]!] ?? 0,
+        dt,
+        t: this.now,
+        pwm: (t) => this.pwmByNet.get(inst.nets[t]!),
+      });
       if (!wasDamaged && inst.behavior.damaged) {
         // A part failing changes the circuit (LED goes open), so solve again
         this.dirty = true;
@@ -347,7 +453,8 @@ export class SimKernel {
   observables(partId: string): Record<string, Observable> {
     const inst = this.instances.get(partId);
     if (!inst) throw new Error(`Unknown part "${partId}"`);
-    return inst.behavior.observables();
+    // Under PWM, what changes with the waveform (an LED's current) is shown as its average
+    return { ...inst.behavior.observables(), ...this.averaged.get(partId) };
   }
 
   /** Voltage at any key (use keyOf / endpointKey). */
@@ -364,10 +471,17 @@ export class SimKernel {
   /** Current into every terminal of every part at the present operating point (A). */
   terminalCurrents(): Map<string, Record<string, number>> {
     const out = new Map<string, Record<string, number>>();
-    for (const inst of this.instances.values()) {
-      const v = (t: string) => this.voltages[inst.nets[t]!] ?? 0;
-      out.set(inst.id, terminalCurrents(inst.behavior, v, Object.keys(inst.keys)));
+    const segments = this.segments.length ? this.segments : [{ w: 1, levels: null, v: this.voltages }];
+    for (const seg of segments) {
+      this.pwmLevels = seg.levels;
+      for (const inst of this.instances.values()) {
+        const v = (t: string) => seg.v[inst.nets[t]!] ?? 0;
+        const sum = out.get(inst.id) ?? {};
+        for (const [t, i] of Object.entries(terminalCurrents(inst.behavior, v, Object.keys(inst.keys)))) sum[t] = (sum[t] ?? 0) + seg.w * i;
+        out.set(inst.id, sum);
+      }
     }
+    this.pwmLevels = null;
     return out;
   }
 

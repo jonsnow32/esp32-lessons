@@ -2,13 +2,15 @@
 // in WASM, or ScriptedMcu in tests) only ever exchanges pad drive states and pad voltages with the
 // circuit, so any MCU can be dropped in without touching the kernel.
 
-import type { SimTime } from '@esp32lab/part-sdk';
+import type { PwmSignal, SimTime } from '@esp32lab/part-sdk';
 
 export interface PadDrive {
   output: 'high' | 'low' | 'z';
   pull: 'up' | 'down' | 'none';
   /** Drive-strength setting (ESP32 FUN_DRV 0–3). */
   strength: number;
+  /** The output toggles with this waveform instead of holding `output` (which is then 'high'). */
+  pwm?: PwmSignal;
 }
 
 export const PAD_Z: PadDrive = { output: 'z', pull: 'none', strength: 2 };

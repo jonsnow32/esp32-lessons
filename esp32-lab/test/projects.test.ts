@@ -219,6 +219,31 @@ describe.skipIf(!existsSync(wasmPath))('featured projects on the emulated ESP32'
     expect(b.serial()).toContain('Sai ma');
   });
 
+  it('servo-knob turns the servo and dims the LED with the knob', async () => {
+    const b = await boot('servo-knob');
+    if (!b) return;
+    const brightness = () => Number(b.k.observables('board.led').brightness);
+    b.k.advanceTo(0.6 * S);
+    // Mid-travel; the ESP32's ADC is not linear, so not exactly 90°
+    const mid = b.k.observables('servo1').angle as number;
+    expect(mid).toBeGreaterThan(70);
+    expect(mid).toBeLessThan(110);
+    // The board's blue LED is dim even fully on (≈3 V LED behind its resistor), so compare
+    const half = brightness();
+    expect(half).toBeGreaterThan(0);
+    b.setProp('pot1', 'position', 0);
+    b.k.advanceTo(b.k.now + 400 * MS);
+    expect(b.k.observables('servo1').angle).toBe(0);
+    // 500 µs as a 16-bit duty of 20 ms: 1638 / 65536 → 499.9 µs
+    expect(b.k.observables('servo1').pulseUs as number).toBeCloseTo(500, 0);
+    expect(brightness()).toBeLessThan(half * 0.05);
+    b.setProp('pot1', 'position', 100);
+    b.k.advanceTo(b.k.now + 500 * MS);
+    expect(b.k.observables('servo1').angle as number).toBeGreaterThan(175);
+    expect(brightness()).toBeGreaterThan(half * 1.5);
+    expect(b.serial()).toMatch(/Goc 1[78]\d do/);
+  });
+
   it('relay-lamp toggles the lamp through the relay contacts', async () => {
     const b = await boot('relay-lamp');
     if (!b) return;

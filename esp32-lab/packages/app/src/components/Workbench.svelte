@@ -387,6 +387,7 @@
     const o = pad ? lab.observables[`mcu.${pad}`] : undefined;
     if (o?.damaged) return '#000';
     if (o?.output === 'high') return '#ff5a4f';
+    if (o?.output === 'pwm') return '#b55cff';
     if (o?.output === 'low') return '#4f7bff';
     return 'url(#gold)';
   }

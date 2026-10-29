@@ -88,12 +88,25 @@ export interface NonlinearContext extends StampContext {
   limited(): void;
 }
 
-/** The solved operating point, handed to the part after each converged solve. */
+/** A repeating waveform an MCU pad puts out (LEDC: analogWrite, ledcWrite, tone). */
+export interface PwmSignal {
+  periodNs: number;
+  /** Time HIGH in each period, 0 < highNs < periodNs. */
+  highNs: number;
+}
+
+/**
+ * The solved operating point, handed to the part after each converged solve. While a pad puts
+ * out PWM the circuit is solved once per stretch of the period with a fixed set of pads HIGH,
+ * and the part sees each stretch in turn with its share of `dt`.
+ */
 export interface OperatingPoint {
   v(terminal: string): number;
   /** Time since the previous solve, for overstress accumulation. */
   dt: SimTime;
   t: SimTime;
+  /** The PWM waveform on the terminal's net, if an MCU pad drives one there directly. */
+  pwm?(terminal: string): PwmSignal | undefined;
 }
 
 export type PartEvent =

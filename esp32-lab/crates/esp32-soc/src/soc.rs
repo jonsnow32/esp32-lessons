@@ -209,7 +209,7 @@ impl Soc {
             stop_on_pad_change: false,
         };
         for k in 0..crate::periph::gpio::PADS {
-            soc.last_pads[k] = soc.periph.gpio.pad(k);
+            soc.last_pads[k] = soc.periph.pad(k);
         }
         soc.rom.init_data(&mut soc.mem, &mut soc.periph);
         // DevKit: BOOT button circuit pulls GPIO0 up through 10 kΩ
@@ -352,7 +352,7 @@ impl Soc {
         }
         self.periph.gpio.input = self.periph.gpio.resolve_input();
         for k in 0..crate::periph::gpio::PADS {
-            let p = self.periph.gpio.pad(k);
+            let p = self.periph.pad(k);
             if p != self.last_pads[k] {
                 self.last_pads[k] = p;
                 self.pad_events.push(PadEvent { cycles: self.cycles, gpio: k, state: p });

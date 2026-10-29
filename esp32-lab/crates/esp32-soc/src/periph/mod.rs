@@ -5,6 +5,7 @@
 //! found when bringing up new firmware.
 
 pub mod gpio;
+pub mod ledc;
 pub mod sens;
 pub mod spi;
 pub mod timg;
@@ -22,6 +23,7 @@ pub const RTCIO: u32 = 0x3ff4_8400;
 pub const SENS: u32 = 0x3ff4_8800;
 pub const IO_MUX: u32 = 0x3ff4_9000;
 pub const UART1: u32 = 0x3ff5_0000;
+pub const LEDC: u32 = 0x3ff5_9000;
 pub const EFUSE: u32 = 0x3ff5_a000;
 pub const TIMG0: u32 = 0x3ff5_f000;
 pub const TIMG1: u32 = 0x3ff6_0000;
@@ -57,6 +59,8 @@ const RTC_STORE5: u32 = 0xb4;
 pub struct Periph {
     pub uart: [uart::Uart; 3],
     pub gpio: gpio::Gpio,
+    /// LED PWM controller; its outputs reach pads through the GPIO matrix.
+    pub ledc: ledc::Ledc,
     /// SAR ADCs, fed with pad voltages by the circuit simulator.
     pub sens: sens::Sens,
     /// SPI0 (cache) and SPI1 (direct flash access) controllers.
@@ -80,6 +84,7 @@ impl Periph {
         let mut p = Self {
             uart: Default::default(),
             gpio: Default::default(),
+            ledc: Default::default(),
             sens: Default::default(),
             spi: Default::default(),
             timg: Default::default(),
@@ -139,6 +144,7 @@ impl Periph {
             UART2 => self.uart[2].read(off),
             GPIO => self.gpio.read(off),
             IO_MUX => self.gpio.read_iomux(off),
+            LEDC => self.ledc.read(off),
             SPI0 => self.spi[0].read(off),
             SPI1 => self.spi[1].read(off),
             TIMG0 => self.timg[0].read(off, apb),
@@ -186,6 +192,11 @@ impl Periph {
             UART2 => self.uart[2].write(off, v),
             GPIO => self.gpio.write(off, v),
             IO_MUX => self.gpio.write_iomux(off, v),
+            LEDC => {
+                self.ledc.write(off, v);
+                // A new duty or frequency changes what the attached pads put out
+                self.gpio.dirty = true;
+            }
             TIMG0 => self.timg[0].write(off, v, apb),
             TIMG1 => self.timg[1].write(off, v, apb),
             EFUSE => {}
@@ -210,6 +221,30 @@ impl Periph {
             }
         }
         None
+    }
+
+    /// State of pad `n` as the circuit sees it: the GPIO registers, unless the GPIO matrix
+    /// routes an LEDC channel to it, in which case the channel's level or waveform.
+    pub fn pad(&self, n: usize) -> gpio::PadState {
+        let mut p = self.gpio.pad(n);
+        let sel = self.gpio.out_sel(n);
+        let sig = sel & 0x1ff;
+        if (ledc::SIG_HS0..=ledc::SIG_LS7).contains(&sig) {
+            let invert = sel & gpio::OUT_SEL_INV != 0;
+            // OEN_SEL clear: the peripheral enables the output (LEDC always does)
+            if sel & gpio::OUT_SEL_OEN_FROM_GPIO == 0 {
+                p.output_enabled = true;
+            }
+            match self.ledc.output(sig) {
+                ledc::Output::Steady(level) => p.level = level != invert,
+                ledc::Output::Pwm { period_ns, high_ns } => {
+                    p.level = true;
+                    p.pwm_period_ns = period_ns;
+                    p.pwm_high_ns = if invert { period_ns - high_ns } else { high_ns };
+                }
+            }
+        }
+        p
     }
 
     /// APP_CPU may run: clock enabled, out of reset, not stalled, boot address set.

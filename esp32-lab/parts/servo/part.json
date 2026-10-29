@@ -1,0 +1,44 @@
+{
+  "id": "servo",
+  "version": "0.1.0",
+  "name": "Động cơ servo SG90",
+  "category": "output",
+  "tags": [
+    "motor",
+    "pwm"
+  ],
+  "terminals": [
+    {
+      "name": "gnd",
+      "dx": 0,
+      "dy": 0,
+      "label": "GND (dây nâu)"
+    },
+    {
+      "name": "vcc",
+      "dx": 1,
+      "dy": 0,
+      "label": "V+ 5 V (dây đỏ)"
+    },
+    {
+      "name": "sig",
+      "dx": 2,
+      "dy": 0,
+      "label": "Tín hiệu (dây cam)"
+    }
+  ],
+  "props": {},
+  "learn": {
+    "summary": "Servo quay cần tới một góc 0–180° và giữ nguyên ở đó. Góc được chọn bằng độ rộng xung: cứ 20 ms một xung, xung 0,5 ms là 0°, 1,5 ms là 90°, 2,5 ms là 180°.",
+    "howToPlug": [
+      "Dây nâu GND, dây đỏ VIN (5 V), dây cam vào một GPIO (ví dụ GPIO18).",
+      "Nối chung GND của servo với GND của ESP32, nếu không tín hiệu không có mốc để so.",
+      "Trong code: ledcAttach(18, 50, 16); rồi ledcWrite(18, xung_us * 65536 / 20000);"
+    ],
+    "tips": [
+      "Đừng cấp servo từ 3V3: khi quay nó kéo vài trăm mA, đủ làm ESP32 khởi động lại.",
+      "Servo cần khoảng 0,1 giây để quay 60°: đổi góc rồi chờ một chút trước khi đổi tiếp.",
+      "Thư viện ESP32Servo làm sẵn phép tính độ rộng xung: servo.write(90);"
+    ]
+  }
+}
