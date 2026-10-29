@@ -96,7 +96,7 @@
   .bad { color: #e5484d; font-weight: 700; }
   .actions { display: flex; gap: 6px; }
   .note { font-size: 12.5px; color: #6f6e77; margin: 0 0 8px; }
-  .learn { font-size: 12.5px; line-height: 1.5; background: #f6f8ff; border: 1px solid #dfe6ff; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+  .learn { font-size: 12.5px; line-height: 1.5; background: #f6f8ff; border: 1px solid #dfe6ff; border-radius: 0; padding: 8px 10px; margin: 8px 0; }
   .learn p { margin: 0 0 6px; }
   .learn ul { margin: 2px 0 6px; padding-left: 18px; }
 </style>

@@ -731,7 +731,7 @@
     display: inline-flex;
     pointer-events: auto;
     box-shadow: 0 1px 3px #0002;
-    border-radius: 8px;
+    border-radius: 0;
     width: max-content;
   }
   .seg button {
@@ -739,10 +739,10 @@
     margin-left: -1px;
   }
   .seg button:first-child {
-    border-radius: 8px 0 0 8px;
+    border-radius: 0;
   }
   .seg button:last-child {
-    border-radius: 0 8px 8px 0;
+    border-radius: 0;
   }
   .seg button.on {
     background: #1c2024;
@@ -754,14 +754,14 @@
     color: #4b4d57;
     background: #ffffffd9;
     padding: 4px 8px;
-    border-radius: 6px;
+    border-radius: 0;
     max-width: 330px;
   }
   .dot {
     display: inline-block;
     width: 8px;
     height: 8px;
-    border-radius: 50%;
+    border-radius: 0;
     background: #ffd43b;
     box-shadow: 0 0 4px #f5a524;
   }
@@ -769,14 +769,14 @@
     display: inline-block;
     width: 48px;
     height: 8px;
-    border-radius: 4px;
+    border-radius: 0;
     background: linear-gradient(90deg, #3e63dd, #e5484d);
   }
   .chip {
     display: inline-block;
     width: 8px;
     height: 8px;
-    border-radius: 2px;
+    border-radius: 0;
   }
   .probe {
     position: absolute;
@@ -786,7 +786,7 @@
     color: #fff;
     font: 13px ui-monospace, 'JetBrains Mono', monospace;
     padding: 6px 10px;
-    border-radius: 8px;
+    border-radius: 0;
     box-shadow: 0 2px 8px #0003;
     pointer-events: none;
     max-width: calc(100% - 90px);
@@ -813,7 +813,7 @@
     width: 40px;
     height: 40px;
     font-size: 18px;
-    border-radius: 10px;
+    border-radius: 0;
     box-shadow: 0 1px 3px #0002;
   }
 </style>

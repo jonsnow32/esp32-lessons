@@ -63,7 +63,7 @@
   h3 { font-size: 12px; margin: 12px 0 4px; }
   ol { list-style: none; padding: 0; margin: 4px 0 0; font-size: 13px; }
   li { display: flex; gap: 8px; margin: 7px 0; line-height: 1.4; }
-  .mark { flex: 0 0 20px; height: 20px; border-radius: 50%; background: #efeee9; color: #6f6e77; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+  .mark { flex: 0 0 20px; height: 20px; border-radius: 0; background: #efeee9; color: #6f6e77; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
   .pass .mark { background: #30a46c; color: #fff; }
   .hint { font-size: 12px; color: #6f6e77; margin-top: 2px; }
   .fail { font-size: 12px; color: #e5484d; }

@@ -74,7 +74,7 @@
     <div class="grid">
       {#each mine as { p, ws, from } (p.id)}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <div class="card project" role="button" tabindex="0" onclick={() => lab.open(p.id)} onkeydown={(e) => e.key === 'Enter' && lab.open(p.id)}>
+        <div class="card project trace" role="button" tabindex="0" onclick={() => lab.open(p.id)} onkeydown={(e) => e.key === 'Enter' && lab.open(p.id)}>
           <span class="thumb">{#if ws}<CircuitThumb project={ws.project} />{/if}</span>
           <span class="title">{p.title}</span>
           <span class="summary">{from ? `Từ dự án mẫu "${from.title}". ` : ''}Sửa lần cuối {when(p.updated)}.</span>
@@ -95,14 +95,14 @@
   header p { color: #60646c; margin: 0 0 28px; max-width: 640px; line-height: 1.5; }
   h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: #6f6e77; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-  .card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-align: left; padding: 18px; border-radius: 14px; border: 1px solid #e4e2dd; background: #fff; cursor: pointer; min-height: 190px; box-shadow: 0 1px 2px #0000000d; transition: transform .1s, box-shadow .1s; }
-  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px #00000014; border-color: #f5a524; background: #fff; }
-  .num { font: 700 13px ui-monospace, monospace; color: #f76b15; background: #fff1e7; border-radius: 6px; padding: 2px 8px; }
+  .card { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; text-align: left; padding: 18px; border-radius: 0; border: 1px solid #e4e2dd; background: #fff; cursor: pointer; min-height: 190px; box-shadow: 0 1px 2px #0000000d; transition: transform .1s, box-shadow .1s; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px #00000014; background-color: #fff; }
+  .num { font: 700 13px ui-monospace, monospace; color: #f76b15; background: #fff1e7; border-radius: 0; padding: 2px 8px; }
   .free .num { background: #eef6ff; }
   .title { font-size: 17px; font-weight: 700; }
   .summary { font-size: 13.5px; color: #60646c; line-height: 1.5; flex: 1; }
   .progress { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6f6e77; width: 100%; }
-  .bar { flex: 1; height: 6px; border-radius: 3px; background: #efeee9; overflow: hidden; }
+  .bar { flex: 1; height: 6px; border-radius: 0; background: #efeee9; overflow: hidden; }
   .bar span { display: block; height: 100%; background: #30a46c; }
   .lead { color: #60646c; font-size: 13.5px; margin: -4px 0 12px; }
   h2:not(:first-of-type) { margin-top: 34px; }
@@ -113,6 +113,6 @@
   .actions .cta { flex: 1; }
   .actions button { font-size: 12px; padding: 2px 8px; }
   .chips { display: flex; flex-wrap: wrap; gap: 4px; }
-  .chips span { font-size: 11px; color: #5b5e66; background: #f3f2ee; border-radius: 4px; padding: 1px 6px; }
+  .chips span { font-size: 11px; color: #5b5e66; background: #f3f2ee; border-radius: 0; padding: 1px 6px; }
   .cta { font-size: 13px; font-weight: 600; color: #f76b15; }
 </style>

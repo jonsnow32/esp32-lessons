@@ -1,8 +1,32 @@
 :root { font-family: 'Be Vietnam Pro', system-ui, -apple-system, sans-serif; color: #1c2024; background: #fbfaf7; }
 body { margin: 0; }
-button, select, input { font: inherit; font-size: 13px; padding: 4px 10px; border: 1px solid #d9d9e0; border-radius: 6px; background: #fff; }
+button, select, input { font: inherit; font-size: 13px; padding: 4px 10px; border: 1px solid #d9d9e0; border-radius: 0; background: #fff; }
 button { cursor: pointer; }
-button:hover { background: #f4f4f5; }
+button:hover { background-color: #f4f4f5; }
+
+/* Circuit look: square corners everywhere; on hover the border becomes a dashed trace whose
+   dashes run around the element, like current along a wire. Buttons, selects and anything
+   with class "trace" get it. */
+:root { --trace: #f76b15; --dash: 8px; }
+:is(button, select, .trace):hover:not(:disabled, .on) {
+  border-color: transparent;
+  background-image:
+    linear-gradient(90deg, var(--trace) 50%, transparent 0),
+    linear-gradient(90deg, var(--trace) 50%, transparent 0),
+    linear-gradient(0deg, var(--trace) 50%, transparent 0),
+    linear-gradient(0deg, var(--trace) 50%, transparent 0);
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size: var(--dash) 1px, var(--dash) 1px, 1px var(--dash), 1px var(--dash);
+  background-position: 0 0, 0 100%, 0 0, 100% 0;
+  background-origin: border-box;
+  animation: trace-run .5s linear infinite;
+}
+@keyframes trace-run {
+  to { background-position: var(--dash) 0, calc(-1 * var(--dash)) 100%, 0 calc(-1 * var(--dash)), 100% var(--dash); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(button, select, .trace):hover { animation: none; }
+}
 code { font-size: 11px; }
 
 /* Fingers need bigger targets */

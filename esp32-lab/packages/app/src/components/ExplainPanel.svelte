@@ -19,7 +19,7 @@
     <ul>
       {#each lab.notes as n, i (i + n.text)}
         <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-        <li class={n.level} class:pinned={pinned === i}
+        <li class="{n.level} trace" class:pinned={pinned === i}
           onpointerenter={() => pinned === null && show(i)}
           onpointerleave={() => pinned === null && show(null)}
           onclick={() => { pinned = pinned === i ? null : i; show(pinned); }}
@@ -32,12 +32,12 @@
 </section>
 
 <style>
-  section { padding: 10px 12px; border-bottom: 1px solid #e4e2dd; max-height: 34vh; overflow: auto; }
+  section { padding: 10px 12px; }
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #6f6e77; margin: 0 0 6px; }
   .empty { font-size: 12px; color: #8b8d98; margin: 0; }
   ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
-  li { display: flex; gap: 8px; font-size: 13px; line-height: 1.45; padding: 6px 8px; border-radius: 8px; background: #f4f4f2; cursor: pointer; border: 1px solid transparent; }
-  li:hover, li.pinned { border-color: #f5a524; }
+  li { display: flex; gap: 8px; font-size: 13px; line-height: 1.45; padding: 6px 8px; border-radius: 0; background: #f4f4f2; cursor: pointer; border: 1px solid transparent; }
+  li.pinned { border-color: #f5a524; }
   li.error { background: #fff0f0; color: #a3161b; }
   li.warn { background: #fff7ed; color: #8a3d00; }
   li.ok { background: #eefaf3; color: #14532d; font-weight: 500; }

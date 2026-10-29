@@ -50,6 +50,32 @@
         : lab.running ? '⏸ Tạm dừng' : '▶ Tiếp tục',
   );
 
+  /** Right column: one page at a time. "Đang chọn" only exists while something is selected. */
+  type Page = 'select' | 'lesson' | 'explain' | 'serial';
+  let pages = $derived(
+    [
+      lab.selection && { id: 'select' as const, label: 'Đang chọn' },
+      (lab.lesson || lab.source) && { id: 'lesson' as const, label: lab.lesson ? 'Bài học' : 'Dự án' },
+      { id: 'explain' as const, label: 'Mạch' },
+      { id: 'serial' as const, label: 'Serial' },
+    ].filter((p): p is { id: Page; label: string } => !!p),
+  );
+  let chosen = $state<Page>('lesson');
+  /** The chosen page, or the first one when it is not there (no selection, no lesson). */
+  let page = $derived(pages.some((p) => p.id === chosen) ? chosen : pages[0]!.id);
+  // Selecting something on the bench brings up its page
+  $effect(() => {
+    if (lab.selection) chosen = 'select';
+  });
+  /** Warnings and errors the circuit page has, shown on its tab. */
+  let problems = $derived(lab.notes.filter((n) => n.level === 'warn' || n.level === 'error').length);
+  /** Serial output not seen yet: a dot on the Serial tab. */
+  let serialSeen = $state(0);
+  $effect(() => {
+    if (page === 'serial') serialSeen = lab.serial.length;
+  });
+  let serialNew = $derived(page !== 'serial' && lab.serial.length > serialSeen);
+
   function menu(action: () => void) {
     menuOpen = false;
     action();
@@ -123,10 +149,21 @@
       {/if}
     </div>
     <aside class="right">
-      <Inspector />
-      <LessonPanel />
-      <ExplainPanel />
-      <SerialMonitor />
+      <nav class="pages" role="tablist">
+        {#each pages as p (p.id)}
+          <button role="tab" aria-selected={page === p.id} class:on={page === p.id} onclick={() => (chosen = p.id)}>
+            {p.label}
+            {#if p.id === 'explain' && problems}<span class="count">{problems}</span>{/if}
+            {#if p.id === 'serial' && serialNew}<span class="new"></span>{/if}
+          </button>
+        {/each}
+      </nav>
+      <div class="page" role="tabpanel">
+        {#if page === 'select'}<Inspector />
+        {:else if page === 'lesson'}<LessonPanel />
+        {:else if page === 'explain'}<ExplainPanel />
+        {:else}<SerialMonitor />{/if}
+      </div>
     </aside>
   </main>
 {/if}
@@ -137,8 +174,8 @@
   .back { font-weight: 600; }
   .sep { width: 1px; height: 22px; background: #e4e2dd; }
   label { font-size: 13px; display: flex; gap: 6px; align-items: center; }
-  .program { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 4px 10px; border-radius: 999px; background: #f4f4f2; color: #4b4d57; }
-  .program .dot { width: 8px; height: 8px; border-radius: 50%; background: #b9bbc6; }
+  .program { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 4px 10px; border-radius: 0; background: #f4f4f2; color: #4b4d57; }
+  .program .dot { width: 8px; height: 8px; border-radius: 0; background: #b9bbc6; }
   .program.run { background: #eefaf3; color: #18794e; }
   .program.run .dot { background: #30a46c; box-shadow: 0 0 0 3px #30a46c33; }
   .program.stale { background: #fff7ed; color: #8a3d00; }
@@ -147,24 +184,30 @@
   .clock { font: 12px ui-monospace, monospace; color: #6f6e77; }
   .spacer { flex: 1; }
   .more { position: relative; }
-  .menu { position: absolute; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid #e4e2dd; border-radius: 10px; box-shadow: 0 8px 24px #0002; padding: 6px; min-width: 260px; display: flex; flex-direction: column; }
-  .menu button { border: none; text-align: left; border-radius: 6px; }
+  .menu { position: absolute; right: 0; top: calc(100% + 4px); background: #fff; border: 1px solid #e4e2dd; border-radius: 0; box-shadow: 0 8px 24px #0002; padding: 6px; min-width: 260px; display: flex; flex-direction: column; }
+  .menu button { border: none; text-align: left; border-radius: 0; }
   .menu-head { font-size: 11px; color: #8b8d98; padding: 8px 10px 2px; border-top: 1px solid #eee; margin-top: 4px; }
   .banner { padding: 6px 14px; background: #fff0f0; color: #ce2c31; font-size: 13px; border-bottom: 1px solid #fdd; }
   .banner.warn { background: #fff7ed; color: #cc4e00; }
   .banner.info { background: #edf6ff; color: #0d74ce; border-bottom-color: #d5e8fb; }
-  .original { font-size: 11.5px; color: #8d5b00; background: #fff6d6; border: 1px solid #f3dd94; border-radius: 999px; padding: 1px 8px; }
+  .original { font-size: 11.5px; color: #8d5b00; background: #fff6d6; border: 1px solid #f3dd94; border-radius: 0; padding: 1px 8px; }
   .icon { padding: 2px 6px; font-size: 13px; }
   main { display: grid; grid-template-columns: 240px 1fr 360px; height: calc(100vh - 49px); }
   aside { background: #fcfcfb; overflow: auto; }
   .left { border-right: 1px solid #e4e2dd; }
-  .right { border-left: 1px solid #e4e2dd; display: flex; flex-direction: column; }
+  .right { border-left: 1px solid #e4e2dd; display: flex; flex-direction: column; overflow: hidden; }
+  .pages { display: flex; border-bottom: 1px solid #e4e2dd; background: #fff; flex: 0 0 auto; }
+  .pages button { flex: 1; border: none; border-bottom: 2px solid transparent; background: none; padding: 9px 6px 7px; font: 600 11.5px ui-monospace, 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: .04em; color: #6f6e77; display: inline-flex; gap: 5px; align-items: center; justify-content: center; }
+  .pages button.on { color: #1c2024; border-bottom-color: #f76b15; background: #fcfcfb; }
+  .count { background: #f76b15; color: #fff; font-size: 10px; padding: 0 5px; line-height: 15px; }
+  .new { width: 7px; height: 7px; border-radius: 50%; background: #30a46c; }
+  .page { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
   .center { min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
   .bench, .code { min-height: 0; }
   .splitter { flex: 0 0 6px; cursor: row-resize; background: #ece9e2; touch-action: none; }
   .splitter:hover { background: #f5a524; }
   .code-toggle { position: absolute; right: 12px; top: 10px; z-index: 2; font-size: 12px; box-shadow: 0 1px 3px #0002; }
-  .primary { background: #f76b15; color: #fff; border-color: #f76b15; min-width: 110px; font-weight: 600; }
+  .primary { --trace: #fff; background: #f76b15; color: #fff; border-color: #f76b15; min-width: 110px; font-weight: 600; }
   .primary:disabled { opacity: 0.75; cursor: progress; }
   @media (max-width: 1100px) {
     main { grid-template-columns: 1fr; grid-template-rows: auto 62vh auto; height: auto; }
@@ -172,6 +215,7 @@
     .left :global(section) { display: flex; gap: 8px; overflow-x: auto; align-items: center; }
     .left :global(h2), .left :global(.hint), .left :global(.keys), .left :global(.static) { display: none; }
     .left :global(.item) { flex: 0 0 auto; margin: 0; }
-    .right { border-left: none; }
+    .right { border-left: none; overflow: visible; }
+    .page { min-height: 50vh; }
   }
 </style>

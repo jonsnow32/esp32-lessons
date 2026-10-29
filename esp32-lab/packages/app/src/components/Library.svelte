@@ -24,7 +24,7 @@
   <p class="hint">Kéo thả vào breadboard. Kéo từ một lỗ tới lỗ khác để nối dây. Hai ngón tay: phóng to, di chuyển.</p>
   {#each Object.entries(PARTS) as [type, m] (type)}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="item" onpointerdown={(e) => { e.preventDefault(); dragType = type; }}>
+    <div class="item trace" onpointerdown={(e) => { e.preventDefault(); dragType = type; }}>
       <svg viewBox={m.icon ?? '-1 -3 6 6.5'} width="44" height="44">{@html preview(type)}</svg>
       <div>
         <div class="name">{m.manifest.name}</div>
@@ -47,7 +47,7 @@
   <p class="hint">Kéo thả vào bàn để thêm. Chạm breadboard để chọn rồi kéo để di chuyển, Del để xoá.</p>
   {#each Object.entries(BREADBOARDS) as [type, def] (type)}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="item" onpointerdown={(e) => { e.preventDefault(); dragType = `bb:${type}`; }}>
+    <div class="item trace" onpointerdown={(e) => { e.preventDefault(); dragType = `bb:${type}`; }}>
       <div>
         <div class="name">{def.name}</div>
         <div class="meta">{def.columns} cột{def.rails.length ? ` · ${def.rails.length} thanh nguồn` : ' · không có thanh nguồn'} · {breadboard(type)?.holes.size} lỗ</div>
@@ -64,7 +64,7 @@
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #6f6e77; margin: 14px 0 6px; }
   .hint, .keys { font-size: 12px; color: #6f6e77; }
   .keys { margin-top: 18px; line-height: 1.6; }
-  .item { touch-action: none; -webkit-user-select: none; user-select: none; display: flex; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid #e4e2dd; border-radius: 8px; margin-bottom: 6px; background: #fff; cursor: grab; }
+  .item { touch-action: none; -webkit-user-select: none; user-select: none; display: flex; gap: 10px; align-items: center; padding: 6px 8px; border: 1px solid #e4e2dd; border-radius: 0; margin-bottom: 6px; background: #fff; cursor: grab; }
   .item.board { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
   .item.board:disabled { cursor: default; opacity: .5; }
   .item.current { border-color: #f76b15; }
