@@ -1,0 +1,140 @@
+# ESP32 Lab desktop app: installers for macOS (.dmg, Apple silicon and Intel) and Windows (.exe).
+# The emulator (Rust → WebAssembly) and the prebuilt lesson firmware are built once on Linux and
+# shared with the platform jobs. On Windows the first-launch compiler setup is also run for real
+# (packages/desktop/src/smoke.ts) before packaging.
+#
+# Run it from the Actions tab, or push a tag desktop-v* to attach the installers to a release.
+
+name: ESP32 Lab desktop
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['desktop-v*']
+    branches: [main, esp32-lab]
+    paths:
+      - 'esp32-lab/packages/desktop/**'
+      - 'esp32-lab/packages/lab-server/**'
+      - '.github/workflows/esp32-lab-desktop.yml'
+
+jobs:
+  emulator:
+    name: Emulator and lesson firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: esp32-lab
+      - name: Build the emulator (esp32.wasm)
+        working-directory: esp32-lab
+        run: ./scripts/build-wasm.sh
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+      - name: Build the lesson firmware
+        run: |
+          pip install 'platformio>=6.1,<7'
+          pio run -e lesson01 -e lesson01_sos -e lesson02 -e lesson03 -e lesson03_blocking
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: emulator
+          path: esp32-lab/packages/mcu-esp32/wasm/esp32.wasm
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lesson-firmware
+          path: |
+            .pio/build/*/firmware.elf
+            .pio/build/*/firmware.bin
+            .pio/build/*/bootloader.bin
+            .pio/build/*/partitions.bin
+          if-no-files-found: error
+
+  desktop:
+    name: Installer (${{ matrix.name }})
+    needs: emulator
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-14
+            script: dist:mac
+            files: esp32-lab/packages/desktop/release/*.dmg
+            smoke: false
+          - name: Windows
+            os: windows-latest
+            script: dist:win
+            files: esp32-lab/packages/desktop/release/*.exe
+            smoke: true
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: esp32-lab/pnpm-lock.yaml
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: emulator
+          path: esp32-lab/packages/mcu-esp32/wasm
+      - uses: actions/download-artifact@v4
+        with:
+          name: lesson-firmware
+          path: .pio/build
+
+      - name: Install dependencies
+        working-directory: esp32-lab
+        run: pnpm install --frozen-lockfile
+
+      # Installs uv, Python and PlatformIO into a fresh folder and compiles a lesson, as the app
+      # does on first launch (about 1.1 GB downloaded)
+      - name: First-launch setup, for real
+        if: matrix.smoke
+        working-directory: esp32-lab
+        run: pnpm -C packages/desktop smoke
+
+      - name: Build the installer
+        working-directory: esp32-lab
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm -C packages/desktop ${{ matrix.script }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ESP32-Lab-${{ matrix.name }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+  release:
+    name: Attach to the release
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: desktop
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ESP32-Lab-*
+          merge-multiple: true
+          path: installers
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: installers/*

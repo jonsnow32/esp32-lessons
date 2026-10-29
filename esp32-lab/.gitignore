@@ -6,3 +6,8 @@ packages/mcu-esp32/wasm/
 
 # Sketches compiled from the in-browser code editor
 .build/
+
+# Desktop app builds
+packages/desktop/dist-main/
+packages/desktop/staging/
+packages/desktop/release/

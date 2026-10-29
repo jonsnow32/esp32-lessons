@@ -210,12 +210,14 @@ Planned: `signal` (a pad toggles with a period in a range, measured from the pad
 
 ## Code editor: build and run in the browser
 
-`packages/app/build-server.ts` is a Vite dev-server plugin. `POST /api/build {code}` writes
+`packages/lab-server` holds the local server endpoints, used by the Vite dev server
+(`vite.config.ts`) and by the desktop app alike: `GET /pio/*` serves the prebuilt lesson
+firmware, and `POST /api/build {code}` writes
 the sketch to its own PlatformIO project (`esp32-lab/.build/sketch`, gitignored) whose `[env]`
 copies platform / board / framework / build flags from the lesson project's `platformio.ini`,
 so it compiles against exactly the same core as `pio run -e lessonNN`; the user's
 `platformio.ini` is never modified. It runs `pio run` (from `$PIO`, else
-`~/.platformio/penv/bin/pio`), streams the log, and ends with `@@RESULT {ok, ms, errors}`,
+`~/.platformio/penv/bin/pio`, `Scripts\pio.exe` on Windows), streams the log, and ends with `@@RESULT {ok, ms, errors}`,
 where GCC diagnostics for `src/main.cpp` are parsed into line/column/message. Outputs are
 served from `/api/build/out/*` and booted exactly like a `.pio/build/<env>` build. One build at
 a time; about 11 s the first time, 7 s after. `GET /api/sketch?path=lession/…/main.cpp` loads
@@ -223,8 +225,30 @@ a lesson's sketch as starting code (paths outside `lession/` are refused).
 
 The editor (`CodePanel.svelte`, CodeMirror 6 with C++ highlighting) sits under the bench in a
 resizable split, keeps the code in localStorage, marks compiler errors in the gutter and the
-text, and lists them with jump-to-line. This needs the dev server: a static `vite build` has
-no compiler behind it.
+text, and lists them with jump-to-line. This needs a local server (the dev server or the
+desktop app): a static `vite build` has no compiler behind it.
+
+## Desktop app
+
+`packages/desktop` packages the same web app with Electron for macOS and Windows. The window
+loads `app://lab/…` (a fixed origin, so localStorage survives restarts); the main process
+forwards each request with a secret token to a server on a random port of 127.0.0.1, which
+serves the built web app, the setup page and the lab-server endpoints, and refuses anything
+without the token.
+
+The compiler is installed on first launch, unless PlatformIO already works on the computer
+(`$PIO` or `~/.platformio`). The setup page installs, into the app's data folder: uv (one
+binary from GitHub), a standalone Python through uv, a virtualenv with PlatformIO, then builds
+a blink sketch so PlatformIO fetches the ESP32 platform and toolchain and compiles the core.
+Measured on macOS: about 1.1 GB downloaded, about 4 GB on disk afterwards (the download
+archives are deleted; PlatformIO insists on its RISC-V toolchain and gdb packages), under three
+minutes on a fast line. On Windows a data folder with non-ASCII characters (a user name like
+"Hùng") moves to `C:\esp32lab`, since the toolchain fails on such paths.
+
+The installer bundles the course's `platformio.ini`, the lesson sources (no videos) and the
+prebuilt lesson firmware, timestamps kept (`scripts/stage-course.mjs`).
+`ESP32LAB_DATA_DIR=<dir>` and `ESP32LAB_OWN_TOOLCHAIN=1` try the first launch on a computer
+that already has PlatformIO.
 
 ## Seeing and explaining the circuit
 
@@ -340,7 +364,7 @@ delay()-based ones (lesson 01) run ~9× faster. A decoded-instruction cache is t
   kernel + emulator in a Web Worker paced to wall-clock time (lesson 01 runs at 1.0× real
   time in Chrome). Drag parts onto the breadboard, wire holes and header pins, press the board's
   BOOT/EN buttons, edit part props, live per-part current/brightness, net highlighting on hover,
-  lesson checklist evaluated live, Serial Monitor (TX and RX). `vite dev` serves `.pio/build/*`
+  lesson checklist evaluated live, Serial Monitor (TX and RX). the dev server serves `.pio/build/*`
   so whatever `pio run` built is selectable. Still to do: board/breadboard selection beyond the
   one of each, multimeter/scope instruments, nicer part artwork, touch-friendly dragging.
 - **M4** – LEDC, ADC, touch, I2C; potentiometer and SSD1306 parts; lessons 04–09.

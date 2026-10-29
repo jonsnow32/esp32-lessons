@@ -16,6 +16,10 @@ pnpm -C packages/app dev           # http://localhost:5173
 # In the app: ▴ Code opens the editor; ▶ Build & Run (Ctrl/⌘+Enter) compiles main.cpp with
 # PlatformIO on this machine (~7–11 s) and runs it on the emulated board
 
+# Desktop app (Electron): run it, or build the installer (after build-wasm.sh)
+pnpm -C packages/desktop start
+pnpm -C packages/desktop dist:mac   # release/*.dmg (dist:win on Windows: release/*.exe)
+
 pnpm install
 ./scripts/build-projects.sh   # build the featured projects' sketches for test/projects.test.ts
 pnpm test        # netlist, circuit solver, parts, lesson checks

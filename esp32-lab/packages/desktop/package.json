@@ -1,0 +1,71 @@
+{
+  "name": "@esp32lab/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ESP32 Lab desktop app",
+  "main": "dist-main/main.cjs",
+  "scripts": {
+    "build:main": "node scripts/build-main.mjs",
+    "build:web": "pnpm -C ../app build",
+    "stage": "node scripts/stage-course.mjs",
+    "start": "pnpm build:main && electron .",
+    "dist": "pnpm build:web && pnpm build:main && pnpm stage && electron-builder --publish never",
+    "dist:mac": "pnpm build:web && pnpm build:main && pnpm stage && electron-builder --publish never --mac",
+    "dist:win": "pnpm build:web && pnpm build:main && pnpm stage && electron-builder --publish never --win",
+    "smoke": "node scripts/smoke-toolchain.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "electron": "44.7.1",
+    "electron-builder": "26.17.0",
+    "esbuild": "0.25.12"
+  },
+  "build": {
+    "appId": "vn.esp32lab.desktop",
+    "productName": "ESP32 Lab",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-main/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../app/dist",
+        "to": "web"
+      },
+      {
+        "from": "staging/course",
+        "to": "course"
+      }
+    ],
+    "npmRebuild": false,
+    "mac": {
+      "category": "public.app-category.education",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
