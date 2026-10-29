@@ -171,7 +171,8 @@ export class ToolchainSetup {
       const penv = join(this.base, 'penv');
       const pio = penvPio(penv);
       if (!existsSync(pio)) {
-        await run(uv, ['venv', penv, '--python', PYTHON], env, log);
+        // --seed: with pip, which the sketch build uses to fetch a quicker esptool (lab-server)
+        await run(uv, ['venv', penv, '--python', PYTHON, '--seed'], env, log);
         await run(uv, ['pip', 'install', '--python', penv, PLATFORMIO], env, log);
       }
       const toolchain: Toolchain = { pio, env: { PLATFORMIO_CORE_DIR: join(this.base, 'platformio') } };
