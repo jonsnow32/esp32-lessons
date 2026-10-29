@@ -1,0 +1,66 @@
+{
+  "id": "gas-sensor",
+  "version": "0.1.0",
+  "name": "Cảm biến khí gas MQ-2",
+  "category": "sensor",
+  "tags": [
+    "module",
+    "analog",
+    "digital"
+  ],
+  "terminals": [
+    {
+      "name": "vcc",
+      "dx": 0,
+      "dy": 0,
+      "label": "VCC (5 V)"
+    },
+    {
+      "name": "gnd",
+      "dx": 1,
+      "dy": 0,
+      "label": "GND"
+    },
+    {
+      "name": "do",
+      "dx": 2,
+      "dy": 0,
+      "label": "DO (báo động)"
+    },
+    {
+      "name": "ao",
+      "dx": 3,
+      "dy": 0,
+      "label": "AO (analog)"
+    }
+  ],
+  "props": {
+    "gas": {
+      "type": "number",
+      "default": 0,
+      "unit": " ppm",
+      "min": 0,
+      "max": 10000
+    },
+    "alarm": {
+      "type": "number",
+      "default": 1000,
+      "unit": " ppm",
+      "min": 200,
+      "max": 10000
+    }
+  },
+  "learn": {
+    "summary": "MQ-2 có một lớp thiếc oxit được nung nóng: gặp khí gas (LPG), khói hoặc hydro, điện trở của nó giảm và điện áp AO tăng. Module có sẵn mạch so sánh: vượt ngưỡng chỉnh bằng biến trở xanh thì DO xuống LOW.",
+    "howToPlug": [
+      "VCC nối VIN (5 V): dây nung cần khoảng 150 mA, không chạy được từ chân GPIO.",
+      "GND nối GND, AO nối chân ADC1 (ví dụ GPIO34), DO nối một GPIO thường nếu chỉ cần biết có/không.",
+      "Khi không báo động, DO được kéo lên tới 5 V: với mạch thật nên qua cầu phân áp trước khi vào GPIO. AO nằm trong khoảng 0,2–3,3 V nên nối thẳng được."
+    ],
+    "tips": [
+      "Cảm biến mới cần nung 24–48 giờ, và mỗi lần bật cần vài chục giây cho ổn định.",
+      "DO tích cực mức thấp: LOW là có gas.",
+      "Kéo \"gas\" để xả khí; \"alarm\" là ngưỡng của biến trở trên module."
+    ]
+  }
+}

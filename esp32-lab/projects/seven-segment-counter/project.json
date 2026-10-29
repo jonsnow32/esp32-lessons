@@ -1,0 +1,290 @@
+{
+  "id": "seven-segment-counter",
+  "order": 8,
+  "title": "Đếm số 0–9",
+  "summary": "LED 7 đoạn chung cathode, mỗi thanh một chân GPIO qua điện trở 220 Ω. Mỗi giây số tăng một, quay vòng 0 → 9; nhấn nút để đếm lại từ 0. Bảng DIGITS trong code cho biết thanh nào sáng ở từng số.",
+  "tryIt": [
+    "Bấm Chạy và xem số nhảy mỗi giây; nhấn nút để về 0.",
+    "Đổi màn hình sang loại chung anode trong Inspector: không thanh nào sáng nữa. Đổi dây chân chung sang 3V3 và đảo HIGH/LOW trong code (COMMON_ANODE = true) để nó chạy lại.",
+    "Thêm chữ A, b, C, d, E, F vào bảng DIGITS để đếm hệ 16."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "seven-segment-counter",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "disp1",
+        "type": "seven-segment",
+        "props": {
+          "common": "cathode",
+          "color": "red"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "c20",
+          "rot": 0
+        }
+      },
+      {
+        "id": "rg",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "a16",
+          "rot": 0
+        }
+      },
+      {
+        "id": "rf",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "b17",
+          "rot": 0
+        }
+      },
+      {
+        "id": "ra",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "a23",
+          "rot": 0
+        }
+      },
+      {
+        "id": "rb",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "b24",
+          "rot": 0
+        }
+      },
+      {
+        "id": "re",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "j16",
+          "rot": 0
+        }
+      },
+      {
+        "id": "rd",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "i17",
+          "rot": 0
+        }
+      },
+      {
+        "id": "rc",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "j23",
+          "rot": 0
+        }
+      },
+      {
+        "id": "btn1",
+        "type": "pushbutton",
+        "props": {
+          "bounce": true
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "e5",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn1"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e22"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn18"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "board",
+          "pin": "D23"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e27"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "board",
+          "pin": "D22"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e28"
+        },
+        "color": "#f76b15"
+      },
+      {
+        "id": "w5",
+        "a": {
+          "kind": "board",
+          "pin": "D21"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f27"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w6",
+        "a": {
+          "kind": "board",
+          "pin": "D19"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f17"
+        },
+        "color": "#30a46c"
+      },
+      {
+        "id": "w7",
+        "a": {
+          "kind": "board",
+          "pin": "D18"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f16"
+        },
+        "color": "#3e63dd"
+      },
+      {
+        "id": "w8",
+        "a": {
+          "kind": "board",
+          "pin": "RX2"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e17"
+        },
+        "color": "#8e4ec6"
+      },
+      {
+        "id": "w9",
+        "a": {
+          "kind": "board",
+          "pin": "TX2"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e16"
+        },
+        "color": "#12a594"
+      },
+      {
+        "id": "w10",
+        "a": {
+          "kind": "board",
+          "pin": "D4"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "a5"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w11",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "a7"
+        },
+        "b": {
+          "kind": "board",
+          "pin": "GND.L"
+        },
+        "color": "#1c2024"
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

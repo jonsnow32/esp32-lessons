@@ -24,7 +24,8 @@ let kernel: SimKernel | null = null;
 let running = false;
 let speed = 1;
 let serial = '';
-const held = new Set<string>();
+/** Controls held down, as part id → keys held (undefined for a one-button part); replayed on rebuild. */
+const held = new Map<string, Set<string | undefined>>();
 
 function newMcu(): McuModel {
   if (wasm && firmware) {
@@ -48,7 +49,7 @@ function rebuild(): void {
   if (!board) return post({ type: 'error', message: `Unknown board ${project.board.type}` });
   const startTime = kernel?.now ?? 0;
   kernel = new SimKernel({ project, board, breadboards: BREADBOARDS, parts: PARTS, mcu, startTime });
-  for (const part of held) kernel.press(part);
+  for (const [part, keys] of held) for (const key of keys) kernel.press(part, key);
   kernel.solve();
   publish(0);
 }
@@ -183,14 +184,16 @@ self.onmessage = async (ev: MessageEvent<ToWorker>) => {
         speed = m.speed;
         break;
       case 'press':
-        held.add(m.part);
+        if (!held.has(m.part)) held.set(m.part, new Set());
+        held.get(m.part)!.add(m.key);
         // EN needs no special case: the button pulls the chip's EN pad low in the circuit
-        kernel?.press(m.part);
+        kernel?.press(m.part, m.key);
         publish(0);
         break;
       case 'release':
-        held.delete(m.part);
-        kernel?.release(m.part);
+        held.get(m.part)?.delete(m.key);
+        if (held.get(m.part)?.size === 0) held.delete(m.part);
+        kernel?.release(m.part, m.key);
         publish(0);
         break;
       case 'serial-in':

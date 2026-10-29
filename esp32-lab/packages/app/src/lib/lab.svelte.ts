@@ -794,12 +794,12 @@ class Lab {
     this.send({ type: 'speed', speed: v });
   }
 
-  press(part: string) {
-    this.send({ type: 'press', part });
+  press(part: string, key?: string) {
+    this.send({ type: 'press', part, key });
   }
 
-  release(part: string) {
-    this.send({ type: 'release', part });
+  release(part: string, key?: string) {
+    this.send({ type: 'release', part, key });
   }
 
   // --- Netlist queries for highlighting -------------------------------------------------------

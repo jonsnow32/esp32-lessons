@@ -1,0 +1,204 @@
+{
+  "id": "relay-lamp",
+  "order": 10,
+  "title": "Bật đèn bằng relay",
+  "summary": "Nhấn nút để bật / tắt relay. Relay là một công tắc cơ khí: cuộn dây ăn 5 V từ VIN, còn tiếp điểm COM–NO đóng mạch riêng của bóng đèn (ở đây là LED nối 3V3). ESP32 chỉ cấp 1–2 mA cho chân IN.",
+  "tryIt": [
+    "Bấm Chạy, nhấn nút: nghe 'tách', đèn sáng. Nhấn lần nữa để tắt.",
+    "Dời dây đèn từ NO sang NC: đèn sẽ sáng khi relay TẮT và tắt khi relay BẬT.",
+    "Nối dây VCC của relay vào 3V3 thay vì VIN: đèn trên module vẫn sáng nhưng relay không hút được vì cuộn dây cần 5 V."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "relay-lamp",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "rl1",
+        "type": "relay",
+        "props": {
+          "trigger": "high"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "a5",
+          "rot": 0
+        }
+      },
+      {
+        "id": "r1",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "j10",
+          "rot": 0
+        }
+      },
+      {
+        "id": "led1",
+        "type": "led",
+        "props": {
+          "color": "yellow"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "h14",
+          "rot": 0
+        }
+      },
+      {
+        "id": "btn1",
+        "type": "pushbutton",
+        "props": {
+          "bounce": true
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "e20",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn1"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "board",
+          "pin": "D23"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e5"
+        },
+        "color": "#f76b15"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "board",
+          "pin": "VIN"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e6"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e7"
+        },
+        "b": {
+          "kind": "board",
+          "pin": "GND.L"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w5",
+        "a": {
+          "kind": "board",
+          "pin": "3V3"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e12"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w6",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e10"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f10"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w7",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "j15"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn13"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w8",
+        "a": {
+          "kind": "board",
+          "pin": "D4"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "a20"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w9",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "a22"
+        },
+        "b": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "color": "#1c2024"
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

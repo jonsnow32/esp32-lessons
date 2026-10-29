@@ -617,20 +617,22 @@
               {#key part.props}<rect rx="0.4" class="outline" use:hug={bodies[part.id]} />{/key}
             </g>
           {/if}
-          {@const ctl = PARTS[part.type]?.control}
-          {#if ctl}
-            <!-- The part's control (button cap, switch lever) acts on it; the rest of the body drags it -->
+          {@const ctls = [PARTS[part.type]?.control ?? []].flat()}
+          {#if ctls.length}
+            <!-- The part's controls (button cap, switch lever, keypad keys) act on it; the rest of the body drags it -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <g transform="translate({at.x},{at.y}) rotate({rot})">
-              {#if ctl.kind === 'press'}
-                <circle cx={ctl.cx} cy={ctl.cy} r={ctl.r} fill="transparent" class="press"
-                  onpointerdown={(e) => { e.stopPropagation(); capture(e); lab.press(part.id); }}
-                  onpointerup={(e) => { e.stopPropagation(); lab.release(part.id); }}
-                  onpointercancel={() => lab.release(part.id)} />
-              {:else}
-                <circle cx={ctl.cx} cy={ctl.cy} r={ctl.r} fill="transparent" class="press"
-                  onpointerdown={(e) => { e.stopPropagation(); lab.toggleProp(part.id, ctl.prop); }} />
-              {/if}
+              {#each ctls as ctl, i (i)}
+                {#if ctl.kind === 'press'}
+                  <circle cx={ctl.cx} cy={ctl.cy} r={ctl.r} fill="transparent" class="press"
+                    onpointerdown={(e) => { e.stopPropagation(); capture(e); lab.press(part.id, ctl.key); }}
+                    onpointerup={(e) => { e.stopPropagation(); lab.release(part.id, ctl.key); }}
+                    onpointercancel={() => lab.release(part.id, ctl.key)} />
+                {:else}
+                  <circle cx={ctl.cx} cy={ctl.cy} r={ctl.r} fill="transparent" class="press"
+                    onpointerdown={(e) => { e.stopPropagation(); lab.toggleProp(part.id, ctl.prop); }} />
+                {/if}
+              {/each}
             </g>
           {/if}
         {/if}

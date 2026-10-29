@@ -1,0 +1,57 @@
+{
+  "id": "rotary-encoder",
+  "version": "0.1.0",
+  "name": "Núm xoay encoder (KY-040)",
+  "category": "input",
+  "tags": [
+    "module",
+    "digital",
+    "quadrature"
+  ],
+  "terminals": [
+    {
+      "name": "clk",
+      "dx": 0,
+      "dy": 0,
+      "label": "CLK (A)"
+    },
+    {
+      "name": "dt",
+      "dx": 1,
+      "dy": 0,
+      "label": "DT (B)"
+    },
+    {
+      "name": "sw",
+      "dx": 2,
+      "dy": 0,
+      "label": "SW (nhấn núm)"
+    },
+    {
+      "name": "vcc",
+      "dx": 3,
+      "dy": 0,
+      "label": "+ (3V3)"
+    },
+    {
+      "name": "gnd",
+      "dx": 4,
+      "dy": 0,
+      "label": "GND"
+    }
+  ],
+  "props": {},
+  "learn": {
+    "summary": "Núm xoay vô tận, mỗi nấc 'tạch' phát ra hai xung lệch pha trên CLK và DT. Xung nào tới trước cho biết chiều xoay, đếm xung cho biết xoay bao nhiêu nấc. Ấn núm xuống là một nút nhấn.",
+    "howToPlug": [
+      "+ nối 3V3, GND nối GND. Module có sẵn điện trở kéo lên cho CLK và DT.",
+      "CLK và DT nối hai GPIO (INPUT), SW nối một GPIO đặt INPUT_PULLUP.",
+      "Mỗi khi CLK đổi mức: nếu DT khác CLK là xoay thuận chiều kim đồng hồ, bằng nhau là xoay ngược."
+    ],
+    "tips": [
+      "Đọc trong ngắt (attachInterrupt trên CLK) để không lỡ nấc khi xoay nhanh.",
+      "Tiếp điểm cơ khí có rung: bỏ qua những lần đổi mức cách nhau dưới 1 ms.",
+      "Nhấn mũi tên ⟲ / ⟳ trên hình để xoay một nấc; giữ để xoay liên tục. Nhấn vào núm để ấn."
+    ]
+  }
+}

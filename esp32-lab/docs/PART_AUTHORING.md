@@ -71,9 +71,11 @@ Optional fields on the `PartModule`:
 - `view` + `defs`: the SVG drawing. Leads drawn as straight lines must not use bounding-box
   gradients (a horizontal line has zero height and paints nothing); use `gradientUnits="userSpaceOnUse"`.
 - `icon`: viewBox (pitch units) framing the view in the parts library.
-- `control`: a clickable spot. `{ kind: 'press' }` sends press/release while held (push button);
-  `{ kind: 'toggle', prop }` flips a boolean prop or steps an enum prop (slide switch). Anything
-  the user sets that must survive a circuit rebuild belongs in a prop, not in behavior state.
+- `control`: a clickable spot, or an array of them. `{ kind: 'press' }` sends press/release while
+  held (push button); with `key` (`{ kind: 'press', key: '5' }`) the events carry it, so one part
+  can have many buttons (keypad keys, an encoder's turn arrows). `{ kind: 'toggle', prop }` flips
+  a boolean prop or steps an enum prop (slide switch). Anything the user sets that must survive a
+  circuit rebuild belongs in a prop, not in behavior state.
 - Number props without `options` get a slider in the inspector (the potentiometer's knob).
 
 ## 4. Test it

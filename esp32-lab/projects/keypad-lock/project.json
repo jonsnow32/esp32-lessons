@@ -1,0 +1,266 @@
+{
+  "id": "keypad-lock",
+  "order": 9,
+  "title": "Khoá số bằng bàn phím",
+  "summary": "Bàn phím 4×4 được quét bằng tay, không cần thư viện: lần lượt kéo từng hàng xuống LOW rồi đọc 4 cột. Gõ mã 1234 rồi # để mở khoá (đèn xanh), sai mã thì đèn đỏ; * để xoá.",
+  "tryIt": [
+    "Bấm Chạy, nhấn 1 2 3 4 # trên bàn phím: đèn xanh sáng 3 giây và Serial in \"Mo khoa\".",
+    "Gõ sai mã rồi #: đèn đỏ nháy. Nhấn * để gõ lại từ đầu.",
+    "Đổi CODE trong sketch thành mã của bạn, có cả chữ A–D."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "keypad-lock",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "kp1",
+        "type": "keypad",
+        "props": {},
+        "placement": {
+          "bb": "bb1",
+          "hole": "a3",
+          "rot": 0
+        }
+      },
+      {
+        "id": "rgreen",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "i16",
+          "rot": 0
+        }
+      },
+      {
+        "id": "led1",
+        "type": "led",
+        "props": {
+          "color": "green"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "h20",
+          "rot": 0
+        }
+      },
+      {
+        "id": "rred",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "i23",
+          "rot": 0
+        }
+      },
+      {
+        "id": "led2",
+        "type": "led",
+        "props": {
+          "color": "red"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "h27",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn1"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "board",
+          "pin": "D32"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e3"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "board",
+          "pin": "D33"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e4"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "board",
+          "pin": "D25"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e5"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w5",
+        "a": {
+          "kind": "board",
+          "pin": "D26"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e6"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w6",
+        "a": {
+          "kind": "board",
+          "pin": "D27"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e7"
+        },
+        "color": "#3e63dd"
+      },
+      {
+        "id": "w7",
+        "a": {
+          "kind": "board",
+          "pin": "D14"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e8"
+        },
+        "color": "#3e63dd"
+      },
+      {
+        "id": "w8",
+        "a": {
+          "kind": "board",
+          "pin": "D18"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e9"
+        },
+        "color": "#3e63dd"
+      },
+      {
+        "id": "w9",
+        "a": {
+          "kind": "board",
+          "pin": "D19"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e10"
+        },
+        "color": "#3e63dd"
+      },
+      {
+        "id": "w10",
+        "a": {
+          "kind": "board",
+          "pin": "D22"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "g16"
+        },
+        "color": "#30a46c"
+      },
+      {
+        "id": "w11",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "j21"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn18"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w12",
+        "a": {
+          "kind": "board",
+          "pin": "D23"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "g23"
+        },
+        "color": "#f76b15"
+      },
+      {
+        "id": "w13",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "j28"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn24"
+        },
+        "color": "#1c2024"
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

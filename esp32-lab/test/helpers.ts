@@ -15,6 +15,15 @@ import slideSwitch from '@esp32lab-parts/slide-switch';
 import thermistor from '@esp32lab-parts/thermistor';
 import tiltSwitch from '@esp32lab-parts/tilt-switch';
 import ultrasonic from '@esp32lab-parts/ultrasonic';
+import ds18b20 from '@esp32lab-parts/ds18b20';
+import gasSensor from '@esp32lab-parts/gas-sensor';
+import joystick from '@esp32lab-parts/joystick';
+import keypad from '@esp32lab-parts/keypad';
+import ledBar from '@esp32lab-parts/led-bar';
+import relay from '@esp32lab-parts/relay';
+import rotaryEncoder from '@esp32lab-parts/rotary-encoder';
+import sevenSegment from '@esp32lab-parts/seven-segment';
+import soilMoisture from '@esp32lab-parts/soil-moisture';
 import board from '../boards/esp32-devkit-v1/board.json';
 import half400 from '../breadboards/half-400/breadboard.json';
 
@@ -33,6 +42,15 @@ export const PARTS = {
   'pir-sensor': pirSensor,
   ultrasonic,
   dht,
+  ds18b20,
+  'gas-sensor': gasSensor,
+  joystick,
+  keypad,
+  'led-bar': ledBar,
+  relay,
+  'rotary-encoder': rotaryEncoder,
+  'seven-segment': sevenSegment,
+  'soil-moisture': soilMoisture,
 };
 export const BOARD = board as BoardDef;
 export const BREADBOARDS: Record<string, BreadboardDef> = { 'half-400': half400 as BreadboardDef };

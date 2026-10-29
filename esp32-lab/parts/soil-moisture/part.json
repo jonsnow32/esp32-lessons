@@ -1,0 +1,52 @@
+{
+  "id": "soil-moisture",
+  "version": "0.1.0",
+  "name": "Cảm biến độ ẩm đất (điện dung)",
+  "category": "sensor",
+  "tags": [
+    "module",
+    "analog",
+    "capacitive"
+  ],
+  "terminals": [
+    {
+      "name": "gnd",
+      "dx": 0,
+      "dy": 0,
+      "label": "GND"
+    },
+    {
+      "name": "vcc",
+      "dx": 1,
+      "dy": 0,
+      "label": "VCC (3,3–5 V)"
+    },
+    {
+      "name": "aout",
+      "dx": 2,
+      "dy": 0,
+      "label": "AOUT"
+    }
+  ],
+  "props": {
+    "moisture": {
+      "type": "number",
+      "default": 40,
+      "unit": " %",
+      "min": 0,
+      "max": 100
+    }
+  },
+  "learn": {
+    "summary": "Que cắm vào đất đo điện dung giữa hai lớp đồng: đất càng ướt, điện dung càng lớn và điện áp AOUT càng THẤP. Loại điện dung không bị gỉ như loại hai que kim loại.",
+    "howToPlug": [
+      "GND nối GND, VCC nối 3V3, AOUT nối một chân ADC1 (ví dụ GPIO34).",
+      "Cắm que vào đất tới vạch kẻ, phần mạch phía trên phải khô ráo."
+    ],
+    "tips": [
+      "Ngược với trực giác: khô thì analogRead CAO, ướt thì THẤP.",
+      "Hiệu chỉnh: ghi lại giá trị khi để ngoài không khí (khô 0 %) và khi nhúng nước (ướt 100 %), rồi dùng map() giữa hai số đó.",
+      "Kéo \"moisture\" để tưới hoặc để đất khô đi."
+    ]
+  }
+}

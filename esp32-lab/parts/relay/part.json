@@ -1,0 +1,77 @@
+{
+  "id": "relay",
+  "version": "0.1.0",
+  "name": "Module relay 5 V (1 kênh)",
+  "category": "output",
+  "tags": [
+    "module",
+    "switch",
+    "high-power"
+  ],
+  "terminals": [
+    {
+      "name": "in",
+      "dx": 0,
+      "dy": 0,
+      "label": "IN (tín hiệu)"
+    },
+    {
+      "name": "vcc",
+      "dx": 1,
+      "dy": 0,
+      "label": "VCC (5 V)"
+    },
+    {
+      "name": "gnd",
+      "dx": 2,
+      "dy": 0,
+      "label": "GND"
+    },
+    {
+      "name": "no",
+      "dx": 5,
+      "dy": 0,
+      "label": "NO (thường hở)"
+    },
+    {
+      "name": "com",
+      "dx": 7,
+      "dy": 0,
+      "label": "COM (chung)"
+    },
+    {
+      "name": "nc",
+      "dx": 9,
+      "dy": 0,
+      "label": "NC (thường đóng)"
+    }
+  ],
+  "props": {
+    "trigger": {
+      "type": "enum",
+      "default": "high",
+      "options": [
+        "high",
+        "low"
+      ]
+    }
+  },
+  "ratings": {
+    "currentMax": 10,
+    "currentAbsMax": 30,
+    "overstressTime": 1000000000
+  },
+  "learn": {
+    "summary": "Relay là công tắc do nam châm điện bật tắt: một tín hiệu nhỏ từ ESP32 đóng ngắt được thiết bị điện lớn (đèn, quạt, máy bơm). Bên tín hiệu và bên tải cách điện hoàn toàn với nhau.",
+    "howToPlug": [
+      "VCC nối VIN (5 V), GND nối GND, IN nối một chân GPIO.",
+      "Tải nối vào cụm vít: COM và NO nếu muốn tải chỉ chạy khi relay bật; COM và NC nếu muốn tải chạy khi relay tắt.",
+      "Module kích mức cao (high): GPIO HIGH là relay đóng. Kích mức thấp (low): GPIO LOW là relay đóng."
+    ],
+    "tips": [
+      "Nghe tiếng 'tách' là relay vừa chuyển. Cuộn dây cần ~70 mA nên phải lấy từ 5 V, không lấy từ chân GPIO.",
+      "Module kích mức thấp chạy 5 V có khi không tắt được bằng 3,3 V của ESP32 (3,3 V chưa đủ cao để cắt LED của optocoupler). Chọn loại kích mức cao hoặc loại có jumper 3,3 V.",
+      "Đừng tự đấu điện 220 V khi chưa có người hướng dẫn."
+    ]
+  }
+}

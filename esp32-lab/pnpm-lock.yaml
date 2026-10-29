@@ -78,7 +78,17 @@ importers:
 
   parts/diode: {}
 
+  parts/ds18b20: {}
+
+  parts/gas-sensor: {}
+
+  parts/joystick: {}
+
+  parts/keypad: {}
+
   parts/led: {}
+
+  parts/led-bar: {}
 
   parts/photoresistor: {}
 
@@ -88,11 +98,19 @@ importers:
 
   parts/pushbutton: {}
 
+  parts/relay: {}
+
   parts/resistor: {}
 
   parts/rgb-led: {}
 
+  parts/rotary-encoder: {}
+
+  parts/seven-segment: {}
+
   parts/slide-switch: {}
+
+  parts/soil-moisture: {}
 
   parts/thermistor: {}
 

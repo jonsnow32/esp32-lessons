@@ -97,8 +97,9 @@ export interface OperatingPoint {
 }
 
 export type PartEvent =
-  | { kind: 'press' }
-  | { kind: 'release' }
+  /** `key` names which of the part's press controls it was (a keypad key); absent for one-button parts. */
+  | { kind: 'press'; key?: string }
+  | { kind: 'release'; key?: string }
   | { kind: 'timer'; tag: string }
   | { kind: 'set'; key: string; value: number | string | boolean };
 
@@ -132,6 +133,8 @@ export type PartProps = Record<string, number | string | boolean>;
  */
 export type PartView<P extends PartProps = PartProps> = (props: P, obs: Record<string, Observable>) => string;
 
+export type PartControl = { cx: number; cy: number; r: number } & ({ kind: 'press'; key?: string } | { kind: 'toggle'; prop: string });
+
 export interface PartModule<P extends PartProps = PartProps> {
   manifest: PartManifest;
   create(props: P, env: PartEnv): PartBehavior;
@@ -144,11 +147,12 @@ export interface PartModule<P extends PartProps = PartProps> {
   /** Library icon frame (SVG viewBox in pitch units) around the unrotated view. */
   icon?: string;
   /**
-   * Clickable spot on the part (pitch units, unrotated). `press` sends press/release while held
-   * (a push button); `toggle` flips a boolean prop or steps an enum prop to its next option (a
-   * slide switch). Props survive circuit rebuilds, events do not, hence the two kinds.
+   * Clickable spot(s) on the part (pitch units, unrotated). `press` sends press/release while held
+   * (a push button; with `key`, one of several, like a keypad's keys); `toggle` flips a boolean
+   * prop or steps an enum prop to its next option (a slide switch). Props survive circuit
+   * rebuilds, events do not, hence the two kinds.
    */
-  control?: { cx: number; cy: number; r: number } & ({ kind: 'press' } | { kind: 'toggle'; prop: string });
+  control?: PartControl | PartControl[];
   /** The part's detail page: key figures and drawings (UI language: Vietnamese). */
   doc?: PartDoc<P>;
 }

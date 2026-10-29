@@ -181,4 +181,56 @@ describe.skipIf(!existsSync(wasmPath))('featured projects on the emulated ESP32'
     expect(b.serial()).toMatch(/Phan xa: (2[5-9]\d) ms/);
     expect(lit(b.k, 'led1')).toBe(false);
   });
+
+  it('seven-segment-counter counts up once a second and starts over on a press', async () => {
+    const b = await boot('seven-segment-counter');
+    if (!b) return;
+    const digit = () => b.k.observables('disp1').digit;
+    b.k.advanceTo(0.5 * S);
+    expect(digit()).toBe(0);
+    b.k.advanceTo(3.7 * S);
+    expect(digit()).toBe(3);
+    b.tap('btn1');
+    b.k.advanceTo(b.k.now + 50 * MS);
+    expect(digit()).toBe(0);
+    expect(b.serial()).toContain('Dem lai tu 0');
+  });
+
+  it('keypad-lock opens on 1234# and refuses a wrong code', async () => {
+    const b = await boot('keypad-lock');
+    if (!b) return;
+    const type = (keys: string) => {
+      for (const key of keys) {
+        b.k.press('kp1', key);
+        b.k.advanceTo(b.k.now + 80 * MS);
+        b.k.release('kp1', key);
+        b.k.advanceTo(b.k.now + 80 * MS);
+      }
+    };
+    b.k.advanceTo(0.5 * S);
+    type('1234#');
+    expect(lit(b.k, 'led1')).toBe(true);
+    expect(lit(b.k, 'led2')).toBe(false);
+    expect(b.serial()).toContain('Mo khoa!');
+    b.k.advanceTo(b.k.now + 3.2 * S);
+    expect(lit(b.k, 'led1')).toBe(false);
+    type('99#');
+    expect(lit(b.k, 'led2')).toBe(true);
+    expect(b.serial()).toContain('Sai ma');
+  });
+
+  it('relay-lamp toggles the lamp through the relay contacts', async () => {
+    const b = await boot('relay-lamp');
+    if (!b) return;
+    b.k.advanceTo(0.5 * S);
+    expect(lit(b.k, 'led1')).toBe(false);
+    b.tap('btn1');
+    b.k.advanceTo(b.k.now + 50 * MS);
+    expect(b.k.observables('rl1').closed).toBe(true);
+    expect(lit(b.k, 'led1')).toBe(true);
+    b.tap('btn1');
+    b.k.advanceTo(b.k.now + 50 * MS);
+    expect(lit(b.k, 'led1')).toBe(false);
+    expect(b.serial()).toContain('Relay TAT');
+  });
 });

@@ -1,0 +1,54 @@
+{
+  "id": "ds18b20",
+  "version": "0.1.0",
+  "name": "Cảm biến nhiệt DS18B20",
+  "category": "sensor",
+  "tags": [
+    "to-92",
+    "digital",
+    "1-wire"
+  ],
+  "terminals": [
+    {
+      "name": "gnd",
+      "dx": 0,
+      "dy": 0,
+      "label": "GND"
+    },
+    {
+      "name": "dq",
+      "dx": 1,
+      "dy": 0,
+      "label": "DQ (dữ liệu)"
+    },
+    {
+      "name": "vdd",
+      "dx": 2,
+      "dy": 0,
+      "label": "VDD (3,3–5 V)"
+    }
+  ],
+  "props": {
+    "temperature": {
+      "type": "number",
+      "default": 25,
+      "unit": " °C",
+      "min": -55,
+      "max": 125
+    }
+  },
+  "learn": {
+    "summary": "Cảm biến nhiệt số đo từ −55 °C đến 125 °C, sai số ±0,5 °C. Nó nói chuyện qua giao thức 1-Wire: chỉ một dây dữ liệu, và nhiều cảm biến có thể dùng chung dây đó vì mỗi con có một mã số 64 bit riêng.",
+    "howToPlug": [
+      "Mặt phẳng có chữ hướng về phía bạn: chân trái GND, giữa DQ, phải VDD.",
+      "VDD nối 3V3, GND nối GND, DQ nối một GPIO (ví dụ GPIO4).",
+      "Bắt buộc có điện trở kéo lên 4,7 kΩ giữa DQ và 3V3: cảm biến chỉ kéo dây xuống, không tự đẩy lên."
+    ],
+    "tips": [
+      "Dùng thư viện OneWire + DallasTemperature: sensors.requestTemperatures(); rồi sensors.getTempCByIndex(0).",
+      "Đọc ra 85 °C là cảm biến vừa cấp điện, chưa đo lần nào; −127 °C là không tìm thấy cảm biến (thiếu điện trở kéo lên hoặc sai chân).",
+      "Ở độ phân giải 12 bit mỗi lần đo mất 750 ms; 9 bit chỉ 94 ms nhưng bước 0,5 °C.",
+      "Kéo \"temperature\" để đổi nhiệt độ."
+    ]
+  }
+}

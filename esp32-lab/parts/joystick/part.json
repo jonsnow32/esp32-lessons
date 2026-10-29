@@ -1,0 +1,73 @@
+{
+  "id": "joystick",
+  "version": "0.1.0",
+  "name": "Joystick analog (KY-023)",
+  "category": "input",
+  "tags": [
+    "module",
+    "analog",
+    "potentiometer"
+  ],
+  "terminals": [
+    {
+      "name": "gnd",
+      "dx": 0,
+      "dy": 0,
+      "label": "GND"
+    },
+    {
+      "name": "vcc",
+      "dx": 1,
+      "dy": 0,
+      "label": "+5V (nên nối 3V3)"
+    },
+    {
+      "name": "vrx",
+      "dx": 2,
+      "dy": 0,
+      "label": "VRx (trục X)"
+    },
+    {
+      "name": "vry",
+      "dx": 3,
+      "dy": 0,
+      "label": "VRy (trục Y)"
+    },
+    {
+      "name": "sw",
+      "dx": 4,
+      "dy": 0,
+      "label": "SW (nhấn cần)"
+    }
+  ],
+  "props": {
+    "x": {
+      "type": "number",
+      "default": 50,
+      "unit": " %",
+      "min": 0,
+      "max": 100
+    },
+    "y": {
+      "type": "number",
+      "default": 50,
+      "unit": " %",
+      "min": 0,
+      "max": 100
+    }
+  },
+  "learn": {
+    "summary": "Cần điều khiển gồm hai biến trở 10 kΩ, một cho trục X và một cho trục Y, cộng một nút nhấn khi ấn cần xuống. Thả tay thì cần tự về giữa (khoảng nửa điện áp nguồn).",
+    "howToPlug": [
+      "GND nối GND, +5V nối 3V3 (không phải 5 V: chân ADC của ESP32 chỉ đo tới khoảng 3,3 V).",
+      "VRx và VRy nối hai chân ADC1, ví dụ GPIO34 và GPIO35.",
+      "SW nối một GPIO đặt INPUT_PULLUP: nhấn cần là đọc LOW."
+    ],
+    "tips": [
+      "Ở giữa analogRead đọc khoảng 2048, đẩy hết về một phía khoảng 0 hoặc 4095.",
+      "Nên bỏ một vùng chết quanh giữa (ví dụ ±200) vì cần không về giữa tuyệt đối.",
+      "Dùng ADC1 (GPIO32–39) nếu sau này bật WiFi: ADC2 không đọc được khi WiFi chạy.",
+      "Kéo \"x\" và \"y\" để đẩy cần; nhấn vào núm để nhấn nút."
+    ]
+  }
+}

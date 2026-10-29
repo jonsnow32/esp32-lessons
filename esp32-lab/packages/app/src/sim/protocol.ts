@@ -32,8 +32,8 @@ export type ToWorker =
   | { type: 'pause' }
   | { type: 'reset' }
   | { type: 'speed'; speed: number }
-  | { type: 'press'; part: string }
-  | { type: 'release'; part: string }
+  | { type: 'press'; part: string; key?: string }
+  | { type: 'release'; part: string; key?: string }
   | { type: 'serial-in'; text: string };
 
 export interface StepResult {

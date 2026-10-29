@@ -1,0 +1,165 @@
+{
+  "id": "led-bar",
+  "version": "0.1.0",
+  "name": "Thanh LED 10 vạch",
+  "category": "output",
+  "tags": [
+    "through-hole",
+    "led",
+    "dip-20"
+  ],
+  "terminals": [
+    {
+      "name": "a0",
+      "dx": 0,
+      "dy": 0,
+      "label": "+ vạch 1"
+    },
+    {
+      "name": "a1",
+      "dx": 1,
+      "dy": 0,
+      "label": "+ vạch 2"
+    },
+    {
+      "name": "a2",
+      "dx": 2,
+      "dy": 0,
+      "label": "+ vạch 3"
+    },
+    {
+      "name": "a3",
+      "dx": 3,
+      "dy": 0,
+      "label": "+ vạch 4"
+    },
+    {
+      "name": "a4",
+      "dx": 4,
+      "dy": 0,
+      "label": "+ vạch 5"
+    },
+    {
+      "name": "a5",
+      "dx": 5,
+      "dy": 0,
+      "label": "+ vạch 6"
+    },
+    {
+      "name": "a6",
+      "dx": 6,
+      "dy": 0,
+      "label": "+ vạch 7"
+    },
+    {
+      "name": "a7",
+      "dx": 7,
+      "dy": 0,
+      "label": "+ vạch 8"
+    },
+    {
+      "name": "a8",
+      "dx": 8,
+      "dy": 0,
+      "label": "+ vạch 9"
+    },
+    {
+      "name": "a9",
+      "dx": 9,
+      "dy": 0,
+      "label": "+ vạch 10"
+    },
+    {
+      "name": "k0",
+      "dx": 0,
+      "dy": 3,
+      "label": "− vạch 1"
+    },
+    {
+      "name": "k1",
+      "dx": 1,
+      "dy": 3,
+      "label": "− vạch 2"
+    },
+    {
+      "name": "k2",
+      "dx": 2,
+      "dy": 3,
+      "label": "− vạch 3"
+    },
+    {
+      "name": "k3",
+      "dx": 3,
+      "dy": 3,
+      "label": "− vạch 4"
+    },
+    {
+      "name": "k4",
+      "dx": 4,
+      "dy": 3,
+      "label": "− vạch 5"
+    },
+    {
+      "name": "k5",
+      "dx": 5,
+      "dy": 3,
+      "label": "− vạch 6"
+    },
+    {
+      "name": "k6",
+      "dx": 6,
+      "dy": 3,
+      "label": "− vạch 7"
+    },
+    {
+      "name": "k7",
+      "dx": 7,
+      "dy": 3,
+      "label": "− vạch 8"
+    },
+    {
+      "name": "k8",
+      "dx": 8,
+      "dy": 3,
+      "label": "− vạch 9"
+    },
+    {
+      "name": "k9",
+      "dx": 9,
+      "dy": 3,
+      "label": "− vạch 10"
+    }
+  ],
+  "props": {
+    "color": {
+      "type": "enum",
+      "default": "red",
+      "options": [
+        "red",
+        "green",
+        "yellow",
+        "blue",
+        "mixed"
+      ]
+    }
+  },
+  "ratings": {
+    "currentMax": 0.025,
+    "currentAbsMax": 0.1,
+    "reverseVoltageMax": 5,
+    "overstressTime": 50000000
+  },
+  "learn": {
+    "summary": "Mười đèn LED riêng biệt xếp thành một thanh, mỗi vạch có chân + và chân − của nó. Thường dùng làm thanh mức: âm lượng, pin, giá trị cảm biến.",
+    "howToPlug": [
+      "Cắm vắt qua rãnh giữa breadboard: hàng chân + ở một bên, hàng chân − ở bên kia. Cạnh có chữ hoặc góc vát là phía chân +.",
+      "Mỗi vạch cần một điện trở 220–330 Ω riêng, giống một LED thường.",
+      "Nối các chân − chung xuống GND, mỗi chân + qua điện trở vào một GPIO."
+    ],
+    "tips": [
+      "Muốn hiện mức 0–10 từ một giá trị analog: số vạch sáng = map(analogRead(pin), 0, 4095, 0, 10).",
+      "Cắm ngược chiều thì không vạch nào sáng: lật thanh lại.",
+      "Loại 'mixed' có 2 vạch đỏ, 3 vàng, 5 xanh, hợp làm thanh báo mức."
+    ]
+  }
+}

@@ -336,12 +336,12 @@ export class SimKernel {
     if (this.dirty) this.solve();
   }
 
-  press(partId: string): void {
-    this.send(partId, { kind: 'press' });
+  press(partId: string, key?: string): void {
+    this.send(partId, key === undefined ? { kind: 'press' } : { kind: 'press', key });
   }
 
-  release(partId: string): void {
-    this.send(partId, { kind: 'release' });
+  release(partId: string, key?: string): void {
+    this.send(partId, key === undefined ? { kind: 'release' } : { kind: 'release', key });
   }
 
   observables(partId: string): Record<string, Observable> {

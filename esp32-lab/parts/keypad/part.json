@@ -1,0 +1,75 @@
+{
+  "id": "keypad",
+  "version": "0.1.0",
+  "name": "Bàn phím ma trận 4×4",
+  "category": "input",
+  "tags": [
+    "membrane",
+    "matrix",
+    "switch"
+  ],
+  "terminals": [
+    {
+      "name": "r1",
+      "dx": 0,
+      "dy": 0,
+      "label": "R1 (hàng 1)"
+    },
+    {
+      "name": "r2",
+      "dx": 1,
+      "dy": 0,
+      "label": "R2 (hàng 2)"
+    },
+    {
+      "name": "r3",
+      "dx": 2,
+      "dy": 0,
+      "label": "R3 (hàng 3)"
+    },
+    {
+      "name": "r4",
+      "dx": 3,
+      "dy": 0,
+      "label": "R4 (hàng 4)"
+    },
+    {
+      "name": "c1",
+      "dx": 4,
+      "dy": 0,
+      "label": "C1 (cột 1)"
+    },
+    {
+      "name": "c2",
+      "dx": 5,
+      "dy": 0,
+      "label": "C2 (cột 2)"
+    },
+    {
+      "name": "c3",
+      "dx": 6,
+      "dy": 0,
+      "label": "C3 (cột 3)"
+    },
+    {
+      "name": "c4",
+      "dx": 7,
+      "dy": 0,
+      "label": "C4 (cột 4)"
+    }
+  ],
+  "props": {},
+  "learn": {
+    "summary": "16 phím xếp thành 4 hàng × 4 cột nhưng chỉ có 8 dây: mỗi phím khi nhấn nối một dây hàng với một dây cột. ESP32 tìm phím bằng cách quét lần lượt từng hàng.",
+    "howToPlug": [
+      "8 chân từ trái sang phải: R1 R2 R3 R4 C1 C2 C3 C4. Nối cả 8 vào 8 chân GPIO.",
+      "Chân hàng để OUTPUT, chân cột để INPUT_PULLUP (hoặc ngược lại, miễn thống nhất).",
+      "Thư viện Keypad làm sẵn việc quét: Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, 4, 4);"
+    ],
+    "tips": [
+      "Quét: kéo một hàng xuống LOW, các hàng khác HIGH, rồi đọc 4 cột: cột nào LOW thì phím ở hàng đó, cột đó đang được nhấn.",
+      "Tránh GPIO34–39 cho chân hàng vì chúng chỉ là đầu vào; dùng được cho chân cột nếu có điện trở kéo lên ngoài.",
+      "Nhấn vào từng phím trên hình để bấm; giữ nhiều phím cùng lúc cũng được."
+    ]
+  }
+}
