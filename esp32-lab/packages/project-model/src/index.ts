@@ -145,6 +145,11 @@ export interface Wire {
   a: Endpoint;
   b: Endpoint;
   color?: string;
+  /**
+   * Corners the wire is bent through, world position in pitches, from a to b. Without them the
+   * wire bends on its own; ends that no longer line up with a corner get an elbow.
+   */
+  points?: { x: number; y: number }[];
 }
 
 export type Firmware =

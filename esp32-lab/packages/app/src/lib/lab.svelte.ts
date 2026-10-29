@@ -11,6 +11,8 @@ import type { PartManifest } from '@esp32lab/part-sdk';
 import type { FirmwareFiles, FlowView, FromWorker, StepResult, ToWorker } from '../sim/protocol';
 import { resolvePlacement, rotate } from '@esp32lab/project-model';
 import { breadboard } from './geometry';
+import { loadSettings, saveSettings } from './settings';
+import { TIDY_MODES, tidyWires } from './tidy';
 
 export interface BuildError {
   line: number;
@@ -167,8 +169,10 @@ class Lab {
   notes = $state<Note[]>([]);
   /** Keys / part ids to emphasise on the bench (hovered explanation note). */
   emphasis = $state<string[]>([]);
+  /** The user's settings as they were stored (see settings.ts); the fields below start from them. */
+  private settings = loadSettings();
   /** How the bench shows the solved circuit. */
-  overlay = $state<'current' | 'voltage' | 'off'>('current');
+  overlay = $state(this.settings.overlay);
   /** Static netlist for hover highlighting (no simulation). */
   netKernel = $derived.by(() => this.buildNetKernel(this.project));
 
@@ -181,6 +185,10 @@ class Lab {
     this.send({ type: 'init', wasmUrl });
     migrateOldStorage();
     this.myProjects = loadMyProjects();
+    // Keep the user's settings in the browser as they change
+    $effect.root(() => {
+      $effect(() => saveSettings({ tidyMode: this.tidyMode, overlay: this.overlay }));
+    });
     fetch('/pio/envs')
       .then((r) => r.json())
       .then((envs: string[]) => (this.envs = envs))
@@ -462,10 +470,50 @@ class Lab {
     else if (schema.type === 'enum') this.setProp(id, key, schema.options[(schema.options.indexOf(String(now)) + 1) % schema.options.length]!);
   }
 
-  addWire(a: Endpoint, b: Endpoint) {
+  addWire(a: Endpoint, b: Endpoint, points: { x: number; y: number }[] = []) {
     const color = WIRE_COLORS[this.nextWire++ % WIRE_COLORS.length];
     const wire: Wire = { id: `w${Date.now().toString(36)}${this.nextWire}`, a, b, color };
+    if (points.length) wire.points = points;
     this.project.wires.push(wire);
+    this.commit();
+  }
+
+  /** The tidy mode last applied (an index into TIDY_MODES), -1 before the first. */
+  tidyMode = $state(this.settings.tidyMode < TIDY_MODES.length ? this.settings.tidyMode : -1);
+
+  /** Re-route every wire in the next tidy mode, round and round (see tidy.ts). One undo step. */
+  tidyWires() {
+    this.tidyMode = (this.tidyMode + 1) % TIDY_MODES.length;
+    if (this.reroute()) this.commit();
+  }
+
+  /**
+   * Re-route every wire in the tidy mode last chosen, if one was (after the board or a
+   * breadboard moved). Not committed: it goes with the change that called for it.
+   */
+  retidy() {
+    if (this.tidyMode >= 0) this.reroute();
+  }
+
+  /** Re-route every wire in the current tidy mode. Did any wire change? */
+  private reroute(): boolean {
+    const routes = tidyWires($state.snapshot(this.project) as Project, TIDY_MODES[this.tidyMode]);
+    let changed = false;
+    for (const w of this.project.wires) {
+      const points = routes.get(w.id);
+      if (!points || JSON.stringify(points) === JSON.stringify(w.points ?? [])) continue;
+      if (points.length) w.points = points;
+      else delete w.points;
+      changed = true;
+    }
+    return changed;
+  }
+
+  /** Forget a wire's own corners: it bends on its own again. */
+  unbendWire(id: string) {
+    const w = this.project.wires.find((q) => q.id === id);
+    if (!w?.points) return;
+    delete w.points;
     this.commit();
   }
 

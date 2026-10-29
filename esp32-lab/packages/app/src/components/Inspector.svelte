@@ -69,7 +69,15 @@
     </div>
   </section>
 {:else if lab.selection?.kind === 'wire'}
-  <section><h2>Dây nối</h2><button onclick={() => lab.deleteSelected()}>Xoá dây (Del)</button></section>
+  {@const wire = lab.project.wires.find((w) => w.id === (lab.selection as { id: string }).id)}
+  <section>
+    <h2>Dây nối</h2>
+    <p class="note">Kéo một đoạn dây để dời nó; dây luôn gấp vuông góc.</p>
+    <div class="actions">
+      {#if wire?.points}<button onclick={() => lab.unbendWire(wire.id)}>Gấp tự động</button>{/if}
+      <button onclick={() => lab.deleteSelected()}>Xoá dây (Del)</button>
+    </div>
+  </section>
 {:else if bbInst && bb}
   <section>
     <h2>{bbInst.id} <span class="type">{bb.def.name}</span></h2>
