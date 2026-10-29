@@ -4,7 +4,7 @@
 // Most ESP32 DevKit boards have a blue LED wired to GPIO2.
 // If yours doesn't blink, try another pin or wire up an external LED.
 const int LED_PIN = 2;
-
+const int EXTERNAL_LED_PIN = 18;
 // Serial speed – must match monitor_speed in platformio.ini
 const unsigned long BAUD_RATE = 115200;
 
@@ -15,7 +15,7 @@ void setup() {
   delay(1000);  // wait for the Serial Monitor to connect
 
   pinMode(LED_PIN, OUTPUT);
-
+pinMode(EXTERNAL_LED_PIN, OUTPUT);
   Serial.println();
   Serial.println("=== Hello ESP32! ===");
   Serial.printf("Chip model   : %s (rev %d)\n", ESP.getChipModel(), ESP.getChipRevision());
@@ -36,7 +36,15 @@ void loop() {
 
   digitalWrite(LED_PIN, LOW);
   Serial.printf("[%d] LED OFF\n", counter);
-  delay(2000);
+  delay(500);
+  
+  digitalWrite(EXTERNAL_LED_PIN, HIGH);
+  Serial.printf("[%d] LED ON\n", counter);
+  delay(100);
+
+  digitalWrite(EXTERNAL_LED_PIN, LOW);
+  Serial.printf("[%d] LED OFF\n", counter);
+  delay(500);
   
   counter++;
 }

@@ -39,7 +39,8 @@
   let corners = $state<Pt[]>([]);
   /** A segment (index i of its route) of the selected wire being slid sideways. */
   let bending = $state<{ id: string; i: number; start: Pt; route: Pt[]; moved: boolean } | null>(null);
-  let moving = $state<{ id: string; type: string; rot: Rotation; moved: boolean } | null>(null);
+  /** A part being moved; `grab` is where it was pressed, relative to its anchor (first leg). */
+  let moving = $state<{ id: string; type: string; rot: Rotation; moved: boolean; grab: Pt } | null>(null);
   /** Rotation of a new part being dragged in from the library (R while dragging turns it). */
   let dragRot = $state<Rotation>(0);
   /** Panning, and what a tap without moving selects (a breadboard id, 'board' or nothing). */
@@ -82,16 +83,19 @@
   let ghost = $derived.by(() => {
     const type = dragType ?? moving?.type;
     if (!type || type.startsWith('bb:') || !pointer || (moving && !moving.moved)) return null;
-    const e = endpointAt(lab.project, pointer);
+    // A moved part keeps the spot it was pressed under the pointer, not its anchor
+    const g = moving?.grab ?? { x: 0, y: 0 };
+    const at = { x: pointer.x - g.x, y: pointer.y - g.y };
+    const e = endpointAt(lab.project, at);
     const rot = moving?.rot ?? dragRot;
     if (e?.kind === 'hole') {
       const ok = lab.canPlace(type, e.bb, e.hole, rot, moving?.id);
       return { type, at: holePos(lab.project, e.bb, e.hole)!, ok, hole: { bb: e.bb, hole: e.hole }, bench: false };
     }
-    if (!e && !onBreadboard(lab.project, pointer)) {
-      return { type, at: { x: Math.round(pointer.x), y: Math.round(pointer.y) }, ok: true, hole: null, bench: true };
+    if (!e && !onBreadboard(lab.project, at)) {
+      return { type, at: { x: Math.round(at.x), y: Math.round(at.y) }, ok: true, hole: null, bench: true };
     }
-    return { type, at: pointer, ok: false, hole: null as null | { bb: string; hole: string }, bench: false };
+    return { type, at, ok: false, hole: null as null | { bb: string; hole: string }, bench: false };
   });
 
   let hoverNet = $derived(hover ? lab.netOf(hover) : new Set<string>());
@@ -143,11 +147,13 @@
     pointerType = ev.pointerType;
     if (ev.pointerType === 'touch') touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     const part = lab.part(id);
-    const rot = part?.placement?.rot ?? part?.bench?.rot;
-    if (!part || rot === undefined) return;
+    const anchor = part && partAnchor(lab.project, part);
+    if (!part || !anchor) return;
     pointer = toWorld(ev.clientX, ev.clientY);
     downAt = pointer;
-    moving = { id, type: part.type, rot, moved: false };
+    // Whole pitches: the anchor lands on a hole whenever the pointer is over one
+    const grab = { x: Math.round(pointer.x - anchor.at.x), y: Math.round(pointer.y - anchor.at.y) };
+    moving = { id, type: part.type, rot: anchor.rot, moved: false, grab };
   }
 
   function startBend(ev: PointerEvent, id: string, i: number, route: Pt[]) {
@@ -355,7 +361,8 @@
     if (ev.key === 'r' || ev.key === 'R') {
       // While dragging, R turns the part in hand; otherwise the selected part
       const next = (r: Rotation) => ((r + 90) % 360) as Rotation;
-      if (moving?.moved) moving = { ...moving, rot: next(moving.rot) };
+      // The grab point turns with the part, so it stays under the pointer
+      if (moving?.moved) moving = { ...moving, rot: next(moving.rot), grab: { x: -moving.grab.y, y: moving.grab.x } };
       else if (dragType) dragRot = next(dragRot);
       else lab.rotateSelected();
     }
