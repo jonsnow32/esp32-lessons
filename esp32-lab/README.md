@@ -5,6 +5,9 @@ Virtual ESP32 workbench: plug parts into a breadboard, wire them to a board and 
 
 - Design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Adding parts: [docs/PART_AUTHORING.md](docs/PART_AUTHORING.md)
+- Adding a featured project: a folder in `projects/` with `project.json` (copy one, the circuit is
+  a saved bench) and `main.cpp`; it appears on the home screen. Run `./scripts/build-projects.sh`
+  and add a check to `test/projects.test.ts`
 
 ```bash
 # The workbench in the browser (build the emulator once, and the lessons with `pio run`)
@@ -14,6 +17,7 @@ pnpm -C packages/app dev           # http://localhost:5173
 # PlatformIO on this machine (~7–11 s) and runs it on the emulated board
 
 pnpm install
+./scripts/build-projects.sh   # build the featured projects' sketches for test/projects.test.ts
 pnpm test        # netlist, circuit solver, parts, lesson checks
 pnpm typecheck
 cargo test       # Xtensa decoder + interpreter (bare-metal tests need the PlatformIO toolchain)

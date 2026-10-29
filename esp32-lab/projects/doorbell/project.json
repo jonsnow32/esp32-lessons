@@ -1,0 +1,126 @@
+{
+  "id": "doorbell",
+  "order": 2,
+  "title": "Chuông cửa",
+  "summary": "Nhấn nút là còi kêu \"bíp… bíiip\". Có chống dội phím và phát nhạc không dùng delay(), nên nhấn lúc nào cũng nhận.",
+  "tryIt": [
+    "Bấm Chạy rồi nhấn vào nút trên breadboard.",
+    "Sửa mảng MELODY để chuông kêu kiểu khác.",
+    "Đổi nút sang chân khác (ví dụ D22) cả trong mạch và trong code."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "doorbell",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "btn1",
+        "type": "pushbutton",
+        "props": {
+          "bounce": true
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "e3",
+          "rot": 0
+        }
+      },
+      {
+        "id": "bz1",
+        "type": "buzzer",
+        "props": {},
+        "placement": {
+          "bb": "bb1",
+          "hole": "e12",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn1"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "board",
+          "pin": "D4"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "g3"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "j5"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn3"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "board",
+          "pin": "D23"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "a12"
+        },
+        "color": "#f76b15"
+      },
+      {
+        "id": "w5",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "j12"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn9"
+        },
+        "color": "#1c2024"
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

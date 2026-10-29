@@ -2,10 +2,10 @@
 // from the worker. Components read and mutate this; edits are pushed to the worker.
 
 import { ESP32_PAD_NAMES } from '@esp32lab/mcu-esp32';
-import { SCHEMA_VERSION, type Endpoint, type PartInstance, type Project, type Rotation, type Wire } from '@esp32lab/project-model';
+import { SCHEMA_VERSION, type BoardPin, type Endpoint, type PartInstance, type Project, type Rotation, type Wire } from '@esp32lab/project-model';
 import { endpointKey, keyOf, ScriptedMcu, SimKernel } from '@esp32lab/sim-core';
 import wasmUrl from '../../../mcu-esp32/wasm/esp32.wasm?url';
-import { BOARDS, BREADBOARDS, LESSONS, PARTS } from './catalog';
+import { BOARDS, BREADBOARDS, FEATURED, LESSONS, PARTS, type FeaturedProject } from './catalog';
 import type { Note } from '@esp32lab/explain';
 import type { PartManifest } from '@esp32lab/part-sdk';
 import type { FirmwareFiles, FlowView, FromWorker, StepResult, ToWorker } from '../sim/protocol';
@@ -50,7 +50,7 @@ export function emptyProject(): Project {
   };
 }
 
-type Selection = { kind: 'part'; id: string } | { kind: 'wire'; id: string } | null;
+type Selection = { kind: 'part'; id: string } | { kind: 'wire'; id: string } | { kind: 'breadboard'; id: string } | { kind: 'board' } | null;
 
 const WIRE_COLORS = ['#e5484d', '#3e63dd', '#30a46c', '#f5d90a', '#f76b15', '#8e4ec6', '#1c2024'];
 
@@ -70,6 +70,26 @@ interface Workspace {
 
 export const FREE = 'free';
 
+/** A project of the user's own: so far always a copy of a featured project they changed. */
+export interface MyProject {
+  id: string;
+  title: string;
+  /** The featured project it was copied from. */
+  from?: string;
+  created: number;
+  updated: number;
+}
+
+const MY_PROJECTS = 'esp32lab.myProjects';
+
+function loadMyProjects(): MyProject[] {
+  try {
+    return JSON.parse(localStorage.getItem(MY_PROJECTS) ?? '[]') as MyProject[];
+  } catch {
+    return [];
+  }
+}
+
 /** FNV-1a: cheap fingerprint to tell whether the code changed since it was built. */
 function hashCode(text: string): string {
   let h = 0x811c9dc5;
@@ -78,6 +98,19 @@ function hashCode(text: string): string {
 }
 
 const wsKey = (id: string) => `esp32lab.ws.${id}`;
+
+/** Featured projects stay as published: does this bench and code still match the original? */
+function isOriginal(f: FeaturedProject, project: Project, code: string): boolean {
+  return code === f.code && JSON.stringify(project) === JSON.stringify(f.project);
+}
+
+/** "Đèn giao thông (bản sao)", then "(bản sao 2)"… */
+function copyTitle(base: string, taken: MyProject[]): string {
+  for (let n = 1; ; n++) {
+    const title = `${base} (bản sao${n > 1 ? ` ${n}` : ''})`;
+    if (!taken.some((p) => p.title === title)) return title;
+  }
+}
 
 export function loadWorkspace(id: string): Workspace | null {
   try {
@@ -102,6 +135,10 @@ class Lab {
   route = $state<string>('home');
   project = $state<Project>(emptyProject());
   selection = $state<Selection>(null);
+  /** The user's own projects, newest first. */
+  myProjects = $state<MyProject[]>(loadMyProjects());
+  /** One-off message for the user (e.g. "a copy was made"), dismissed by them. */
+  notice = $state<string | null>(null);
   /** Undo/redo: earlier and undone versions of the bench, as JSON. */
   private past = $state<string[]>([]);
   private future = $state<string[]>([]);
@@ -143,6 +180,7 @@ class Lab {
     this.worker.onmessage = (ev: MessageEvent<FromWorker>) => this.receive(ev.data);
     this.send({ type: 'init', wasmUrl });
     migrateOldStorage();
+    this.myProjects = loadMyProjects();
     fetch('/pio/envs')
       .then((r) => r.json())
       .then((envs: string[]) => (this.envs = envs))
@@ -238,14 +276,48 @@ class Lab {
     const s = this.selection;
     if (s?.kind === 'part' && !this.part(s.id)) this.selection = null;
     if (s?.kind === 'wire' && !this.project.wires.some((w) => w.id === s.id)) this.selection = null;
+    if (s?.kind === 'breadboard' && !this.project.breadboards.some((b) => b.id === s.id)) this.selection = null;
     this.save();
     this.send({ type: 'project', project: $state.snapshot(this.project) as Project });
   }
 
   private save() {
     if (this.route === 'home') return;
-    const ws: Workspace = { project: $state.snapshot(this.project) as Project, code: this.code, passed: this.passed };
+    const project = $state.snapshot(this.project) as Project;
+    const featured = this.featured;
+    if (featured) {
+      // The original is never saved over: the first change turns it into the user's own copy
+      if (isOriginal(featured, project, this.code)) return;
+      this.copyFeatured(featured);
+    }
+    const ws: Workspace = { project, code: this.code, passed: this.passed };
     localStorage.setItem(wsKey(this.route), JSON.stringify(ws));
+    const mine = this.mine;
+    if (mine) this.updateMyProjects(this.myProjects.map((p) => (p.id === mine.id ? { ...p, updated: Date.now() } : p)));
+  }
+
+  /** Carry on in a new project of the user's own, with the bench, code and history as they are. */
+  private copyFeatured(f: FeaturedProject) {
+    const now = Date.now();
+    const copy: MyProject = { id: `my-${now.toString(36)}`, title: copyTitle(f.title, this.myProjects), from: f.id, created: now, updated: now };
+    this.updateMyProjects([copy, ...this.myProjects]);
+    this.route = copy.id;
+    this.notice = `Bạn vừa sửa dự án mẫu, nên mình đã tạo bản sao "${copy.title}" trong Dự án của tôi. Bản gốc vẫn giữ nguyên.`;
+  }
+
+  private updateMyProjects(list: MyProject[]) {
+    this.myProjects = list.sort((a, b) => b.updated - a.updated);
+    localStorage.setItem(MY_PROJECTS, JSON.stringify(this.myProjects));
+  }
+
+  renameMyProject(id: string, title: string) {
+    const t = title.trim();
+    if (t) this.updateMyProjects(this.myProjects.map((p) => (p.id === id ? { ...p, title: t } : p)));
+  }
+
+  deleteMyProject(id: string) {
+    this.updateMyProjects(this.myProjects.filter((p) => p.id !== id));
+    localStorage.removeItem(wsKey(id));
   }
 
   // --- Editing ----------------------------------------------------------------------------
@@ -397,15 +469,62 @@ class Lab {
     this.commit();
   }
 
+  /**
+   * Swap the board. Wires to its header move to the pin with the same pad or net on the new
+   * board (D2 → IO2); wires to a pin it does not have are removed.
+   */
+  setBoard(type: string) {
+    const from = BOARDS[this.project.board.type];
+    const to = BOARDS[type];
+    if (!from || !to || type === this.project.board.type) return;
+    const same = (a: BoardPin, b: BoardPin) => JSON.stringify(a.connect) === JSON.stringify(b.connect);
+    const remap = (e: Endpoint): Endpoint | null => {
+      if (e.kind !== 'board') return e;
+      const old = from.pins.find((p) => p.name === e.pin);
+      if (!old) return null;
+      // GND.L stays on the left GND when there are several
+      const twins = from.pins.filter((p) => same(p, old));
+      const matches = to.pins.filter((p) => same(p, old));
+      const pin = matches.find((p) => p.name === old.name) ?? matches[Math.min(twins.indexOf(old), matches.length - 1)];
+      return pin ? { kind: 'board', pin: pin.name } : null;
+    };
+    let dropped = 0;
+    this.project.wires = this.project.wires.flatMap((w) => {
+      const a = remap(w.a);
+      const b = remap(w.b);
+      if (a && b) return [{ ...w, a, b }];
+      dropped++;
+      return [];
+    });
+    this.project.board = { ...this.project.board, type };
+    if (dropped) this.notice = `${to.name} không có chân cho ${dropped} dây nối, nên các dây đó đã được gỡ.`;
+    this.commit();
+  }
+
+  /** A new breadboard on the bench, its a1 hole at (x, y). */
+  addBreadboard(type: string, x: number, y: number) {
+    let n = this.project.breadboards.length + 1;
+    while (this.project.breadboards.some((b) => b.id === `bb${n}`)) n++;
+    this.project.breadboards.push({ id: `bb${n}`, type, x, y });
+    this.selection = { kind: 'breadboard', id: `bb${n}` };
+    this.commit();
+  }
+
   deleteSelected() {
     const s = this.selection;
-    if (!s) return;
+    if (!s || s.kind === 'board') return;
     if (s.kind === 'part') {
       this.project.parts = this.project.parts.filter((p) => p.id !== s.id);
       // Wires to its legs would hang in the air
       this.project.wires = this.project.wires.filter((w) => !onPart(w, s.id));
-    }
-    else this.project.wires = this.project.wires.filter((w) => w.id !== s.id);
+    } else if (s.kind === 'breadboard') {
+      // The parts plugged into it go with it, and so does every wire to its holes or their legs
+      const gone = new Set(this.project.parts.filter((p) => p.placement?.bb === s.id).map((p) => p.id));
+      const inHole = (e: Endpoint) => e.kind === 'hole' && e.bb === s.id;
+      this.project.breadboards = this.project.breadboards.filter((b) => b.id !== s.id);
+      this.project.parts = this.project.parts.filter((p) => !gone.has(p.id));
+      this.project.wires = this.project.wires.filter((w) => !inHole(w.a) && !inHole(w.b) && ![...gone].some((id) => onPart(w, id)));
+    } else this.project.wires = this.project.wires.filter((w) => w.id !== s.id);
     this.selection = null;
     this.commit();
   }
@@ -426,19 +545,40 @@ class Lab {
     return LESSONS.find((l) => l.id === this.lessonId);
   }
 
-  /** Enter a lesson (or the sandbox): its saved work, or a fresh template + original sketch. */
+  /** The featured project open on the bench (the read-only original), if any. */
+  get featured() {
+    return FEATURED.find((f) => f.id === this.route);
+  }
+
+  /** The user's own project open on the bench, if any. */
+  get mine() {
+    return this.myProjects.find((p) => p.id === this.route);
+  }
+
+  /** The featured project the bench comes from: the original itself or the copy's source. */
+  get source() {
+    return this.featured ?? FEATURED.find((f) => f.id === this.mine?.from);
+  }
+
+  /**
+   * Enter a lesson, a featured project or the sandbox: its saved work, or a fresh template +
+   * original sketch.
+   */
   async open(id: string) {
     this.save();
     this.stopProgram();
     const lesson = LESSONS.find((l) => l.id === id);
+    const featured = FEATURED.find((f) => f.id === id);
+    const source = featured ?? FEATURED.find((f) => f.id === this.myProjects.find((p) => p.id === id)?.from);
     // Fetch before switching, so nothing saves the old bench under the new id meanwhile
-    const original = lesson?.sketch ? await this.fetchSketch(lesson.sketch) : null;
+    const original = lesson?.sketch ? await this.fetchSketch(lesson.sketch) : (source?.code ?? null);
     this.lessonId = lesson?.id ?? null;
     this.route = id;
     this.selection = null;
     this.originalCode = original;
-    const ws = loadWorkspace(id);
-    this.project = ws ? ws.project : structuredClone(lesson?.template ?? emptyProject());
+    // A featured project always opens as published
+    const ws = featured ? null : loadWorkspace(id);
+    this.project = ws ? ws.project : structuredClone(lesson?.template ?? source?.project ?? emptyProject());
     this.code = ws ? ws.code : (this.originalCode ?? DEFAULT_SKETCH);
     this.passed = ws?.passed ?? [];
     this.build = { status: 'idle', log: '', ms: 0, errors: [] };
@@ -456,11 +596,11 @@ class Lab {
     this.route = 'home';
   }
 
-  /** Back to the lesson's template circuit and original code (or an empty sandbox). */
+  /** Back to the lesson's or project's circuit and original code (or an empty sandbox). */
   restart() {
     const lesson = this.lesson;
     this.stopProgram();
-    this.project = structuredClone(lesson?.template ?? emptyProject());
+    this.project = structuredClone(lesson?.template ?? this.source?.project ?? emptyProject());
     this.code = this.originalCode ?? DEFAULT_SKETCH;
     this.selection = null;
     this.build = { status: 'idle', log: '', ms: 0, errors: [] };
@@ -654,6 +794,19 @@ function migrateOldStorage() {
   }
   localStorage.removeItem('esp32lab.project');
   localStorage.removeItem('esp32lab.code');
+  // Work saved on a featured project before originals became read-only: keep it as a copy
+  const mine = loadMyProjects();
+  for (const f of FEATURED) {
+    const ws = loadWorkspace(f.id);
+    if (!ws) continue;
+    localStorage.removeItem(wsKey(f.id));
+    if (isOriginal(f, ws.project, ws.code)) continue;
+    const now = Date.now();
+    const copy: MyProject = { id: `my-${now.toString(36)}${f.order}`, title: copyTitle(f.title, mine), from: f.id, created: now, updated: now };
+    mine.unshift(copy);
+    localStorage.setItem(wsKey(copy.id), JSON.stringify(ws));
+  }
+  localStorage.setItem(MY_PROJECTS, JSON.stringify(mine));
 }
 
 export const lab = new Lab();

@@ -1,6 +1,7 @@
 <script lang="ts">
-  // ESP32 DevKit drawn from board.json: PCB, WROOM module with shield and antenna, pin headers
-  // coloured by live pad state, USB connector, onboard LED and the BOOT/EN buttons.
+  // ESP32 dev board drawn from board.json: PCB, module with shield and antenna, pin headers
+  // coloured by live pad state, USB connector, onboard LEDs and the BOOT/EN buttons. `look`
+  // picks the PCB colour and the chip names printed on it.
   import type { BoardDef } from '@esp32lab/project-model';
   import { endpointKey } from '@esp32lab/sim-core';
 
@@ -25,6 +26,20 @@
   let right = $derived(Math.max(...board.pins.map((p) => p.x)));
   let rows = $derived(Math.max(...board.pins.map((p) => p.y)) + 1);
   let held = $state<string | null>(null);
+  let look = $derived({ pcb: 'blue', module: 'ESP32-WROOM-32', usbChip: 'CP2102', ...board.look });
+
+  /** SMD LED lens colour, lit and dark. */
+  const LED_LENS: Record<string, { on: string; off: string }> = {
+    blue: { on: '#cfe3ff', off: '#8796ab' },
+    red: { on: '#ffd1cc', off: '#a88a87' },
+    green: { on: '#d3f5d8', off: '#87a88c' },
+  };
+
+  /** "IO2" for an LED on a GPIO ("Blue LED (GPIO2)"), otherwise it is the power LED. */
+  function ledCaption(op: BoardDef['onboard'][number]): string {
+    const gpio = op.label?.match(/GPIO(\d+)/);
+    return gpio ? `IO${gpio[1]}` : 'PWR';
+  }
 
   function down(e: PointerEvent, id: string) {
     e.stopPropagation();
@@ -44,7 +59,7 @@
 </script>
 
 <!-- PCB -->
-<rect x="-1.1" y="-1.5" width={right + 2.2} height={board.height + 0.6} rx="0.5" fill="url(#pcb)" stroke="#0b0f14" stroke-width="0.08" />
+<rect x="-1.1" y="-1.5" width={right + 2.2} height={board.height + 0.6} rx="0.5" fill={look.pcb === 'black' ? 'url(#pcb-black)' : 'url(#pcb)'} stroke="#0b0f14" stroke-width="0.08" />
 {#each [[-0.55, -0.95], [right + 0.55, -0.95], [-0.55, board.height - 2.05], [right + 0.55, board.height - 2.05]] as [x, y]}
   <circle cx={x} cy={y} r="0.32" fill="#0b0f14" stroke="#b9a35c" stroke-width="0.1" />
 {/each}
@@ -59,7 +74,7 @@
   <rect width="6.2" height="11.8" rx="0.15" fill="#1e2a20" stroke="#0e1410" stroke-width="0.06" />
   <path d="M0.6,0.6 h4.4 v0.5 h-4 v0.5 h4 v0.5 h-4 v0.5 h4.4" fill="none" stroke="#c8a64b" stroke-width="0.14" />
   <rect x="0.35" y="3.1" width="5.5" height="8.3" rx="0.2" fill="url(#shield)" stroke="#8b9097" stroke-width="0.06" />
-  <text x="3.1" y="6.2" font-size="0.5" text-anchor="middle" fill="#5b6068" font-weight="700">ESP32-WROOM-32</text>
+  <text x="3.1" y="6.2" font-size="0.5" text-anchor="middle" fill="#5b6068" font-weight="700">{look.module}</text>
   <text x="3.1" y="7.1" font-size="0.42" text-anchor="middle" fill="#6d727a">Wi-Fi · BT · 4 MB flash</text>
   <text x="3.1" y="10.6" font-size="0.36" text-anchor="middle" fill="#7d828a">CE · FCC</text>
 </g>
@@ -67,7 +82,7 @@
 <!-- Regulator, USB-UART chip, USB connector -->
 <rect x={right / 2 - 3.6} y={rows - 4.2} width="1.6" height="1.1" rx="0.1" fill="#222" />
 <rect x={right / 2 + 1.6} y={rows - 4.4} width="1.8" height="1.8" rx="0.1" fill="#1c1c1c" />
-<text x={right / 2 + 2.5} y={rows - 3.35} font-size="0.3" text-anchor="middle" fill="#888">CP2102</text>
+<text x={right / 2 + 2.5} y={rows - 3.35} font-size="0.3" text-anchor="middle" fill="#888">{look.usbChip}</text>
 <rect x={right / 2 - 1.7} y={board.height - 3} width="3.4" height="2" rx="0.25" fill="url(#usb)" stroke="#6b7076" stroke-width="0.06" />
 <rect x={right / 2 - 1.1} y={board.height - 2.55} width="2.2" height="0.7" rx="0.3" fill="#2d3035" />
 
@@ -81,8 +96,8 @@
     <!-- Driven pins light up the whole pad; idle pins show the gold square pin -->
     <rect x={pin.x - (driven ? 0.3 : 0.2)} y={pin.y - (driven ? 0.3 : 0.2)} width={driven ? 0.6 : 0.4} height={driven ? 0.6 : 0.4}
       rx="0.06" fill={fill} stroke={net.has(key) ? '#12a594' : 'none'} stroke-width="0.22" />
-    <text x={pin.x + (pin.x === 0 ? 0.62 : -0.62)} y={pin.y + 0.16} font-size="0.42" fill="#e4e9f0" font-family="ui-monospace, monospace"
-      text-anchor={pin.x === 0 ? 'start' : 'end'}>{pin.name.replace(/\.[LR]$/, '')}</text>
+    <text x={pin.x + (pin.x < right / 2 ? 0.62 : -0.62)} y={pin.y + 0.16} font-size="0.42" fill="#e4e9f0" font-family="ui-monospace, monospace"
+      text-anchor={pin.x < right / 2 ? 'start' : 'end'}>{pin.name.replace(/\.[LR]\d*$/, '')}</text>
   </g>
 {/each}
 
@@ -100,10 +115,12 @@
     </g>
   {:else if op.type === 'led'}
     {@const on = Number(observables[id]?.current ?? 0) > 5e-5}
+    {@const color = String(op.props?.color ?? 'blue')}
+    {@const lens = LED_LENS[color] ?? LED_LENS.blue!}
     <g transform="translate({op.x},{op.y})">
-      {#if on}<circle r="1.6" fill="url(#led-glow-blue)" />{/if}
-      <rect x="-0.35" y="-0.22" width="0.7" height="0.44" rx="0.06" fill={on ? '#cfe3ff' : '#8796ab'} stroke="#e8edf3" stroke-width="0.05" />
-      <text y="0.95" font-size="0.36" text-anchor="middle" fill="#e4e9f0">IO2</text>
+      {#if on}<circle r="1.6" fill="url(#led-glow-{color})" />{/if}
+      <rect x="-0.35" y="-0.22" width="0.7" height="0.44" rx="0.06" fill={on ? lens.on : lens.off} stroke="#e8edf3" stroke-width="0.05" />
+      <text y="0.95" font-size="0.36" text-anchor="middle" fill="#e4e9f0">{ledCaption(op)}</text>
     </g>
   {/if}
 {/each}

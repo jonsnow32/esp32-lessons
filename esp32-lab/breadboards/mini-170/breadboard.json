@@ -1,0 +1,28 @@
+{
+  "id": "mini-170",
+  "name": "Mini breadboard, 170 holes",
+  "columns": 17,
+  "blocks": [
+    {
+      "rows": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e"
+      ],
+      "y0": 0
+    },
+    {
+      "rows": [
+        "f",
+        "g",
+        "h",
+        "i",
+        "j"
+      ],
+      "y0": 7
+    }
+  ],
+  "rails": []
+}

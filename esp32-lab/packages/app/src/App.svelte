@@ -62,8 +62,15 @@
   <Home />
 {:else}
   <header>
-    <button class="back" onclick={() => lab.goHome()} title="Danh sách bài học">← Bài học</button>
-    <h1>{lab.route === FREE ? '🧪 Tự do' : (lab.lesson?.titleVi ?? lab.lesson?.title)}</h1>
+    <button class="back" onclick={() => lab.goHome()} title="Trang chủ: bài học và dự án mẫu">← Trang chủ</button>
+    {#if lab.mine}
+      {@const mine = lab.mine}
+      <h1>📁 {mine.title}</h1>
+      <button class="icon" title="Đổi tên dự án" onclick={() => { const t = prompt('Tên dự án', mine.title); if (t) lab.renameMyProject(mine.id, t); }}>✎</button>
+    {:else}
+      <h1>{lab.route === FREE ? '🧪 Tự do' : lab.featured ? `⭐ ${lab.featured.title}` : (lab.lesson?.titleVi ?? lab.lesson?.title)}</h1>
+      {#if lab.featured}<span class="original" title="Dự án mẫu không bị sửa: thay đổi đầu tiên sẽ tạo một bản sao của bạn">Bản gốc · sửa sẽ tạo bản sao</span>{/if}
+    {/if}
     <span class="sep"></span>
     <button class="primary" disabled={lab.build.status === 'building'} onclick={() => lab.runOrPause()}>{runLabel}</button>
     <button onclick={() => lab.reset()} disabled={lab.program.kind === 'none'} title="Khởi động lại chương trình, như nhấn nút EN">↺ Reset</button>
@@ -81,9 +88,11 @@
       <button onclick={() => (menuOpen = !menuOpen)} aria-haspopup="menu" aria-expanded={menuOpen} title="Thêm">⋯</button>
       {#if menuOpen}
         <div class="menu" role="menu">
-          <button role="menuitem" onclick={() => menu(() => confirm(lab.route === FREE ? 'Xoá hết mạch và code trong chế độ Tự do?' : 'Đưa mạch và code về như lúc mới mở bài? Phần bạn đã sửa sẽ mất.') && lab.restart())}>
-            ↺ {lab.route === FREE ? 'Xoá bàn và code' : 'Làm lại bài từ đầu'}
+          {#if !lab.featured}
+          <button role="menuitem" onclick={() => menu(() => confirm(lab.route === FREE ? 'Xoá hết mạch và code trong chế độ Tự do?' : (lab.mine ? 'Đưa mạch và code của bản sao về như dự án gốc? Phần bạn đã sửa sẽ mất.' : 'Đưa mạch và code về như lúc mới mở bài? Phần bạn đã sửa sẽ mất.')) && lab.restart())}>
+            ↺ {lab.route === FREE ? 'Xoá bàn và code' : lab.mine ? 'Đưa bản sao về như bản gốc' : 'Làm lại bài từ đầu'}
           </button>
+          {/if}
           <button role="menuitem" onclick={() => menu(() => (codeShare = codeShare > 0 ? 0 : 0.4))}>{codeShare > 0 ? 'Ẩn' : 'Hiện'} trình soạn code</button>
           {#if lab.envs.length}
             <div class="menu-head">Chạy bản build sẵn (.pio/build), bỏ qua editor</div>
@@ -97,6 +106,7 @@
   </header>
 
   {#if lab.halted}<div class="banner">Chip dừng: {lab.halted}</div>{/if}
+  {#if lab.notice}<div class="banner info" role="status">{lab.notice} <button onclick={() => (lab.notice = null)}>×</button></div>{/if}
   {#if lab.error}<div class="banner" role="alert">{lab.error} <button onclick={() => (lab.error = null)}>×</button></div>{/if}
   {#each damaged as d}<div class="banner warn">⚠ {d.message}</div>{/each}
 
@@ -142,6 +152,9 @@
   .menu-head { font-size: 11px; color: #8b8d98; padding: 8px 10px 2px; border-top: 1px solid #eee; margin-top: 4px; }
   .banner { padding: 6px 14px; background: #fff0f0; color: #ce2c31; font-size: 13px; border-bottom: 1px solid #fdd; }
   .banner.warn { background: #fff7ed; color: #cc4e00; }
+  .banner.info { background: #edf6ff; color: #0d74ce; border-bottom-color: #d5e8fb; }
+  .original { font-size: 11.5px; color: #8d5b00; background: #fff6d6; border: 1px solid #f3dd94; border-radius: 999px; padding: 1px 8px; }
+  .icon { padding: 2px 6px; font-size: 13px; }
   main { display: grid; grid-template-columns: 240px 1fr 360px; height: calc(100vh - 49px); }
   aside { background: #fcfcfb; overflow: auto; }
   .left { border-right: 1px solid #e4e2dd; }

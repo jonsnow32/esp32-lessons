@@ -1,0 +1,151 @@
+{
+  "id": "rgb-colors",
+  "order": 3,
+  "title": "LED RGB 7 màu",
+  "summary": "Bật tắt ba màu đỏ, xanh lá, xanh dương của một LED RGB để trộn ra 7 màu: vàng, tím, xanh ngọc, trắng…",
+  "tryIt": [
+    "Xem màu trộn trên LED và tên màu trong Serial Monitor.",
+    "Đổi thứ tự hoặc tốc độ trong mảng COLORS.",
+    "Xanh lá và xanh dương cần ~3 V nên sáng yếu hơn đỏ: thử đổi điện trở của chúng."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "rgb-colors",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "r1",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "d9",
+          "rot": 90
+        }
+      },
+      {
+        "id": "r2",
+        "type": "resistor",
+        "props": {
+          "resistance": 100
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "d11",
+          "rot": 90
+        }
+      },
+      {
+        "id": "r3",
+        "type": "resistor",
+        "props": {
+          "resistance": 100
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "d12",
+          "rot": 90
+        }
+      },
+      {
+        "id": "rgb1",
+        "type": "rgb-led",
+        "props": {
+          "common": "cathode"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "i9",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn1"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "j10"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn7"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "board",
+          "pin": "D21"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "a9"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "board",
+          "pin": "D19"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "a11"
+        },
+        "color": "#30a46c"
+      },
+      {
+        "id": "w5",
+        "a": {
+          "kind": "board",
+          "pin": "D18"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "a12"
+        },
+        "color": "#3e63dd"
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

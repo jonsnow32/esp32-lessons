@@ -1,0 +1,126 @@
+{
+  "id": "reaction-game",
+  "order": 6,
+  "title": "Trò chơi phản xạ",
+  "summary": "Nhấn nút để bắt đầu, đợi LED sáng rồi nhấn thật nhanh: Serial Monitor báo thời gian phản xạ và kỷ lục. Nhấn sớm là thua!",
+  "tryIt": [
+    "Mở Serial Monitor, nhấn nút trên breadboard để bắt đầu.",
+    "Đặt tốc độ mô phỏng 1× để chơi cho công bằng.",
+    "Thêm còi kêu khi phá kỷ lục."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "reaction-game",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "btn1",
+        "type": "pushbutton",
+        "props": {
+          "bounce": true
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "e3",
+          "rot": 0
+        }
+      },
+      {
+        "id": "r1",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "i13",
+          "rot": 90
+        }
+      },
+      {
+        "id": "led1",
+        "type": "led",
+        "props": {
+          "color": "red"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "j12",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn1"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "board",
+          "pin": "D4"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "g3"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "j5"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn3"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "board",
+          "pin": "D22"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f12"
+        },
+        "color": "#e5484d"
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "id": "traffic-light",
+  "order": 1,
+  "title": "Đèn giao thông",
+  "summary": "Ba LED đỏ, vàng, xanh đổi màu theo chu kỳ như ngã tư thật, hẹn giờ bằng millis() nên loop() không bao giờ bị chặn.",
+  "tryIt": [
+    "Bấm Chạy và xem Serial Monitor in ra từng pha đèn.",
+    "Đổi thời gian từng pha trong mảng PHASES rồi chạy lại.",
+    "Thêm pha \"đỏ + vàng\" (chuẩn bị đi) như đèn giao thông ở châu Âu."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "traffic-light",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "r1",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "i23",
+          "rot": 90
+        }
+      },
+      {
+        "id": "led1",
+        "type": "led",
+        "props": {
+          "color": "red"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "j22",
+          "rot": 0
+        }
+      },
+      {
+        "id": "r2",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "i17",
+          "rot": 90
+        }
+      },
+      {
+        "id": "led2",
+        "type": "led",
+        "props": {
+          "color": "yellow"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "j16",
+          "rot": 0
+        }
+      },
+      {
+        "id": "r3",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "i11",
+          "rot": 90
+        }
+      },
+      {
+        "id": "led3",
+        "type": "led",
+        "props": {
+          "color": "green"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "j10",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn1"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "board",
+          "pin": "D21"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f10"
+        },
+        "color": "#30a46c"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "board",
+          "pin": "D22"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f16"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "board",
+          "pin": "D23"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f22"
+        },
+        "color": "#e5484d"
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

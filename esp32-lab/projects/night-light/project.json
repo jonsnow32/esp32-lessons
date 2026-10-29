@@ -1,0 +1,137 @@
+{
+  "id": "night-light",
+  "order": 4,
+  "title": "Đèn ngủ tự động",
+  "summary": "Quang trở và điện trở 10 kΩ tạo cầu phân áp: trời sáng chân D4 đọc HIGH, trời tối đọc LOW và đèn tự bật.",
+  "tryIt": [
+    "Chọn quang trở, đổi \"light\" xuống 1 lux (phòng tối): đèn bật. Lên 300 lux: đèn tắt.",
+    "Ở khoảng 10 lux điện áp nằm giữa hai ngưỡng LOW/HIGH nên chân giữ nguyên trạng thái cũ (hysteresis). Bật chế độ Điện áp để xem.",
+    "Đổi chỗ quang trở và điện trở 10 kΩ, rồi sửa code cho đúng."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "night-light",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "ldr1",
+        "type": "photoresistor",
+        "props": {
+          "light": 300
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "j5",
+          "rot": 0
+        }
+      },
+      {
+        "id": "r2",
+        "type": "resistor",
+        "props": {
+          "resistance": 10000
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "i6",
+          "rot": 90
+        }
+      },
+      {
+        "id": "r1",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "i13",
+          "rot": 90
+        }
+      },
+      {
+        "id": "led1",
+        "type": "led",
+        "props": {
+          "color": "white"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "j12",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn1"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "board",
+          "pin": "3V3"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "g5"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "board",
+          "pin": "D4"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f6"
+        },
+        "color": "#f5d90a"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "board",
+          "pin": "D22"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f12"
+        },
+        "color": "#3e63dd"
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

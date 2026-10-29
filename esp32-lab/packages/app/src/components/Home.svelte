@@ -1,7 +1,8 @@
 <script lang="ts">
-  // Lesson picker: one card per lesson plus the sandbox. Each lesson keeps its own bench and
-  // code, so a card resumes where you left off.
-  import { LESSONS } from '../lib/catalog';
+  // Home: one card per lesson plus the sandbox, then the featured projects. Each keeps its own
+  // bench and code, so a card resumes where you left off.
+  import { FEATURED, LESSONS, PARTS } from '../lib/catalog';
+  import CircuitThumb from './CircuitThumb.svelte';
   import { FREE, lab, loadWorkspace } from '../lib/lab.svelte';
 
   const cards = LESSONS.map((l) => {
@@ -11,6 +12,18 @@
     return { lesson: l, started: !!ws, done, total };
   });
   const freeStarted = !!loadWorkspace(FREE);
+
+  /** Each featured project's parts, once per type, for the chips under its title. */
+  const featured = FEATURED.map((f) => {
+    const seen = new Set<string>();
+    const parts = f.project.parts.filter((p) => !seen.has(p.type) && seen.add(p.type));
+    return { f, parts };
+  });
+
+  /** The user's projects with their saved bench, for the thumbnails. */
+  let mine = $derived(lab.myProjects.map((p) => ({ p, ws: loadWorkspace(p.id), from: FEATURED.find((f) => f.id === p.from) })));
+
+  const when = (t: number) => new Date(t).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
 </script>
 
 <main>
@@ -40,6 +53,40 @@
       <span class="cta">{freeStarted ? 'Tiếp tục →' : 'Mở →'}</span>
     </button>
   </div>
+
+  <h2>Dự án mẫu</h2>
+  <p class="lead">Mạch và code đã sẵn sàng: mở ra, bấm ▶ Chạy, rồi sửa tuỳ ý. Mỗi dự án lưu bản của riêng bạn.</p>
+  <div class="grid">
+    {#each featured as { f, parts } (f.id)}
+      <button class="card project" onclick={() => lab.open(f.id)}>
+        <span class="thumb"><CircuitThumb project={f.project} /></span>
+        <span class="title">{f.title}</span>
+        <span class="summary">{f.summary}</span>
+        <span class="chips">{#each parts as p (p.id)}<span>{PARTS[p.type]!.manifest.name.replace(/ \(.*\)$/, '')}</span>{/each}</span>
+        <span class="cta">Mở dự án →</span>
+      </button>
+    {/each}
+  </div>
+
+  {#if mine.length}
+    <h2>Dự án của tôi</h2>
+    <p class="lead">Bản sao bạn đã sửa từ các dự án mẫu, lưu trên trình duyệt này.</p>
+    <div class="grid">
+      {#each mine as { p, ws, from } (p.id)}
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <div class="card project" role="button" tabindex="0" onclick={() => lab.open(p.id)} onkeydown={(e) => e.key === 'Enter' && lab.open(p.id)}>
+          <span class="thumb">{#if ws}<CircuitThumb project={ws.project} />{/if}</span>
+          <span class="title">{p.title}</span>
+          <span class="summary">{from ? `Từ dự án mẫu "${from.title}". ` : ''}Sửa lần cuối {when(p.updated)}.</span>
+          <span class="actions">
+            <span class="cta">Mở →</span>
+            <button title="Đổi tên" onclick={(e) => { e.stopPropagation(); const t = prompt('Tên dự án', p.title); if (t) lab.renameMyProject(p.id, t); }}>✎ Đổi tên</button>
+            <button title="Xoá dự án" onclick={(e) => { e.stopPropagation(); if (confirm(`Xoá "${p.title}"? Mạch và code của bản sao này sẽ mất.`)) lab.deleteMyProject(p.id); }}>🗑 Xoá</button>
+          </span>
+        </div>
+      {/each}
+    </div>
+  {/if}
 </main>
 
 <style>
@@ -57,5 +104,15 @@
   .progress { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #6f6e77; width: 100%; }
   .bar { flex: 1; height: 6px; border-radius: 3px; background: #efeee9; overflow: hidden; }
   .bar span { display: block; height: 100%; background: #30a46c; }
+  .lead { color: #60646c; font-size: 13.5px; margin: -4px 0 12px; }
+  h2:not(:first-of-type) { margin-top: 34px; }
+  .project { padding: 0 0 16px; overflow: hidden; }
+  .project > :not(.thumb) { margin: 0 18px; }
+  .thumb { display: block; width: 100%; height: 150px; padding: 8px; box-sizing: border-box; background: radial-gradient(circle at 50% 120%, #fbf3e4, #f1ece2); border-bottom: 1px solid #ece7dc; margin-bottom: 4px; }
+  .actions { display: flex; align-items: center; gap: 6px; width: calc(100% - 36px); }
+  .actions .cta { flex: 1; }
+  .actions button { font-size: 12px; padding: 2px 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chips span { font-size: 11px; color: #5b5e66; background: #f3f2ee; border-radius: 4px; padding: 1px 6px; }
   .cta { font-size: 13px; font-weight: 600; color: #f76b15; }
 </style>

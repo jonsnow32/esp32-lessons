@@ -1,0 +1,431 @@
+{
+  "id": "esp32-devkitc-v4",
+  "name": "ESP32-DevKitC V4 (38-pin, ESP32-WROOM-32)",
+  "mcu": "esp32",
+  "width": 11,
+  "height": 23,
+  "look": {
+    "pcb": "black",
+    "module": "ESP32-WROOM-32",
+    "usbChip": "CP2102N"
+  },
+  "pins": [
+    {
+      "name": "3V3",
+      "x": 0,
+      "y": 0,
+      "connect": {
+        "net": "3V3"
+      }
+    },
+    {
+      "name": "EN",
+      "x": 0,
+      "y": 1,
+      "connect": {
+        "pad": "EN"
+      }
+    },
+    {
+      "name": "SVP",
+      "x": 0,
+      "y": 2,
+      "connect": {
+        "pad": "GPIO36"
+      }
+    },
+    {
+      "name": "SVN",
+      "x": 0,
+      "y": 3,
+      "connect": {
+        "pad": "GPIO39"
+      }
+    },
+    {
+      "name": "IO34",
+      "x": 0,
+      "y": 4,
+      "connect": {
+        "pad": "GPIO34"
+      }
+    },
+    {
+      "name": "IO35",
+      "x": 0,
+      "y": 5,
+      "connect": {
+        "pad": "GPIO35"
+      }
+    },
+    {
+      "name": "IO32",
+      "x": 0,
+      "y": 6,
+      "connect": {
+        "pad": "GPIO32"
+      }
+    },
+    {
+      "name": "IO33",
+      "x": 0,
+      "y": 7,
+      "connect": {
+        "pad": "GPIO33"
+      }
+    },
+    {
+      "name": "IO25",
+      "x": 0,
+      "y": 8,
+      "connect": {
+        "pad": "GPIO25"
+      }
+    },
+    {
+      "name": "IO26",
+      "x": 0,
+      "y": 9,
+      "connect": {
+        "pad": "GPIO26"
+      }
+    },
+    {
+      "name": "IO27",
+      "x": 0,
+      "y": 10,
+      "connect": {
+        "pad": "GPIO27"
+      }
+    },
+    {
+      "name": "IO14",
+      "x": 0,
+      "y": 11,
+      "connect": {
+        "pad": "GPIO14"
+      }
+    },
+    {
+      "name": "IO12",
+      "x": 0,
+      "y": 12,
+      "connect": {
+        "pad": "GPIO12"
+      }
+    },
+    {
+      "name": "GND.L",
+      "x": 0,
+      "y": 13,
+      "connect": {
+        "net": "GND"
+      }
+    },
+    {
+      "name": "IO13",
+      "x": 0,
+      "y": 14,
+      "connect": {
+        "pad": "GPIO13"
+      }
+    },
+    {
+      "name": "SD2",
+      "x": 0,
+      "y": 15,
+      "connect": {
+        "pad": "GPIO9"
+      }
+    },
+    {
+      "name": "SD3",
+      "x": 0,
+      "y": 16,
+      "connect": {
+        "pad": "GPIO10"
+      }
+    },
+    {
+      "name": "CMD",
+      "x": 0,
+      "y": 17,
+      "connect": {
+        "pad": "GPIO11"
+      }
+    },
+    {
+      "name": "5V",
+      "x": 0,
+      "y": 18,
+      "connect": {
+        "net": "5V"
+      }
+    },
+    {
+      "name": "GND.R",
+      "x": 10,
+      "y": 0,
+      "connect": {
+        "net": "GND"
+      }
+    },
+    {
+      "name": "IO23",
+      "x": 10,
+      "y": 1,
+      "connect": {
+        "pad": "GPIO23"
+      }
+    },
+    {
+      "name": "IO22",
+      "x": 10,
+      "y": 2,
+      "connect": {
+        "pad": "GPIO22"
+      }
+    },
+    {
+      "name": "TXD0",
+      "x": 10,
+      "y": 3,
+      "connect": {
+        "pad": "GPIO1"
+      }
+    },
+    {
+      "name": "RXD0",
+      "x": 10,
+      "y": 4,
+      "connect": {
+        "pad": "GPIO3"
+      }
+    },
+    {
+      "name": "IO21",
+      "x": 10,
+      "y": 5,
+      "connect": {
+        "pad": "GPIO21"
+      }
+    },
+    {
+      "name": "GND.R2",
+      "x": 10,
+      "y": 6,
+      "connect": {
+        "net": "GND"
+      }
+    },
+    {
+      "name": "IO19",
+      "x": 10,
+      "y": 7,
+      "connect": {
+        "pad": "GPIO19"
+      }
+    },
+    {
+      "name": "IO18",
+      "x": 10,
+      "y": 8,
+      "connect": {
+        "pad": "GPIO18"
+      }
+    },
+    {
+      "name": "IO5",
+      "x": 10,
+      "y": 9,
+      "connect": {
+        "pad": "GPIO5"
+      }
+    },
+    {
+      "name": "IO17",
+      "x": 10,
+      "y": 10,
+      "connect": {
+        "pad": "GPIO17"
+      }
+    },
+    {
+      "name": "IO16",
+      "x": 10,
+      "y": 11,
+      "connect": {
+        "pad": "GPIO16"
+      }
+    },
+    {
+      "name": "IO4",
+      "x": 10,
+      "y": 12,
+      "connect": {
+        "pad": "GPIO4"
+      }
+    },
+    {
+      "name": "IO0",
+      "x": 10,
+      "y": 13,
+      "connect": {
+        "pad": "GPIO0"
+      }
+    },
+    {
+      "name": "IO2",
+      "x": 10,
+      "y": 14,
+      "connect": {
+        "pad": "GPIO2"
+      }
+    },
+    {
+      "name": "IO15",
+      "x": 10,
+      "y": 15,
+      "connect": {
+        "pad": "GPIO15"
+      }
+    },
+    {
+      "name": "SD1",
+      "x": 10,
+      "y": 16,
+      "connect": {
+        "pad": "GPIO8"
+      }
+    },
+    {
+      "name": "SD0",
+      "x": 10,
+      "y": 17,
+      "connect": {
+        "pad": "GPIO7"
+      }
+    },
+    {
+      "name": "CLK",
+      "x": 10,
+      "y": 18,
+      "connect": {
+        "pad": "GPIO6"
+      }
+    }
+  ],
+  "supplies": [
+    {
+      "name": "USB VBUS",
+      "net": "5V",
+      "volts": 5.0,
+      "rOut": 0.3,
+      "currentMax": 0.5
+    },
+    {
+      "name": "AMS1117-3.3",
+      "net": "3V3",
+      "volts": 3.3,
+      "rOut": 0.1,
+      "currentMax": 0.8
+    }
+  ],
+  "onboard": [
+    {
+      "id": "pwr",
+      "type": "led",
+      "label": "Power LED",
+      "props": {
+        "color": "red"
+      },
+      "connect": {
+        "anode": {
+          "node": "pwr_a"
+        },
+        "cathode": {
+          "net": "GND"
+        }
+      },
+      "x": 5.5,
+      "y": 19.2
+    },
+    {
+      "id": "r_pwr",
+      "type": "resistor",
+      "props": {
+        "resistance": 1000
+      },
+      "connect": {
+        "a": {
+          "net": "3V3"
+        },
+        "b": {
+          "node": "pwr_a"
+        }
+      }
+    },
+    {
+      "id": "r_boot",
+      "type": "resistor",
+      "label": "GPIO0 pull-up",
+      "props": {
+        "resistance": 10000
+      },
+      "connect": {
+        "a": {
+          "net": "3V3"
+        },
+        "b": {
+          "pad": "GPIO0"
+        }
+      }
+    },
+    {
+      "id": "boot",
+      "type": "pushbutton",
+      "label": "BOOT",
+      "connect": {
+        "a1": {
+          "pad": "GPIO0"
+        },
+        "b1": {
+          "net": "GND"
+        }
+      },
+      "x": 8.3,
+      "y": 20.6
+    },
+    {
+      "id": "r_en",
+      "type": "resistor",
+      "label": "EN pull-up",
+      "props": {
+        "resistance": 10000
+      },
+      "connect": {
+        "a": {
+          "net": "3V3"
+        },
+        "b": {
+          "pad": "EN"
+        }
+      }
+    },
+    {
+      "id": "en",
+      "type": "pushbutton",
+      "label": "EN (reset)",
+      "connect": {
+        "a1": {
+          "pad": "EN"
+        },
+        "b1": {
+          "net": "GND"
+        }
+      },
+      "x": 1.7,
+      "y": 20.6
+    }
+  ]
+}

@@ -3,18 +3,21 @@
   //
   // One pointer (mouse, pen or finger):
   //   on a part      → move it            on a hole / pin → draw a wire
-  //   on empty space → pan                tap             → select
+  //   on empty space → pan                tap             → select (also a breadboard or the board)
+  //   on the selected breadboard or board → move it
   // Two fingers pinch to zoom and pan; the mouse wheel / trackpad pinch zooms at the cursor.
   // While a finger drags a part or wire, a loupe above the finger shows what is underneath.
   //
   // Drags are tracked on the window, not on the element where they started: on touch screens
   // the browser keeps sending a finger's events to its first target, so a drag from the parts
-  // library would otherwise never reach the workbench.
+  // library would otherwise never reach the workbench. A breadboard dragged in from the library
+  // arrives as dragType "bb:<type>".
 
   import type { Endpoint, Rotation } from '@esp32lab/project-model';
   import { ESP32_PADS } from '@esp32lab/mcu-esp32';
   import { PARTS } from '../lib/catalog';
-  import { board, breadboard, endpointAt, endpointPos, holePos, onBreadboard, partAnchor, pinPos, sameEndpoint, terminalPos, type Pt } from '../lib/geometry';
+  import { benchBounds, board, boardBox, breadboard, breadboardAt, breadboardBox, endpointAt, endpointPos, holePos, onBoard, onBreadboard, partAnchor, pinPos, sameEndpoint, terminalPos, wirePath, type Pt } from '../lib/geometry';
+  import { SCENE_DEFS } from '../lib/scene';
   import { endpointKey } from '@esp32lab/sim-core';
   import { lab } from '../lib/lab.svelte';
   import BoardView from './BoardView.svelte';
@@ -31,7 +34,10 @@
   let moving = $state<{ id: string; type: string; rot: Rotation; moved: boolean } | null>(null);
   /** Rotation of a new part being dragged in from the library (R while dragging turns it). */
   let dragRot = $state<Rotation>(0);
-  let pan: { start: Pt; view: typeof view; moved: boolean } | null = null;
+  /** Panning, and what a tap without moving selects (a breadboard id, 'board' or nothing). */
+  let pan: { start: Pt; view: typeof view; moved: boolean; tapped?: string } | null = null;
+  /** The selected breadboard (its id) or 'board' being dragged to another spot. */
+  let shifting = $state<{ target: string; start: Pt; from: Pt; moved: boolean } | null>(null);
   let downAt: Pt | null = null;
 
   /** Active touch points on the workbench, for pinch. */
@@ -39,10 +45,6 @@
   let pinch: { dist: number; mid: Pt; view: typeof view } | null = null;
 
   const TAP = 0.35;
-  const allDefs = Object.values(PARTS)
-    .map((m) => m.defs ?? '')
-    .join('');
-
   function toWorld(clientX: number, clientY: number): Pt {
     const m = svg.getScreenCTM()!.inverse();
     const p = new DOMPoint(clientX, clientY).matrixTransform(m);
@@ -54,7 +56,16 @@
     return ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
   }
 
-  let dragging = $derived(!!dragType || !!moving || !!wireFrom);
+  let dragging = $derived(!!dragType || !!moving || !!wireFrom || !!shifting);
+
+  /** Breadboard type being dragged in from the library, and where its a1 hole would go. */
+  let bbGhost = $derived(
+    dragType?.startsWith('bb:') && pointer ? { type: dragType.slice(3), at: { x: Math.round(pointer.x), y: Math.round(pointer.y) } } : null,
+  );
+
+  function positionOf(target: string): Pt | undefined {
+    return target === 'board' ? lab.project.board : lab.project.breadboards.find((b) => b.id === target);
+  }
 
   /**
    * Where a part being placed or moved would go: the hole under the pointer (its first leg), or,
@@ -62,7 +73,7 @@
    */
   let ghost = $derived.by(() => {
     const type = dragType ?? moving?.type;
-    if (!type || !pointer || (moving && !moving.moved)) return null;
+    if (!type || type.startsWith('bb:') || !pointer || (moving && !moving.moved)) return null;
     const e = endpointAt(lab.project, pointer);
     const rot = moving?.rot ?? dragRot;
     if (e?.kind === 'hole') {
@@ -89,6 +100,8 @@
         wireFrom = null;
         moving = null;
         pan = null;
+        if (shifting?.moved) lab.commit();
+        shifting = null;
         startPinch();
         return;
       }
@@ -97,8 +110,16 @@
     pointer = p;
     downAt = p;
     const e = endpointAt(lab.project, p);
-    if (e) wireFrom = e;
-    else pan = { start: { x: ev.clientX, y: ev.clientY }, view: { ...view }, moved: false };
+    if (e) {
+      wireFrom = e;
+      return;
+    }
+    // The board is drawn over the breadboards
+    const target = onBoard(lab.project, p) ? 'board' : breadboardAt(lab.project, p);
+    const s = lab.selection;
+    const selected = target && ((target === 'board' && s?.kind === 'board') || (s?.kind === 'breadboard' && s.id === target));
+    if (selected) shifting = { target, start: p, from: { ...positionOf(target)! }, moved: false };
+    else pan = { start: { x: ev.clientX, y: ev.clientY }, view: { ...view }, moved: false, tapped: target };
   }
 
   function startMove(ev: PointerEvent, id: string) {
@@ -129,6 +150,18 @@
       view = { ...pan.view, x: pan.view.x - dx, y: pan.view.y - dy };
       return;
     }
+    if (shifting) {
+      // Whole pitches, so holes stay on the grid the parts snap to
+      const x = shifting.from.x + Math.round(p.x - shifting.start.x);
+      const y = shifting.from.y + Math.round(p.y - shifting.start.y);
+      const at = positionOf(shifting.target);
+      if (at && (at.x !== x || at.y !== y)) {
+        at.x = x;
+        at.y = y;
+        shifting.moved = true;
+      }
+      return;
+    }
     pointer = inside(ev) ? p : dragging ? p : null;
     hover = pointer ? endpointAt(lab.project, p) : null;
     if (moving && downAt && Math.hypot(p.x - downAt.x, p.y - downAt.y) > TAP) moving.moved = true;
@@ -144,7 +177,8 @@
     const p = toWorld(ev.clientX, ev.clientY);
     const over = inside(ev);
     if (dragType) {
-      if (over && ghost?.ok && ghost.hole) lab.addPart(dragType, ghost.hole.bb, ghost.hole.hole, dragRot);
+      if (over && bbGhost) lab.addBreadboard(bbGhost.type, bbGhost.at.x, bbGhost.at.y);
+      else if (over && ghost?.ok && ghost.hole) lab.addPart(dragType, ghost.hole.bb, ghost.hole.hole, dragRot);
       else if (over && ghost?.bench) lab.addPartOnBench(dragType, ghost.at.x, ghost.at.y, dragRot);
       dragType = null;
       dragRot = 0;
@@ -160,8 +194,15 @@
       if (to && !sameEndpoint(to, wireFrom)) lab.addWire(wireFrom, to);
       wireFrom = null;
     }
+    if (shifting) {
+      if (shifting.moved) lab.commit();
+      shifting = null;
+    }
     if (pan) {
-      if (!pan.moved) lab.selection = null;
+      if (!pan.moved) {
+        const t = pan.tapped;
+        lab.selection = t === 'board' ? { kind: 'board' } : t ? { kind: 'breadboard', id: t } : null;
+      }
       pan = null;
     }
     // On touch, keep the last tapped point under the probe; just forget the pointer
@@ -220,8 +261,14 @@
     }
   }
 
+  /** Frame everything on the bench, keeping the workbench's aspect ratio. */
   function fit() {
-    view = { x: -5, y: -6, w: 54, h: 30 };
+    const r = svg.getBoundingClientRect();
+    const k = benchBounds(lab.project, 2);
+    const aspect = r.height / Math.max(1, r.width);
+    const w = Math.min(160, Math.max(12, k.w, k.h / aspect));
+    const h = w * aspect;
+    view = { x: k.x + k.w / 2 - w / 2, y: k.y + k.h / 2 - h / 2, w, h };
   }
 
   function onKey(ev: KeyboardEvent) {
@@ -264,12 +311,6 @@
     const full: Record<string, unknown> = {};
     for (const [k, s] of Object.entries(m.manifest.props)) full[k] = props[k] ?? s.default;
     return m.view(full as never, obs as never);
-  }
-
-  function wirePath(a: Pt, b: Pt): string {
-    const mx = (a.x + b.x) / 2;
-    const my = (a.y + b.y) / 2 + Math.min(3, Math.hypot(b.x - a.x, b.y - a.y) * 0.15);
-    return `M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`;
   }
 
   function pinFill(pin: string): string {
@@ -403,8 +444,8 @@
       const key = endpointKey(hover);
       const net = lab.netOf(hover);
       const pinOnNet = [...net].find((k) => k.startsWith('bp:'));
-      const where = hover.kind === 'board' ? hover.pin.replace(/\.[LR]$/, '') : hover.kind === 'hole' ? `Lỗ ${hover.hole}` : key;
-      const tail = pinOnNet && pinOnNet !== key ? ` · cùng mạch với ${pinOnNet.slice(3).replace(/\.[LR]$/, '')}` : '';
+      const where = hover.kind === 'board' ? hover.pin.replace(/\.[LR]\d*$/, '') : hover.kind === 'hole' ? `Lỗ ${hover.hole}` : key;
+      const tail = pinOnNet && pinOnNet !== key ? ` · cùng mạch với ${pinOnNet.slice(3).replace(/\.[LR]\d*$/, '')}` : '';
       return `${where}: ${fmtV(lab.voltages[key])}${tail}`;
     }
     return null;
@@ -424,15 +465,9 @@
   <svg bind:this={svg} class="bench" class:grabbing={!!pan} viewBox="{view.x} {view.y} {view.w} {view.h}"
     onpointerdown={onSvgDown} onwheel={onWheel} onpointerleave={() => pointerType !== 'touch' && !dragging && (hover = null)}>
     <defs>
-      <linearGradient id="bb-body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf9f4" /><stop offset="1" stop-color="#ece7dc" /></linearGradient>
-      <radialGradient id="bb-hole" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#6b6b6b" /><stop offset="1" stop-color="#2b2b2b" /></radialGradient>
-      <linearGradient id="pcb" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22344a" /><stop offset="1" stop-color="#16222f" /></linearGradient>
-      <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e6e9ec" /><stop offset="0.5" stop-color="#c4c9cf" /><stop offset="1" stop-color="#a7adb4" /></linearGradient>
-      <linearGradient id="usb" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e1e4e8" /><stop offset="1" stop-color="#9aa0a7" /></linearGradient>
-      <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3dc8a" /><stop offset="1" stop-color="#b8923a" /></linearGradient>
+      {@html SCENE_DEFS}
       <filter id="lift" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0.15" dy="0.25" stdDeviation="0.2" flood-opacity="0.35" /></filter>
       <clipPath id="loupe-clip"><circle r={LOUPE_R} /></clipPath>
-      {@html allDefs}
     </defs>
 
     <g id="scene">
@@ -445,10 +480,31 @@
         {/if}
       {/each}
 
+      {#if bbGhost}
+        {@const bb = breadboard(bbGhost.type)}
+        {#if bb}
+          <g transform="translate({bbGhost.at.x},{bbGhost.at.y})" opacity="0.6" pointer-events="none">
+            <BreadboardView id="ghost" {bb} net={new Set()} here={null} />
+          </g>
+        {/if}
+      {/if}
+
       <g transform="translate({lab.project.board.x},{lab.project.board.y})" filter="url(#lift)">
         <BoardView board={b} net={hoverNet} observables={lab.observables} {pinFill} {pinHint}
           onpress={(id) => lab.press(id)} onrelease={(id) => lab.release(id)} />
       </g>
+
+      <!-- Selected breadboard or board: drag it to move it -->
+      {#if lab.selection?.kind === 'board' || lab.selection?.kind === 'breadboard'}
+        {@const sel = lab.selection}
+        {@const inst = sel.kind === 'breadboard' ? lab.project.breadboards.find((q) => q.id === sel.id) : undefined}
+        {@const at = sel.kind === 'board' ? lab.project.board : inst}
+        {@const box = sel.kind === 'board' ? boardBox(b) : inst && breadboardBox(inst.type)}
+        {#if at && box}
+          <rect x={at.x + box.x - 0.3} y={at.y + box.y - 0.3} width={box.w + 0.6} height={box.h + 0.6} rx="0.8"
+            class="outline" class:moving={!!shifting} pointer-events="none" />
+        {/if}
+      {/if}
 
       {#each lab.project.parts as part (part.id)}
         {@const anchor = partAnchor(lab.project, part)}
@@ -608,6 +664,15 @@
   }
   .press {
     cursor: pointer;
+  }
+  .outline {
+    fill: none;
+    stroke: #f76b15;
+    stroke-width: 0.14;
+    stroke-dasharray: 0.6 0.35;
+  }
+  .outline.moving {
+    fill: #f76b1510;
   }
   .wire {
     cursor: pointer;

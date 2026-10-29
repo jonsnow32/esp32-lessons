@@ -51,15 +51,60 @@ export function terminalPos(project: Project, part: PartInstance, terminal: stri
   return { x: anchor.at.x + dx, y: anchor.at.y + dy };
 }
 
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The plastic of a breadboard type, relative to its a1 hole (as BreadboardView draws it). */
+export function breadboardBox(type: string): Box | undefined {
+  const def = breadboard(type)?.def;
+  if (!def) return undefined;
+  const top = Math.min(0, ...def.rails.map((r) => r.y)) - 1.2;
+  const bottom = Math.max(...def.rails.map((r) => r.y), ...def.blocks.map((k) => k.y0 + k.rows.length - 1)) + 1.2;
+  return { x: -1.6, y: top, w: def.columns + 2.2, h: bottom - top };
+}
+
+/** The board's PCB, relative to its first header pin (as BoardView draws it). */
+export function boardBox(def: BoardDef): Box {
+  const right = Math.max(...def.pins.map((p) => p.x));
+  return { x: -1.1, y: -3.4, w: right + 2.2, h: def.height + 2.5 };
+}
+
+const inBox = (p: Pt, at: Pt, b: Box) => p.x > at.x + b.x && p.x < at.x + b.x + b.w && p.y > at.y + b.y && p.y < at.y + b.y + b.h;
+
+/** The breadboard under the point (the top one where they overlap), if any. */
+export function breadboardAt(project: Project, p: Pt): string | undefined {
+  return [...project.breadboards].reverse().find((inst) => {
+    const b = breadboardBox(inst.type);
+    return b && inBox(p, inst, b);
+  })?.id;
+}
+
 /** Is the point over a breadboard (holes, rails or the plastic around them)? */
 export function onBreadboard(project: Project, p: Pt): boolean {
-  return project.breadboards.some((inst) => {
-    const holes = [...(breadboard(inst.type)?.holes.values() ?? [])];
-    if (!holes.length) return false;
-    const xs = holes.map((h) => inst.x + h.x);
-    const ys = holes.map((h) => inst.y + h.y);
-    return p.x > Math.min(...xs) - 1.5 && p.x < Math.max(...xs) + 1.5 && p.y > Math.min(...ys) - 1.5 && p.y < Math.max(...ys) + 1.5;
-  });
+  return breadboardAt(project, p) !== undefined;
+}
+
+export function onBoard(project: Project, p: Pt): boolean {
+  return inBox(p, project.board, boardBox(board(project)));
+}
+
+/** Everything on the bench (board, breadboards, parts lying beside them), with a margin. */
+export function benchBounds(project: Project, margin = 1): Box {
+  const boxes: Box[] = [];
+  const b = boardBox(board(project));
+  boxes.push({ ...b, x: project.board.x + b.x, y: project.board.y + b.y });
+  for (const inst of project.breadboards) {
+    const bb = breadboardBox(inst.type);
+    if (bb) boxes.push({ ...bb, x: inst.x + bb.x, y: inst.y + bb.y });
+  }
+  for (const part of project.parts) if (part.bench) boxes.push({ x: part.bench.x - 2, y: part.bench.y - 3, w: 4, h: 4 });
+  const x = Math.min(...boxes.map((k) => k.x)) - margin;
+  const y = Math.min(...boxes.map((k) => k.y)) - margin;
+  return { x, y, w: Math.max(...boxes.map((k) => k.x + k.w)) + margin - x, h: Math.max(...boxes.map((k) => k.y + k.h)) + margin - y };
 }
 
 export function endpointPos(project: Project, e: Endpoint): Pt | undefined {
@@ -95,4 +140,11 @@ export function endpointAt(project: Project, p: Pt): Endpoint | null {
 
 export function sameEndpoint(a: Endpoint, b: Endpoint): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** A wire as a gentle sag between its two ends. */
+export function wirePath(a: Pt, b: Pt): string {
+  const mx = (a.x + b.x) / 2;
+  const my = (a.y + b.y) / 2 + Math.min(3, Math.hypot(b.x - a.x, b.y - a.y) * 0.15);
+  return `M${a.x},${a.y} Q${mx},${my} ${b.x},${b.y}`;
 }

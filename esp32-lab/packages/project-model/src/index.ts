@@ -111,6 +111,8 @@ export interface BoardDef {
   supplies: BoardSupply[];
   /** Parts soldered on the board, built from the same part packages as user parts. */
   onboard: BoardPart[];
+  /** How the UI draws it; DevKit V1 look (blue PCB, ESP32-WROOM-32, CP2102) when omitted. */
+  look?: { pcb?: 'blue' | 'black'; module?: string; usbChip?: string };
 }
 
 // ---------------------------------------------------------------------------

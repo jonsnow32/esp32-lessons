@@ -1,11 +1,16 @@
 <script lang="ts">
   // Selected part: editable props from its manifest and live observables from the solver.
-  import { PARTS } from '../lib/catalog';
+  // Selected breadboard or board: what it is, and what can be done with it.
+  import { BOARDS, PARTS } from '../lib/catalog';
+  import { breadboard } from '../lib/geometry';
   import { lab } from '../lib/lab.svelte';
 
   let part = $derived(lab.selection?.kind === 'part' ? lab.part(lab.selection.id) : undefined);
   let manifest = $derived(part ? PARTS[part.type]?.manifest : undefined);
   let obs = $derived(part ? lab.observables[part.id] ?? {} : {});
+  let bbInst = $derived(lab.selection?.kind === 'breadboard' ? lab.project.breadboards.find((b) => b.id === (lab.selection as { id: string }).id) : undefined);
+  let bb = $derived(bbInst && breadboard(bbInst.type));
+  let plugged = $derived(bbInst ? lab.project.parts.filter((p) => p.placement?.bb === bbInst!.id).length : 0);
 
   function fmt(key: string, v: unknown): string {
     if (typeof v !== 'number') return String(v);
@@ -65,6 +70,17 @@
   </section>
 {:else if lab.selection?.kind === 'wire'}
   <section><h2>Dây nối</h2><button onclick={() => lab.deleteSelected()}>Xoá dây (Del)</button></section>
+{:else if bbInst && bb}
+  <section>
+    <h2>{bbInst.id} <span class="type">{bb.def.name}</span></h2>
+    <p class="note">{bb.holes.size} lỗ · kéo để di chuyển.{#if plugged} Xoá breadboard sẽ xoá luôn {plugged} linh kiện đang cắm trên nó.{/if}</p>
+    <button onclick={() => lab.deleteSelected()}>Xoá breadboard (Del)</button>
+  </section>
+{:else if lab.selection?.kind === 'board'}
+  <section>
+    <h2>Board <span class="type">{BOARDS[lab.project.board.type]?.name}</span></h2>
+    <p class="note">Kéo để di chuyển. Đổi board ở mục Board bên trái: dây nối giữ nguyên theo chân GPIO.</p>
+  </section>
 {/if}
 
 <style>
@@ -79,6 +95,7 @@
   dt { color: #8b8d98; } dd { margin: 0; font-family: ui-monospace, monospace; }
   .bad { color: #e5484d; font-weight: 700; }
   .actions { display: flex; gap: 6px; }
+  .note { font-size: 12.5px; color: #6f6e77; margin: 0 0 8px; }
   .learn { font-size: 12.5px; line-height: 1.5; background: #f6f8ff; border: 1px solid #dfe6ff; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
   .learn p { margin: 0 0 6px; }
   .learn ul { margin: 2px 0 6px; padding-left: 18px; }

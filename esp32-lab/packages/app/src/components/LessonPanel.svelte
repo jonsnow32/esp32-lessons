@@ -3,6 +3,8 @@
   import { lab } from '../lib/lab.svelte';
 
   let lesson = $derived(lab.lesson);
+  // A copy keeps showing its original's description and suggestions
+  let featured = $derived(lab.source);
   const result = (id: string) => lab.steps.find((s) => s.id === id);
   const passed = (id: string) => result(id)?.pass ?? false;
 </script>
@@ -43,6 +45,16 @@
     {/if}
     <p class="src">Lý thuyết: <code>{lesson.source}</code></p>
   </section>
+{:else if featured}
+  <section>
+    <h2>{lab.mine ? `Bản sao của: ${featured.title}` : 'Dự án mẫu'}</h2>
+    <p class="about">{featured.summary}</p>
+    <h3>Thử xem</h3>
+    <ol>
+      {#each featured.tryIt as t, i (i)}<li><span class="mark">{i + 1}</span><div>{t}</div></li>{/each}
+    </ol>
+    <p class="src">Bấm ▶ Chạy: code được build bằng PlatformIO trên máy (~10 s) rồi chạy trên board giả lập.</p>
+  </section>
 {/if}
 
 <style>
@@ -56,5 +68,6 @@
   .hint { font-size: 12px; color: #6f6e77; margin-top: 2px; }
   .fail { font-size: 12px; color: #e5484d; }
   .small { margin-top: 4px; font-size: 12px; padding: 2px 8px; }
+  .about { font-size: 13px; line-height: 1.5; margin: 0 0 6px; color: #3a3d42; }
   .src { font-size: 11px; color: #8b8d98; margin: 10px 0 0; }
 </style>

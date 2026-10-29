@@ -68,7 +68,7 @@ export function explain(ctx: ExplainContext): Note[] {
   const pinOfNet = new Map<number, string>();
   for (const pin of board.pins) {
     const n = net(keyOf.boardPin(pin.name));
-    if (n !== undefined && !pinOfNet.has(n)) pinOfNet.set(n, pin.name.replace(/\.[LR]$/, ''));
+    if (n !== undefined && !pinOfNet.has(n)) pinOfNet.set(n, pin.name.replace(/\.[LR]\d*$/, ''));
   }
   pinOfNet.set(0, 'GND');
   const padOfPin = (pin: string) => {
