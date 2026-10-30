@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "name": "LED 5 mm",
   "category": "output",
+  "stock": [
+    "color"
+  ],
   "tags": [
     "through-hole",
     "diode"

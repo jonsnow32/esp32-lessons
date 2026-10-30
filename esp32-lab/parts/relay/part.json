@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "name": "Module relay 5 V (1 kênh)",
   "category": "output",
+  "stock": [
+    "trigger"
+  ],
   "tags": [
     "module",
     "switch",

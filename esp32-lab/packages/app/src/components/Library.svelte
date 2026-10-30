@@ -6,6 +6,7 @@
   import { BOARDS, BREADBOARDS, LESSONS, PARTS } from '../lib/catalog';
   import { breadboard } from '../lib/geometry';
   import { lab } from '../lib/lab.svelte';
+  import Icon from './Icon.svelte';
 
   let { dragType = $bindable<string | null>(null) } = $props();
 
@@ -63,14 +64,14 @@
 
 {#snippet head(key: string, label: string, n?: number)}
   <button class="group" aria-expanded={!collapsed[key]} onclick={() => (collapsed[key] = !collapsed[key])}>
-    <span class="chev">{collapsed[key] ? '▸' : '▾'}</span>{label}{#if n !== undefined}<span class="n">{n}</span>{/if}
+    <Icon name={collapsed[key] ? 'chevron-right' : 'chevron-down'} size={11} />{label}{#if n !== undefined}<span class="n">{n}</span>{/if}
   </button>
 {/snippet}
 
 <section>
   <div class="toolbar">
     <div class="search">
-      <span class="glass" aria-hidden="true">⌕</span>
+      <span class="glass"><Icon name="search" size={14} /></span>
       <input type="search" placeholder="Tìm linh kiện… (vd: led, cam bien, i2c)" bind:value={query} onkeydown={(e) => e.key === 'Escape' && (query = '')} aria-label="Tìm linh kiện" />
     </div>
     <div class="chips" role="group" aria-label="Lọc theo nhóm">
@@ -141,7 +142,7 @@
   /* Search and category chips stay at the top while the list scrolls */
   .toolbar { position: sticky; top: 0; z-index: 2; background: var(--surface-2); margin: 0 -10px 4px; padding: 10px 10px 8px; border-bottom: 1px solid var(--line-soft); }
   .search { position: relative; }
-  .glass { position: absolute; left: 9px; top: 50%; transform: translateY(-52%); color: var(--ink-3); font-size: 15px; pointer-events: none; }
+  .glass { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); display: flex; color: var(--ink-3); pointer-events: none; }
   .search input { width: 100%; box-sizing: border-box; padding-left: 28px; font-size: 13px; }
   .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
   .chips button { font: 600 10.5px var(--font-mono); text-transform: uppercase; letter-spacing: .05em; padding: 3px 7px; color: var(--ink-2); background: var(--surface); border-color: var(--line); }
@@ -152,7 +153,7 @@
   /* Group headers fold their part of the list */
   .group { display: flex; align-items: center; gap: 6px; width: 100%; margin: 10px 0 6px; padding: 4px 0; background: none; border: none; border-bottom: 1px solid var(--line-soft); font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .09em; color: var(--ink-3); text-align: left; cursor: pointer; }
   .group:hover { color: var(--ink); }
-  .group .chev { width: 10px; color: var(--ink-4); }
+  .group :global(.ico) { color: var(--ink-4); }
   .group .n { margin-left: auto; font-weight: 400; color: var(--ink-4); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
   .tile { position: relative; touch-action: none; -webkit-user-select: none; user-select: none; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 4px 6px; border: 1px solid var(--line); background: var(--surface); cursor: grab; min-width: 0; }

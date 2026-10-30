@@ -32,6 +32,7 @@ UI thread (Svelte)                     Sim Worker (Web Worker)
 | `packages/project-model` | Serialisable `Project`, `BoardDef`, `BreadboardDef`, placement, migrations | M0 ✅ |
 | `packages/sim-core` | `SimKernel`, `Netlist`, MNA solver, `McuModel` interface, `ScriptedMcu`, pad/supply builtins | M0 ✅ |
 | `packages/lesson-engine` | Evaluates declarative lesson checks | M0 ✅ |
+| `packages/inventory` | The user's parts box: stock keys (`PartManifest.stock`), a project's bill of materials, what is missing | ✅ |
 | `packages/mcu-esp32` | ESP32 pad capabilities; `Esp32Mcu`: the WASM emulator as an `McuModel` | M3 ✅ |
 | `parts/*` | One package per part: `resistor`, `led`, `pushbutton` (M0); `rgb-led`, `potentiometer`, `photoresistor`, `diode`, `slide-switch`, `buzzer` (common DC parts); `thermistor`, `tilt-switch`, `pir-sensor`, `ultrasonic` (HC-SR04), `dht` (DHT11/22), `ds18b20` (1-Wire, Search/Match ROM), `soil-moisture`, `gas-sensor` (MQ-2) (common sensors); `seven-segment`, `led-bar`, `relay`, `keypad` (4×4), `joystick`, `rotary-encoder` (KY-040) (GPIO-only modules); `servo` (SG90, reads the PWM waveform); `lcd1602` (PCF8574 + HD44780), `ssd1306` (I2C devices, see I2C below); `neopixel` (WS2812B strip or ring, decodes the RMT pulse train, chains through DOUT) | M0 ✅ |
 | `boards/*`, `breadboards/*`, `lessons/*` | Pure JSON definitions | M0 ✅ |

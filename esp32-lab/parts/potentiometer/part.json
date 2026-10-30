@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "name": "Potentiometer (biến trở)",
   "category": "input",
+  "stock": [
+    "resistance"
+  ],
   "tags": [
     "through-hole",
     "analog"

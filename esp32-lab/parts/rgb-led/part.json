@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "name": "LED RGB 5 mm (4 chân)",
   "category": "output",
+  "stock": [
+    "common"
+  ],
   "tags": [
     "through-hole",
     "diode"

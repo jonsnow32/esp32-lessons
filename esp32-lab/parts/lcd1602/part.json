@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "name": "Màn hình LCD 1602 I2C",
   "category": "display",
+  "stock": [
+    "color"
+  ],
   "tags": [
     "module",
     "i2c",

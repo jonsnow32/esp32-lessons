@@ -2,8 +2,8 @@
   // "Mạch đang làm gì": live notes from the explanation engine. Hovering (or tapping) a note
   // highlights the parts and connections it talks about.
   import { lab } from '../lib/lab.svelte';
+  import Icon from './Icon.svelte';
 
-  const ICON = { error: '⛔', warn: '⚠️', ok: '⚡', info: 'ℹ️' } as const;
   let pinned = $state<number | null>(null);
 
   function show(i: number | null) {
@@ -24,7 +24,7 @@
           onpointerleave={() => pinned === null && show(null)}
           onclick={() => { pinned = pinned === i ? null : i; show(pinned); }}
           onkeydown={(e) => e.key === 'Enter' && (pinned = pinned === i ? null : i, show(pinned))}>
-          <span class="icon">{ICON[n.level]}</span><span>{n.text}</span>
+          <Icon name={n.level} /><span>{n.text}</span>
         </li>
       {/each}
     </ul>
@@ -43,5 +43,6 @@
   li.error { background-color: var(--error-soft); color: var(--error); box-shadow: inset 3px 0 0 var(--error); }
   li.warn { background-color: var(--warn-soft); color: var(--warn); box-shadow: inset 3px 0 0 var(--warn-dot); }
   li.ok { background-color: var(--ok-soft); color: #14532d; font-weight: 500; box-shadow: inset 3px 0 0 var(--ok-dot); }
-  .icon { flex: 0 0 auto; }
+  li > :global(.ico) { margin-top: 2px; }
+  li.info > :global(.ico) { color: var(--info); }
 </style>

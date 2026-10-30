@@ -92,7 +92,6 @@
     ...FEATURED.filter((f) => f.project.breadboards.some((b) => b.type === type)).map((f) => ({ id: f.id, title: f.title, kind: 'Dự án mẫu' })),
   ];
   function openUse(id: string) {
-    lab.docPage = null;
     lab.open(id);
   }
   const siblings = Object.entries(BREADBOARDS).map(([id, b]) => ({ page: `bb:${id}`, name: b.name }));

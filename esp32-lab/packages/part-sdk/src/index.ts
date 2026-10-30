@@ -53,6 +53,11 @@ export interface PartManifest {
   /** Terminal pairs that are always joined inside the part (e.g. pushbutton legs). Merged in the netlist. */
   internalShorts?: [string, string][];
   props: Record<string, PropSchema>;
+  /**
+   * Props that make a different physical item to keep in stock (a 220 Ω vs a 10 kΩ resistor), as
+   * opposed to props the simulation varies (temperature, knob position). Omitted: the type alone.
+   */
+  stock?: string[];
   ratings?: Ratings;
   /** Beginner card shown when the part is selected (UI language: Vietnamese). */
   learn?: {

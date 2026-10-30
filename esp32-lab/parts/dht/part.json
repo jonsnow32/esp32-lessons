@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "name": "Cảm biến nhiệt độ, độ ẩm DHT11 / DHT22",
   "category": "sensor",
+  "stock": [
+    "model"
+  ],
   "tags": [
     "through-hole",
     "digital",

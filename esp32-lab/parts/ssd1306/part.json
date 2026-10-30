@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "name": "Màn hình OLED 0,96\" SSD1306 (I2C)",
   "category": "display",
+  "stock": [
+    "color"
+  ],
   "tags": [
     "module",
     "i2c",

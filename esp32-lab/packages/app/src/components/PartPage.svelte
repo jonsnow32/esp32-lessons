@@ -3,7 +3,8 @@
   // pinout, safe limits, and the drawings from its doc (inside view, wiring, curves, timing).
   // Props picked here only change the drawings, never the bench.
   import type { PartProps, Ratings } from '@esp32lab/part-sdk';
-  import { FEATURED, LESSONS, PARTS } from '../lib/catalog';
+  import { CATEGORY, FEATURED, LESSONS, PARTS } from '../lib/catalog';
+  import { inventory } from '../lib/inventory.svelte';
   import { lab } from '../lib/lab.svelte';
   import { SCENE_DEFS } from '../lib/scene';
   import DocChart from './DocChart.svelte';
@@ -15,9 +16,10 @@
 
   const m = PARTS[type]!;
   const manifest = m.manifest;
-  const CATEGORY: Record<string, string> = { passive: 'Linh kiện thụ động', output: 'Đầu ra', input: 'Đầu vào', sensor: 'Cảm biến', display: 'Hiển thị', power: 'Nguồn', mcu: 'Vi điều khiển', instrument: 'Thiết bị đo' };
 
   let props = $state<PartProps>(Object.fromEntries(Object.entries(manifest.props).map(([k, s]) => [k, s.default])));
+  /** The variant picked below, as kept in the user's stock. */
+  let stockKey = $derived(inventory.partKey(type, props));
   let specs = $derived(m.doc?.specs(props as never) ?? []);
   let figures = $derived(m.doc?.figures(props as never) ?? []);
 
@@ -70,7 +72,6 @@
   ];
 
   function openUse(id: string) {
-    lab.docPage = null;
     lab.open(id);
   }
   const siblings = Object.entries(PARTS).map(([t, p]) => ({ page: t, name: p.manifest.name }));
@@ -96,6 +97,13 @@
       <h1>{manifest.name}</h1>
       {#if manifest.learn}<p>{manifest.learn.summary}</p>{/if}
       {#if manifest.tags?.length}<div class="tags">{#each manifest.tags as t}<span>{t}</span>{/each}</div>{/if}
+      <div class="stock">
+        <span>Trong kho của bạn{manifest.stock?.length ? ' (loại đang chọn)' : ''}:</span>
+        <button title="Bớt một" disabled={!inventory.qtyOf(stockKey)} onclick={() => inventory.update(stockKey, { qty: inventory.qtyOf(stockKey) - 1 })}>−</button>
+        <b>{inventory.qtyOf(stockKey)}</b>
+        <button title="Thêm một" onclick={() => inventory.add('part', type, props)}>+</button>
+        <button class="link" onclick={() => (lab.docPage = 'inventory')}>Mở kho →</button>
+      </div>
       {#if Object.keys(manifest.props).length}
         <div class="props">
           <b>Thử thay đổi</b>
@@ -213,6 +221,10 @@
 <style>
   .tags { display: flex; flex-wrap: wrap; gap: 4px; }
   .tags span { font: 10.5px var(--font-mono); color: var(--ink-2); background: var(--surface-2); border: 1px solid var(--line); padding: 0 6px; }
+  .stock { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+  .stock b { font: 600 14px var(--font-mono); min-width: 2ch; text-align: center; font-variant-numeric: tabular-nums; }
+  .stock button { padding: 1px 9px; font: 600 13px var(--font-mono); }
+  .stock .link { margin-left: auto; font-size: 12px; }
   .props { margin-top: 4px; padding: 10px 12px; background: var(--surface-2); border: 1px dashed var(--line-strong); display: flex; flex-direction: column; gap: 6px; }
   .props b { font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2); }
   .props label { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 12px var(--font-mono); color: var(--ink-2); }

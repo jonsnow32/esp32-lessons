@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "name": "Thanh LED 10 vạch",
   "category": "output",
+  "stock": [
+    "color"
+  ],
   "tags": [
     "through-hole",
     "led",

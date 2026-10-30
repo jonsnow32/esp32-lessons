@@ -30,6 +30,7 @@
   import BoardView from './BoardView.svelte';
   import BreadboardView from './BreadboardView.svelte';
   import SchematicView from './SchematicView.svelte';
+  import Icon from './Icon.svelte';
 
   let { dragType = $bindable<string | null>(null) } = $props();
 
@@ -932,16 +933,16 @@
   </div>
 
   {#if probe && mode === 'bench'}
-    <div class="probe" class:touch={pointerType === 'touch'}>🔎 {probe}</div>
+    <div class="probe" class:touch={pointerType === 'touch'}><Icon name="probe" /><span>{probe}</span></div>
   {/if}
 
   <div class="zoom" hidden={mode !== 'bench'}>
-    <button onclick={() => zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 0.8)} aria-label="Phóng to">+</button>
-    <button onclick={() => zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 1.25)} aria-label="Thu nhỏ">−</button>
-    <button onclick={fit} aria-label="Vừa màn hình">⤢</button>
+    <button onclick={() => zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 0.8)} aria-label="Phóng to" title="Phóng to"><Icon name="plus" size={18} /></button>
+    <button onclick={() => zoomAt({ x: view.x + view.w / 2, y: view.y + view.h / 2 }, 1.25)} aria-label="Thu nhỏ" title="Thu nhỏ"><Icon name="minus" size={18} /></button>
+    <button onclick={fit} aria-label="Vừa màn hình" title="Vừa màn hình"><Icon name="fit" size={18} /></button>
     <button class:on={multi} onclick={() => (multi = !multi)} aria-pressed={multi} aria-label="Chọn nhiều"
       title="Chọn nhiều: chạm để thêm / bỏ từng thứ, kéo chỗ trống để quét vùng (như giữ Shift). Ctrl+A chọn tất cả.">
-      <svg viewBox="0 0 20 20" width="20" height="20"><rect x="3" y="3" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3 2" /><rect x="7" y="7" width="6" height="6" fill="#f76b15" /></svg>
+      <Icon name="select-many" size={18} />
     </button>
     <div class="tidy">
       <button onclick={tidy} disabled={!lab.project.wires.length} aria-label="Sắp xếp lại dây: {next.name}"
@@ -954,8 +955,8 @@
       </button>
       {#if tidyNote}<div class="tidy-note" role="status">{tidyNote}</div>{/if}
     </div>
-    <button onclick={() => lab.undo()} disabled={!lab.canUndo} aria-label="Hoàn tác (Ctrl+Z)" title="Hoàn tác (Ctrl+Z)">↶</button>
-    <button onclick={() => lab.redo()} disabled={!lab.canRedo} aria-label="Làm lại (Ctrl+Y)" title="Làm lại (Ctrl+Y / Ctrl+Shift+Z)">↷</button>
+    <button onclick={() => lab.undo()} disabled={!lab.canUndo} aria-label="Hoàn tác (Ctrl+Z)" title="Hoàn tác (Ctrl+Z)"><Icon name="undo" size={18} /></button>
+    <button onclick={() => lab.redo()} disabled={!lab.canRedo} aria-label="Làm lại (Ctrl+Y)" title="Làm lại (Ctrl+Y / Ctrl+Shift+Z)"><Icon name="redo" size={18} /></button>
   </div>
 </div>
 
@@ -1009,6 +1010,7 @@
     stroke-dasharray: 0.4 0.25;
   }
   .zoom button.on {
+    --icon-accent: var(--accent-hi);
     background: var(--bezel);
     color: var(--ink-inv);
     border-color: var(--bezel);
@@ -1165,6 +1167,10 @@
     border-radius: 0;
   }
   .probe {
+    --icon-accent: var(--accent-hi);
+    display: flex;
+    align-items: center;
+    gap: 8px;
     position: absolute;
     left: 12px;
     bottom: 12px;
@@ -1201,9 +1207,12 @@
     gap: 6px;
   }
   .zoom button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
     width: 40px;
     height: 40px;
-    font-size: 18px;
     border-radius: 0;
     box-shadow: var(--shadow-float);
   }

@@ -4,6 +4,7 @@
   // (hero, spec table, rating meters, figures, schematic drawings).
   import type { Snippet } from 'svelte';
   import { lab } from '../lib/lab.svelte';
+  import { closeDoc } from '../lib/nav.svelte';
 
   let {
     title,
@@ -23,7 +24,7 @@
   let prev = $derived(siblings[(at - 1 + siblings.length) % siblings.length]!);
   let next = $derived(siblings[(at + 1) % siblings.length]!);
 
-  const close = () => (lab.docPage = null);
+  const close = closeDoc;
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && close()} />

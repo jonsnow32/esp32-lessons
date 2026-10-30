@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "name": "Resistor (1/4 W)",
   "category": "passive",
+  "stock": [
+    "resistance"
+  ],
   "tags": [
     "through-hole"
   ],

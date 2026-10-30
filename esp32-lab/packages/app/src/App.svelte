@@ -6,11 +6,13 @@
   import LessonPanel from './components/LessonPanel.svelte';
   import BoardPage from './components/BoardPage.svelte';
   import BreadboardPage from './components/BreadboardPage.svelte';
+  import InventoryPage from './components/InventoryPage.svelte';
   import PartPage from './components/PartPage.svelte';
   import Library from './components/Library.svelte';
   import SerialMonitor from './components/SerialMonitor.svelte';
   import Workbench from './components/Workbench.svelte';
   import Dock from './components/Dock.svelte';
+  import Icon, { type IconName } from './components/Icon.svelte';
   import { FREE, lab } from './lib/lab.svelte';
   import { DOCKS, layout, type DockId, type ViewId } from './lib/layout.svelte';
 
@@ -31,12 +33,12 @@
     return { tone: lab.running ? 'run' : 'idle', text: `${lab.running ? 'Đang chạy' : 'Tạm dừng'}: ${what}` };
   });
 
-  let runLabel = $derived(
+  let run = $derived<[IconName, string]>(
     lab.build.status === 'building'
-      ? '⏳ Đang build…'
+      ? ['build', 'Đang build…']
       : lab.codeChanged
-        ? lab.program.kind === 'none' ? '▶ Chạy' : '▶ Chạy code mới'
-        : lab.running ? '⏸ Tạm dừng' : '▶ Tiếp tục',
+        ? ['play', lab.program.kind === 'none' ? 'Chạy' : 'Chạy code mới']
+        : lab.running ? ['pause', 'Tạm dừng'] : ['play', 'Tiếp tục'],
   );
 
   /** Panels around the bench, in docks the user arranges (see layout.svelte.ts). */
@@ -91,7 +93,7 @@
 
 {#if lab.docPage}
   {#key lab.docPage}
-    {#if lab.docPage.startsWith('board:')}<BoardPage />{:else if lab.docPage.startsWith('bb:')}<BreadboardPage />{:else}<PartPage />{/if}
+    {#if lab.docPage === 'inventory'}<InventoryPage />{:else if lab.docPage.startsWith('board:')}<BoardPage />{:else if lab.docPage.startsWith('bb:')}<BreadboardPage />{:else}<PartPage />{/if}
   {/key}
 {/if}
 
@@ -101,19 +103,19 @@
   <!-- Top bar: where you are, the run controls, and the layout. What the board is doing goes in the status bar below -->
   <header>
     <div class="where">
-      <button class="back" onclick={() => lab.goHome()} title="Trang chủ: bài học và dự án mẫu" aria-label="Trang chủ">←</button>
+      <button class="back" onclick={() => lab.goHome()} title="Trang chủ: bài học và dự án mẫu" aria-label="Trang chủ"><Icon name="back" /></button>
       <span class="kind">{lab.mine ? 'Dự án của tôi' : lab.route === FREE ? 'Tự do' : lab.featured ? 'Dự án mẫu' : 'Bài học'}</span>
       {#if lab.mine}
         {@const mine = lab.mine}
         <h1>{mine.title}</h1>
-        <button class="icon" title="Đổi tên dự án" onclick={() => { const t = prompt('Tên dự án', mine.title); if (t) lab.renameMyProject(mine.id, t); }}>✎</button>
+        <button class="icon" title="Đổi tên dự án" onclick={() => { const t = prompt('Tên dự án', mine.title); if (t) lab.renameMyProject(mine.id, t); }}><Icon name="edit" size={14} /></button>
       {:else if lab.route !== FREE}
         <h1>{lab.featured ? lab.featured.title : (lab.lesson?.titleVi ?? lab.lesson?.title)}</h1>
       {/if}
     </div>
     <div class="transport">
-      <button class="primary" disabled={lab.build.status === 'building'} onclick={() => lab.runOrPause()}>{runLabel}</button>
-      <button class="icon-btn" onclick={() => lab.reset()} disabled={lab.program.kind === 'none'} title="Reset: khởi động lại chương trình, như nhấn nút EN" aria-label="Reset">↺</button>
+      <button class="primary" disabled={lab.build.status === 'building'} onclick={() => lab.runOrPause()}><Icon name={run[0]} size={14} />{run[1]}</button>
+      <button class="icon-btn" onclick={() => lab.reset()} disabled={lab.program.kind === 'none'} title="Reset: khởi động lại chương trình, như nhấn nút EN" aria-label="Reset"><Icon name="reset" /></button>
     </div>
     <div class="tools">
       <div class="docks" role="group" aria-label="Khung">
@@ -123,19 +125,19 @@
         {/each}
       </div>
       <div class="more">
-        <button onclick={() => (menuOpen = !menuOpen)} aria-haspopup="menu" aria-expanded={menuOpen} title="Thêm">⋯</button>
+        <button onclick={() => (menuOpen = !menuOpen)} aria-haspopup="menu" aria-expanded={menuOpen} title="Thêm" aria-label="Thêm"><Icon name="more" /></button>
         {#if menuOpen}
           <div class="menu" role="menu">
             {#if !lab.featured}
             <button role="menuitem" onclick={() => menu(() => confirm(lab.route === FREE ? 'Xoá hết mạch và code trong chế độ Tự do?' : (lab.mine ? 'Đưa mạch và code của bản sao về như dự án gốc? Phần bạn đã sửa sẽ mất.' : 'Đưa mạch và code về như lúc mới mở bài? Phần bạn đã sửa sẽ mất.')) && lab.restart())}>
-              ↺ {lab.route === FREE ? 'Xoá bàn và code' : lab.mine ? 'Đưa bản sao về như bản gốc' : 'Làm lại bài từ đầu'}
+              <Icon name="reset" />{lab.route === FREE ? 'Xoá bàn và code' : lab.mine ? 'Đưa bản sao về như bản gốc' : 'Làm lại bài từ đầu'}
             </button>
             {/if}
             <button role="menuitem" onclick={() => menu(() => (visible('code') ? layout.toggle(layout.dockOf('code')) : layout.reveal('code')))}>{visible('code') ? 'Ẩn' : 'Hiện'} trình soạn code</button>
             <label class="menu-check" title="Bật: muốn di chuyển hay sửa mạch phải tạm dừng chương trình trước">
               <input type="checkbox" bind:checked={lab.lockWhileRunning} />Khoá mạch khi chương trình đang chạy
             </label>
-            <button role="menuitem" onclick={() => menu(() => layout.reset())}>▦ Đặt lại bố cục các khung</button>
+            <button role="menuitem" onclick={() => menu(() => layout.reset())}><Icon name="layout" />Đặt lại bố cục các khung</button>
             {#if lab.envs.length}
               <div class="menu-head">Chạy bản build sẵn (.pio/build), bỏ qua editor</div>
               {#each lab.envs as env}
@@ -168,9 +170,9 @@
       <!-- Messages float over the top of the bench: nothing under the pointer moves when one appears -->
       <div class="banners">
         {#if lab.halted}<div class="banner">Chip dừng: {lab.halted}</div>{/if}
-        {#if lab.error}<div class="banner" role="alert"><span>{lab.error}</span><button onclick={() => (lab.error = null)} title="Đóng">×</button></div>{/if}
-        {#each damaged as d}<div class="banner warn">⚠ {d.message}</div>{/each}
-        {#if lab.notice}<div class="banner info" role="status"><span>{lab.notice}</span><button onclick={() => (lab.notice = null)} title="Đóng">×</button></div>{/if}
+        {#if lab.error}<div class="banner" role="alert"><span>{lab.error}</span><button onclick={() => (lab.error = null)} title="Đóng" aria-label="Đóng"><Icon name="close" size={14} /></button></div>{/if}
+        {#each damaged as d}<div class="banner warn"><Icon name="warn" /><span>{d.message}</span></div>{/each}
+        {#if lab.notice}<div class="banner info" role="status"><span>{lab.notice}</span><button onclick={() => (lab.notice = null)} title="Đóng" aria-label="Đóng"><Icon name="close" size={14} /></button></div>{/if}
       </div>
       <div class="bench" style="flex: {layout.docks.bottom.open && layout.docks.bottom.views.some(available) ? 1 - layout.docks.bottom.size : 1}"><Workbench bind:dragType /></div>
       <Dock id="bottom" {labels} {available} {view} {badge} />
@@ -182,7 +184,7 @@
             <div class="zone {d}" class:over={zone === d}
               ondragover={(e) => { e.preventDefault(); zone = d; }} ondragleave={() => (zone = null)}
               ondrop={(e) => { e.preventDefault(); layout.move(layout.dragging!, d); layout.dragging = null; zone = null; }}>
-              {d === 'left' ? '◧ Khung trái' : d === 'right' ? 'Khung phải ◨' : '⬓ Khung dưới'}
+              <Icon name="dock-{d}" size={18} />{d === 'left' ? 'Khung trái' : d === 'right' ? 'Khung phải' : 'Khung dưới'}
             </div>
           {/each}
         </div>
@@ -216,13 +218,16 @@
   header button:not(.primary):not(.dock-toggle):not([role='menuitem']), footer select { background-color: transparent; color: var(--ink-inv); border-color: transparent; }
   header button:not(.primary):not(.dock-toggle):not([role='menuitem']):hover, footer select:hover { background-color: var(--bezel-2); }
   header button:not(.primary):disabled { background-color: transparent; color: #6b747c; border-color: transparent; }
+  .more > button { display: flex; padding: 6px 8px; }
   .more > button[aria-expanded='true'] { background-color: var(--bezel-2); border-color: var(--ink-inv-2); }
-  .back { font-size: 16px; line-height: 1; padding: 4px 8px; }
+  /* Icons on the bezel: copper reads brighter on the dark ground */
+  header, footer { --icon-accent: var(--accent-hi); }
+  .back { display: flex; padding: 6px 8px; }
   .kind { font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-inv-2); white-space: nowrap; padding-left: 6px; border-left: 1px solid var(--bezel-line); }
   .kind:has(+ h1)::after { content: ' /'; color: #5d666e; }
   h1 { font-size: 14px; font-weight: 600; letter-spacing: .005em; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .icon { padding: 2px 6px; font-size: 13px; color: var(--ink-inv-2) !important; }
-  .icon-btn { width: 30px; height: 30px; padding: 0; font-size: 16px; border-color: var(--bezel-line) !important; background-color: var(--bezel-2) !important; }
+  .icon { display: flex; padding: 4px 6px; color: var(--ink-inv-2) !important; }
+  .icon-btn { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border-color: var(--bezel-line) !important; background-color: var(--bezel-2) !important; }
   .icon-btn:hover:not(:disabled) { background-color: #2f353c !important; border-color: transparent !important; }
   .icon-btn:disabled { background-color: transparent !important; border-color: #2c3237 !important; }
   /* Status bar at the bottom: the program, simulated time and speed, in a row of cells */
@@ -244,7 +249,8 @@
   .spacer { flex: 1; }
   .more { position: relative; }
   .menu { position: absolute; right: 0; top: calc(100% + 4px); background: var(--surface); color: var(--ink); color-scheme: light; border: 1px solid var(--line-strong); border-top: 2px solid var(--accent); border-radius: 0; box-shadow: var(--shadow-float); padding: 4px; min-width: 260px; display: flex; flex-direction: column; }
-  .menu button { border: none; text-align: left; border-radius: 0; }
+  .menu button { display: flex; align-items: center; gap: 8px; border: none; text-align: left; border-radius: 0; }
+  .menu button :global(.ico) { color: var(--ink-3); }
   .menu-check { display: flex; gap: 8px; align-items: center; padding: 6px 10px; font: 13px var(--font-ui); text-transform: none; letter-spacing: 0; color: var(--ink); cursor: pointer; }
   .menu-check:hover { background: var(--surface-3); }
   .menu-head { font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); padding: 8px 10px 3px; border-top: 1px solid var(--line-soft); margin-top: 4px; }
@@ -253,7 +259,8 @@
   .banner span { flex: 1; }
   .banner.warn { background: var(--warn-soft); color: var(--warn); border-color: #f2d7b3; }
   .banner.info { background: var(--info-soft); color: var(--info); border-color: var(--info-line); }
-  .banner button { flex: 0 0 auto; background: transparent; border-color: transparent; color: inherit; padding: 0 6px; font-size: 16px; line-height: 18px; opacity: .7; }
+  .banner > :global(.ico) { margin-top: 2px; }
+  .banner button { display: flex; align-items: center; height: 18px; flex: 0 0 auto; background: transparent; border-color: transparent; color: inherit; padding: 0 6px; font-size: 16px; line-height: 18px; opacity: .7; }
   .banner button:hover { opacity: 1; background: #0000000d; }
   main { display: flex; height: calc(100vh - 44px - 26px); }
   .count { background: var(--accent); color: #fff; font: 600 10px var(--font-mono); padding: 0 5px; line-height: 15px; }
@@ -262,7 +269,7 @@
   .bench { min-height: 0; }
   /* Drop zones over the bench edges while a tab is dragged */
   .zones { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
-  .zone { position: absolute; pointer-events: auto; display: flex; align-items: center; justify-content: center; font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .07em; color: var(--accent); background: #f76b1514; border: 2px dashed #f76b1566; }
+  .zone { position: absolute; pointer-events: auto; display: flex; align-items: center; justify-content: center; font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .07em; gap: 8px; color: var(--accent); background: #f76b1514; border: 2px dashed #f76b1566; }
   .zone.left { left: 8px; top: 8px; bottom: 30%; width: 22%; }
   .zone.right { right: 8px; top: 8px; bottom: 30%; width: 22%; }
   .zone.bottom { left: 8px; right: 8px; bottom: 8px; height: calc(30% - 16px); }
@@ -278,7 +285,7 @@
   .dock-toggle.bottom span::after { left: 0; right: 0; bottom: 0; height: 3px; }
   .dock-toggle[aria-pressed='true'] span { border-color: var(--ink-inv); }
   .dock-toggle[aria-pressed='true'] span::after { background: var(--ink-inv); }
-  .primary { --trace: #fff; background: var(--accent); color: #fff; border-color: var(--accent); min-width: 110px; font-weight: 600; }
+  .primary { --trace: #fff; --icon-accent: currentColor; display: inline-flex; align-items: center; justify-content: center; gap: 7px; background: var(--accent); color: #fff; border-color: var(--accent); min-width: 110px; font-weight: 600; }
   .primary:hover { background-color: #a94507; }
   .primary:disabled { opacity: 0.75; cursor: progress; color: #fff; border-color: var(--accent); }
   @media (max-width: 1100px) {

@@ -30,6 +30,7 @@
   --accent-soft: #fbeadd;
   --signal: #0e7c72;
   --signal-soft: #e2f3f0;
+  --icon-accent: var(--accent);   /* the one copper detail in an icon; brighter on the bezel */
 
   /* Semantic */
   --ok: #1a7f4b;      --ok-soft: #e6f4ec;      --ok-dot: #30a46c;

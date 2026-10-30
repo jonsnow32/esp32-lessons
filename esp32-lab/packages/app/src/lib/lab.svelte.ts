@@ -145,7 +145,7 @@ class Lab {
   myProjects = $state<MyProject[]>(loadMyProjects());
   /** One-off message for the user (e.g. "a copy was made"), dismissed by them. */
   notice = $state<string | null>(null);
-  /** Detail page open over everything else: a part type, `board:<type>` or `bb:<type>`. */
+  /** Detail page open over everything else: a part type, `board:<type>`, `bb:<type>` or 'inventory'. */
   docPage = $state<string | null>(null);
   /** Undo/redo: earlier and undone versions of the bench, as JSON. */
   private past = $state<string[]>([]);
@@ -320,7 +320,7 @@ class Lab {
     const ws: Workspace = { project, code: this.code, passed: this.passed };
     localStorage.setItem(wsKey(this.route), JSON.stringify(ws));
     const mine = this.mine;
-    if (mine) this.updateMyProjects(this.myProjects.map((p) => (p.id === mine.id ? { ...p, updated: Date.now() } : p)));
+    if (mine) this.updateMyProjects(this.myProjects.map((p) => (p.id === mine.id ? { ...p } : p)));
   }
 
   /** Carry on in a new project of the user's own, with the bench, code and history as they are. */
@@ -758,6 +758,7 @@ class Lab {
     const original = lesson?.sketch ? await this.fetchSketch(lesson.sketch) : (source?.code ?? null);
     this.lessonId = lesson?.id ?? null;
     this.route = id;
+    this.docPage = null;
     this.selection = null;
     this.originalCode = original;
     // A featured project always opens as published

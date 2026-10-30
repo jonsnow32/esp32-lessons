@@ -4,6 +4,7 @@
   // tab already shown folds the dock down to its strip.
   import type { Snippet } from 'svelte';
   import { layout, type DockId, type ViewId } from '../lib/layout.svelte';
+  import Icon from './Icon.svelte';
 
   let { id, labels, available, view, badge }: {
     id: DockId;
@@ -77,8 +78,8 @@
         </button>
       {/each}
       <span class="end" class:before={over === 'end'}></span>
-      <button class="fold" onclick={() => layout.toggle(id)} title={dock.open ? 'Thu nhỏ' : 'Mở rộng'}>
-        {dock.open ? (id === 'left' ? '‹' : id === 'right' ? '›' : '▾') : (id === 'left' ? '›' : id === 'right' ? '‹' : '▴')}
+      <button class="fold" onclick={() => layout.toggle(id)} title={dock.open ? 'Thu nhỏ' : 'Mở rộng'} aria-label={dock.open ? 'Thu nhỏ' : 'Mở rộng'}>
+        <Icon name={(dock.open ? { left: 'chevron-left', right: 'chevron-right', bottom: 'chevron-down' } : { left: 'chevron-right', right: 'chevron-left', bottom: 'chevron-up' } as const)[id]} size={14} />
       </button>
     </nav>
     {#if dock.open && shown}
@@ -103,7 +104,7 @@
   nav button.before { box-shadow: inset 3px 0 0 var(--accent-hi); }
   .end { flex: 0 0 4px; }
   .end.before { background: var(--accent-hi); }
-  .fold { flex: 0 0 auto; padding: 4px 9px; font-size: 13px; color: var(--ink-3); }
+  .fold { display: flex; align-items: center; flex: 0 0 auto; padding: 4px 8px; color: var(--ink-3); }
   .bottom nav button[role='tab'] { flex: 0 0 auto; }
   .bottom nav .end { flex: 1 1 auto; }
   .bottom nav .end.before { background: none; box-shadow: inset 3px 0 0 var(--accent-hi); }

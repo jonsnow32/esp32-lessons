@@ -6,6 +6,7 @@
   import type { BoardDef, BoardNode, BoardPart } from '@esp32lab/project-model';
   import { BOARDS, FEATURED, LESSONS } from '../lib/catalog';
   import { lab } from '../lib/lab.svelte';
+  import { closeDoc } from '../lib/nav.svelte';
   import { CATEGORIES, pinInfo, type PinCategory, type Verdict } from '../lib/pinout';
   import { SCENE_DEFS } from '../lib/scene';
   import BoardView from './BoardView.svelte';
@@ -126,7 +127,6 @@
     ...FEATURED.filter((f) => f.project.board.type === type).map((f) => ({ id: f.id, title: f.title, kind: 'Dự án mẫu' })),
   ];
   function openUse(id: string) {
-    lab.docPage = null;
     lab.open(id);
   }
   const siblings = Object.entries(BOARDS).map(([id, b]) => ({ page: `board:${id}`, name: b.name }));
@@ -151,7 +151,7 @@
         <span>{board.pins.length} chân</span><span>{look.module}</span><span>USB: {look.usbChip}</span><span>PCB {look.pcb === 'black' ? 'đen' : 'xanh'}</span>
       </div>
       <div class="buttons">
-        {#if lab.route !== 'home' && !lab.lesson}<button class="primary" disabled={lab.project.board.type === type} onclick={() => { lab.setBoard(type); lab.docPage = null; }}>{lab.project.board.type === type ? 'Đang dùng board này' : 'Dùng board này trên bàn'}</button>{/if}
+        {#if lab.route !== 'home' && !lab.lesson}<button class="primary" disabled={lab.project.board.type === type} onclick={() => { lab.setBoard(type); closeDoc(); }}>{lab.project.board.type === type ? 'Đang dùng board này' : 'Dùng board này trên bàn'}</button>{/if}
       </div>
     </div>
   </section>

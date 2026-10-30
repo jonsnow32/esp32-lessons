@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "name": "Diode chỉnh lưu",
   "category": "passive",
+  "stock": [
+    "model"
+  ],
   "tags": [
     "through-hole",
     "diode"

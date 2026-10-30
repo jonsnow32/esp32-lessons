@@ -19,6 +19,9 @@ The kernel and solver never need to change.
   are 4 holes apart (`dx: 4`), an LED's 1, and a pushbutton straddles the centre gap (`dy: 3`).
 - `internalShorts`: legs that are always joined inside the part.
 - `props`: user-editable values with defaults (`number`, `enum`, `boolean`).
+- `stock`: the props that make a different item to buy and keep (`["resistance"]`, `["color"]`),
+  not the ones the simulation varies (temperature, knob position). The user's parts box and the
+  projects' bills of materials count items by them; omit it when the type alone is the item.
 - `ratings`: `currentMax`, `currentAbsMax`, `reverseVoltageMax`, `powerMax`, `overstressTime`.
   Take the values from the datasheet; they decide when the part "burns out".
 

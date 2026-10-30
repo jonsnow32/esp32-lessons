@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "name": "LED 7 đoạn 0,56\" (1 số)",
   "category": "display",
+  "stock": [
+    "common",
+    "color"
+  ],
   "tags": [
     "through-hole",
     "led",

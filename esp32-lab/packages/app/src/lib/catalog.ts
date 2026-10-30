@@ -69,6 +69,8 @@ export const PARTS: Record<string, PartModule<any>> = {
   'soil-moisture': soilMoisture,
   ssd1306,
 };
+/** What each part category is called in the UI. */
+export const CATEGORY: Record<string, string> = { passive: 'Linh kiện thụ động', output: 'Đầu ra', input: 'Đầu vào', sensor: 'Cảm biến', display: 'Hiển thị', power: 'Nguồn', mcu: 'Vi điều khiển', instrument: 'Thiết bị đo' };
 export const BOARDS: Record<string, BoardDef> = {
   'esp32-devkit-v1': devkit as unknown as BoardDef,
   'esp32-devkitc-v4': devkitc as unknown as BoardDef,

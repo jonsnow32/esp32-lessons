@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "name": "LED RGB WS2812B (NeoPixel)",
   "category": "output",
+  "stock": [
+    "layout",
+    "count"
+  ],
   "tags": [
     "led",
     "rgb",
