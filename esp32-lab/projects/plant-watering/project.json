@@ -1,0 +1,253 @@
+{
+  "id": "plant-watering",
+  "order": 14,
+  "title": "Tưới cây tự động",
+  "summary": "Que đo độ ẩm đất vào GPIO34, relay ở GPIO23 bật máy bơm mini lấy 5 V từ VIN qua COM–NO. Đất khô dưới 30 % thì bơm, đủ 60 % thì dừng (khoảng trễ để bơm không bật tắt liên tục), mỗi lần bơm tối đa 10 s. Trong mô phỏng thời gian được tua nhanh: nước bơm ra làm đất ướt lên, rồi đất tự khô dần theo \"dryRate\".",
+  "tryIt": [
+    "Bấm Chạy: đất đang 20 % nên relay đóng, bơm chạy và đèn xanh sáng. Xem số % trên que tăng dần tới 60 % thì bơm tắt.",
+    "Chờ đất khô xuống dưới 30 %: bơm tự bật lại. Kéo \"dryRate\" lên để đất khô nhanh hơn, hoặc kéo thẳng \"moisture\" xuống.",
+    "Rút dây VIN ở COM của relay: relay vẫn kêu 'tách' nhưng bơm không có điện, đất không ướt lên và sau 10 s code báo lỗi rồi nghỉ.",
+    "Đổi DRY_MV / WET_MV trong code thành số đo thật của que bạn (để trong không khí và nhúng nước) trước khi nạp lên mạch thật."
+  ],
+  "sketch": "main.cpp",
+  "project": {
+    "schemaVersion": 1,
+    "name": "plant-watering",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": 1,
+      "y": 3
+    },
+    "breadboards": [
+      {
+        "id": "bb1",
+        "type": "half-400",
+        "x": 15,
+        "y": 6
+      }
+    ],
+    "parts": [
+      {
+        "id": "rl1",
+        "type": "relay",
+        "props": {
+          "trigger": "high"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "a5",
+          "rot": 0
+        }
+      },
+      {
+        "id": "pump1",
+        "type": "water-pump",
+        "props": {},
+        "placement": {
+          "bb": "bb1",
+          "hole": "h10",
+          "rot": 0
+        }
+      },
+      {
+        "id": "soil1",
+        "type": "soil-moisture",
+        "props": {
+          "moisture": 20,
+          "dryRate": 2
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "a20",
+          "rot": 0
+        }
+      },
+      {
+        "id": "r1",
+        "type": "resistor",
+        "props": {
+          "resistance": 220
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "j24",
+          "rot": 0
+        }
+      },
+      {
+        "id": "led1",
+        "type": "led",
+        "props": {
+          "color": "green"
+        },
+        "placement": {
+          "bb": "bb1",
+          "hole": "h28",
+          "rot": 0
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "a": {
+          "kind": "board",
+          "pin": "GND.R"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn1"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w2",
+        "a": {
+          "kind": "board",
+          "pin": "D23"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e5"
+        },
+        "color": "#f76b15"
+      },
+      {
+        "id": "w3",
+        "a": {
+          "kind": "board",
+          "pin": "VIN"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e6"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w4",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e7"
+        },
+        "b": {
+          "kind": "board",
+          "pin": "GND.L"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w5",
+        "a": {
+          "kind": "board",
+          "pin": "VIN"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e12"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w6",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e10"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f10"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w7",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "j11"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn9"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w8",
+        "a": {
+          "kind": "board",
+          "pin": "3V3"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e21"
+        },
+        "color": "#e5484d"
+      },
+      {
+        "id": "w9",
+        "a": {
+          "kind": "board",
+          "pin": "D34"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e22"
+        },
+        "color": "#30a46c"
+      },
+      {
+        "id": "w10",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "e20"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn19"
+        },
+        "color": "#1c2024"
+      },
+      {
+        "id": "w11",
+        "a": {
+          "kind": "board",
+          "pin": "D2"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "f24"
+        },
+        "color": "#0090ff"
+      },
+      {
+        "id": "w12",
+        "a": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "j29"
+        },
+        "b": {
+          "kind": "hole",
+          "bb": "bb1",
+          "hole": "bn24"
+        },
+        "color": "#1c2024"
+      }
+    ]
+  }
+}

@@ -164,6 +164,8 @@ export class SimKernel {
   private i2cState = new Map<number, { target: I2cTarget | null; address: boolean }>();
   /** Latest transaction per I2C port. */
   readonly i2cActivity = new Map<number, I2cActivity>();
+  /** Shared non-electrical quantities (`PartEnv.world`). */
+  private world = new Map<string, number>();
 
   constructor(private readonly opts: KernelOptions) {
     this.random = prng(opts.project.seed ?? 1);
@@ -193,6 +195,10 @@ export class SimKernel {
         const inst = this.instances.get(partId);
         const net = inst?.nets[terminal];
         if (net !== undefined) this.deliver(net, train, inst);
+      },
+      world: {
+        get: (key) => this.world.get(key) ?? 0,
+        set: (key, value) => void this.world.set(key, value),
       },
     };
   }

@@ -1,0 +1,44 @@
+{
+  "id": "water-pump",
+  "version": "0.1.0",
+  "name": "Máy bơm chìm mini 3–5 V",
+  "category": "output",
+  "tags": [
+    "motor",
+    "high-power"
+  ],
+  "terminals": [
+    {
+      "name": "pos",
+      "dx": 0,
+      "dy": 0,
+      "label": "+ (dây đỏ)"
+    },
+    {
+      "name": "neg",
+      "dx": 1,
+      "dy": 0,
+      "label": "− (dây đen)"
+    }
+  ],
+  "props": {},
+  "ratings": {
+    "currentMax": 0.4,
+    "overstressTime": 5000000000
+  },
+  "plug": {"pins": {"neg": "gnd"}},
+  "learn": {
+    "summary": "Máy bơm chìm mini là một động cơ DC nhỏ có cánh quạt: thả vào xô nước, cấp 3–5 V là nước chảy theo ống ra chậu cây. Nó kéo khoảng 150–200 mA, gấp mười lần sức một chân GPIO, nên luôn bật tắt qua relay hoặc MOSFET.",
+    "howToPlug": [
+      "Dây − nối GND. Dây + nối NO của relay, còn COM của relay nối VIN (5 V): relay đóng thì bơm chạy.",
+      "Không bao giờ nối dây + thẳng vào chân GPIO: chân chỉ chịu vài chục mA, động cơ sẽ kéo sụt điện áp và có thể làm hỏng ESP32.",
+      "Trong mô phỏng, nước bơm ra chảy vào chậu có que đo độ ẩm đất, nên độ ẩm sẽ tăng khi bơm chạy."
+    ],
+    "tips": [
+      "Bơm phải ngập nước khi chạy; chạy khô vài phút là hỏng phớt và cháy động cơ.",
+      "Mạch thật: hàn một diode 1N4007 ngược chiều song song với bơm (vạch về phía +) để dập xung điện áp khi động cơ ngắt.",
+      "Bơm chạy từ khoảng 2 V; điện áp càng cao nước chảy càng mạnh.",
+      "Cấp nguồn 5 V riêng cho bơm (sạc USB 1 A trở lên) nếu ESP32 bị reset mỗi lần bơm khởi động."
+    ]
+  }
+}

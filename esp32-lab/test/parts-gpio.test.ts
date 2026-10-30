@@ -120,6 +120,55 @@ describe('relay module', () => {
   });
 });
 
+describe('water pump and soil moisture', () => {
+  // Relay IN a5, VCC a6, GND a7, NO a10, COM a12 (on VIN); pump + h10 (from NO via e10–f10), − h11;
+  // soil probe GND a20, VCC a21, AOUT a22
+  const bench = (soil: PartInstance['props'], level: 'high' | 'low' = 'high') =>
+    kernel(
+      project([part('rl', 'relay', 'a5'), part('pump', 'water-pump', 'h10'), part('s', 'soil-moisture', 'a20', soil)], [
+        wire('w1', pin('D4'), hole('e5')),
+        wire('w2', pin('VIN'), hole('e6')),
+        wire('w3', hole('e7'), pin('GND.R')),
+        wire('w4', pin('VIN'), hole('e12')),
+        wire('w5', hole('e10'), hole('f10')),
+        wire('w6', hole('j11'), pin('GND.R')),
+        wire('w7', hole('e20'), pin('GND.L')),
+        wire('w8', pin('3V3'), hole('e21')),
+      ]),
+      (m) => m.set('GPIO4', { output: level }, 1 * MS),
+    ).k;
+
+  it('runs from 5 V through the relay at about 180 mA', () => {
+    const k = bench({ moisture: 20 });
+    k.advanceTo(50 * MS);
+    const o = k.observables('pump');
+    expect(o.running).toBe(true);
+    expect(Number(o.current)).toBeGreaterThan(0.15);
+    expect(Number(o.current)).toBeLessThan(0.21);
+    expect(bench({ moisture: 20 }, 'low').observables('pump').running).toBe(false);
+  });
+
+  it('wets the soil while it pumps and the probe reads it', () => {
+    const k = bench({ moisture: 20 });
+    k.solve();
+    const before = volts(k, 'c22');
+    k.advanceTo(2000 * MS);
+    const m = Number(k.observables('s').moisture);
+    expect(m).toBeGreaterThan(30);
+    expect(m).toBeLessThan(40);
+    expect(volts(k, 'c22')).toBeLessThan(before - 0.1);
+  });
+
+  it('dries out by dryRate, and stays put without it', () => {
+    const dry = bench({ moisture: 50, dryRate: 2 }, 'low');
+    dry.advanceTo(2000 * MS);
+    expect(Number(dry.observables('s').moisture)).toBeCloseTo(46, 0);
+    const still = bench({ moisture: 50 }, 'low');
+    still.advanceTo(2000 * MS);
+    expect(still.observables('s').moisture).toBe(50);
+  });
+});
+
 describe('4×4 keypad', () => {
   // R1–R4 a5–a8, C1–C4 a9–a12; R2 driven LOW, C2 read with a pull-up
   it('joins row 2 and column 2 while 5 is held', () => {

@@ -200,7 +200,9 @@ export function explain(ctx: ExplainContext): Note[] {
     if (!p.placement && !p.bench) continue;
     // Two legs in one breadboard strip are joined by its metal clip: the part is bypassed
     const joined = new Set((ctx.manifests[p.type]?.internalShorts ?? []).map(([a, b]) => [a, b].sort().join('|')));
-    const shorted = legs.flatMap((t, i) => legs.slice(i + 1).filter((u) => !joined.has([t, u].sort().join('|')) && net(keys[t]!) !== undefined && net(keys[t]!) === net(keys[u]!)).map((u) => [t, u]));
+    const groups = ctx.manifests[p.type]?.isolated ?? [];
+    const apart = (t: string, u: string) => groups.some((g) => g.includes(t) !== g.includes(u));
+    const shorted = legs.flatMap((t, i) => legs.slice(i + 1).filter((u) => !joined.has([t, u].sort().join('|')) && !apart(t, u) && net(keys[t]!) !== undefined && net(keys[t]!) === net(keys[u]!)).map((u) => [t, u]));
     if (shorted.length) {
       const label = (t: string) => ctx.manifests[p.type]?.terminals.find((d) => d.name === t)?.label ?? t;
       const [t, u] = shorted[0]!;

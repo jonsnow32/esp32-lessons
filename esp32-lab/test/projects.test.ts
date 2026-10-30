@@ -286,6 +286,31 @@ describe.skipIf(!existsSync(wasmPath))('featured projects on the emulated ESP32'
     expect(b.serial()).toMatch(/Do sang: 2[45]\d\/255/);
   });
 
+  it('plant-watering pumps the dry pot up to 60 % and waters again once it dries out', async () => {
+    const b = await boot('plant-watering');
+    if (!b) return;
+    const moisture = () => Number(b.k.observables('soil1').moisture);
+    const pumping = () => b.k.observables('pump1').running === true;
+    // Starts at 20 %: the relay closes, the pump runs and the LED is on
+    b.k.advanceTo(1 * S);
+    expect(b.k.observables('rl1').closed).toBe(true);
+    expect(pumping()).toBe(true);
+    expect(lit(b.k, 'led1')).toBe(true);
+    // About 6 %/s net: stops at 60 % within the 10 s limit
+    b.k.advanceTo(9 * S);
+    expect(pumping()).toBe(false);
+    expect(lit(b.k, 'led1')).toBe(false);
+    expect(moisture()).toBeGreaterThanOrEqual(60);
+    expect(moisture()).toBeLessThan(68);
+    expect(b.serial()).toContain('Du nuoc -> tat bom');
+    // Drying at 2 %/s; drag it down to 25 % and the pump comes back on
+    b.k.advanceTo(11 * S);
+    expect(moisture()).toBeLessThan(62);
+    b.setProp('soil1', 'moisture', 25);
+    b.k.advanceTo(b.k.now + 1 * S);
+    expect(pumping()).toBe(true);
+  });
+
   it('relay-lamp toggles the lamp through the relay contacts', async () => {
     const b = await boot('relay-lamp');
     if (!b) return;

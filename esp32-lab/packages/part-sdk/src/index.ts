@@ -52,6 +52,11 @@ export interface PartManifest {
   terminals: TerminalDef[];
   /** Terminal pairs that are always joined inside the part (e.g. pushbutton legs). Merged in the netlist. */
   internalShorts?: [string, string][];
+  /**
+   * Terminal groups with no electrical path between them inside the part (a relay's coil side
+   * and its contacts): sharing a net across groups is wiring, not a short.
+   */
+  isolated?: string[][];
   props: Record<string, PropSchema>;
   /**
    * Props that make a different physical item to keep in stock (a 220 Ω vs a 10 kΩ resistor), as
@@ -160,6 +165,16 @@ export interface PartEnv {
   invalidate(): void;
   /** Put a pulse train out on one of the part's terminals (a WS2812 passing data on at DOUT). */
   emit(terminal: string, train: PulseTrain): void;
+  /**
+   * What the bench's parts share without a wire, by name: the water a pump pours into the pot
+   * a soil probe sits in. Rebuilt empty with the circuit; whoever writes a value re-derives it.
+   */
+  world: World;
+}
+
+export interface World {
+  get(key: string): number;
+  set(key: string, value: number): void;
 }
 
 export type Observable = number | string | boolean;

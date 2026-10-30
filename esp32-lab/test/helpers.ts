@@ -28,6 +28,7 @@ import neopixel from '@esp32lab-parts/neopixel';
 import sevenSegment from '@esp32lab-parts/seven-segment';
 import soilMoisture from '@esp32lab-parts/soil-moisture';
 import ssd1306 from '@esp32lab-parts/ssd1306';
+import waterPump from '@esp32lab-parts/water-pump';
 import board from '../boards/esp32-devkit-v1/board.json';
 import half400 from '../breadboards/half-400/breadboard.json';
 
@@ -59,6 +60,7 @@ export const PARTS = {
   neopixel,
   'soil-moisture': soilMoisture,
   ssd1306,
+  'water-pump': waterPump,
 };
 export const BOARD = board as BoardDef;
 export const BREADBOARDS: Record<string, BreadboardDef> = { 'half-400': half400 as BreadboardDef };

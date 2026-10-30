@@ -31,6 +31,7 @@ import neopixel from '@esp32lab-parts/neopixel';
 import sevenSegment from '@esp32lab-parts/seven-segment';
 import soilMoisture from '@esp32lab-parts/soil-moisture';
 import ssd1306 from '@esp32lab-parts/ssd1306';
+import waterPump from '@esp32lab-parts/water-pump';
 import devkitc from '../../../../boards/esp32-devkitc-v4/board.json';
 import devkit from '../../../../boards/esp32-devkit-v1/board.json';
 import nodemcu32s from '../../../../boards/nodemcu-32s/board.json';
@@ -68,6 +69,7 @@ export const PARTS: Record<string, PartModule<any>> = {
   neopixel,
   'soil-moisture': soilMoisture,
   ssd1306,
+  'water-pump': waterPump,
 };
 /** What each part category is called in the UI. */
 export const CATEGORY: Record<string, string> = { passive: 'Linh kiện thụ động', output: 'Đầu ra', input: 'Đầu vào', sensor: 'Cảm biến', display: 'Hiển thị', power: 'Nguồn', mcu: 'Vi điều khiển', instrument: 'Thiết bị đo' };

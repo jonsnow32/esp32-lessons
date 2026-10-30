@@ -34,7 +34,7 @@ UI thread (Svelte)                     Sim Worker (Web Worker)
 | `packages/lesson-engine` | Evaluates declarative lesson checks | M0 ✅ |
 | `packages/inventory` | The user's parts box: stock keys (`PartManifest.stock`), a project's bill of materials, what is missing | ✅ |
 | `packages/mcu-esp32` | ESP32 pad capabilities; `Esp32Mcu`: the WASM emulator as an `McuModel` | M3 ✅ |
-| `parts/*` | One package per part: `resistor`, `led`, `pushbutton` (M0); `rgb-led`, `potentiometer`, `photoresistor`, `diode`, `slide-switch`, `buzzer` (common DC parts); `thermistor`, `tilt-switch`, `pir-sensor`, `ultrasonic` (HC-SR04), `dht` (DHT11/22), `ds18b20` (1-Wire, Search/Match ROM), `soil-moisture`, `gas-sensor` (MQ-2) (common sensors); `seven-segment`, `led-bar`, `relay`, `keypad` (4×4), `joystick`, `rotary-encoder` (KY-040) (GPIO-only modules); `servo` (SG90, reads the PWM waveform); `lcd1602` (PCF8574 + HD44780), `ssd1306` (I2C devices, see I2C below); `neopixel` (WS2812B strip or ring, decodes the RMT pulse train, chains through DOUT) | M0 ✅ |
+| `parts/*` | One package per part: `resistor`, `led`, `pushbutton` (M0); `rgb-led`, `potentiometer`, `photoresistor`, `diode`, `slide-switch`, `buzzer` (common DC parts); `thermistor`, `tilt-switch`, `pir-sensor`, `ultrasonic` (HC-SR04), `dht` (DHT11/22), `ds18b20` (1-Wire, Search/Match ROM), `soil-moisture` (dries by `dryRate`, wetted by a pump), `gas-sensor` (MQ-2) (common sensors); `seven-segment`, `led-bar`, `relay`, `water-pump` (wets the soil through `PartEnv.world`), `keypad` (4×4), `joystick`, `rotary-encoder` (KY-040) (GPIO-only modules); `servo` (SG90, reads the PWM waveform); `lcd1602` (PCF8574 + HD44780), `ssd1306` (I2C devices, see I2C below); `neopixel` (WS2812B strip or ring, decodes the RMT pulse train, chains through DOUT) | M0 ✅ |
 | `boards/*`, `breadboards/*`, `lessons/*` | Pure JSON definitions | M0 ✅ |
 | `projects/*` | Featured projects: `project.json` (circuit, card text, things to try) + `main.cpp`; listed on the home screen, opened as their own workspace | ✅ |
 | `crates/xtensa-core` | Xtensa LX6 decoder, objdump-syntax disassembler, interpreter | M1 ✅ |
@@ -137,8 +137,9 @@ time.
 | `observables()` | any time | values for the view, instruments and lesson checks |
 
 `PartEnv` gives each part `now()`, `schedule(at, tag)`, a seeded `random()` (runs are
-reproducible), `invalidate()` (ask for a re-solve) and `emit(terminal, train)` (send a pulse
-train out of a terminal). See [PART_AUTHORING.md](PART_AUTHORING.md).
+reproducible), `invalidate()` (ask for a re-solve), `emit(terminal, train)` (send a pulse
+train out of a terminal) and `world` (named numbers parts share without a wire: the water pump's
+flow that wets the soil probe's pot). See [PART_AUTHORING.md](PART_AUTHORING.md).
 
 I2C: the emulated controller hands each command list to the kernel (`setI2cBus`), which plays it
 against parts exposing `i2c: I2cTarget` on the nets of SDA/SCL, only when both lines are pulled up.

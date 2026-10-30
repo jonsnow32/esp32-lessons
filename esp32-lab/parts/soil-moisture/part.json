@@ -35,6 +35,13 @@
       "unit": " %",
       "min": 0,
       "max": 100
+    },
+    "dryRate": {
+      "type": "number",
+      "default": 0,
+      "unit": " %/s",
+      "min": 0,
+      "max": 5
     }
   },
   "plug": {"pins": {"gnd": "gnd", "vcc": "3v3", "aout": "adc"}},
@@ -47,7 +54,8 @@
     "tips": [
       "Ngược với trực giác: khô thì analogRead CAO, ướt thì THẤP.",
       "Hiệu chỉnh: ghi lại giá trị khi để ngoài không khí (khô 0 %) và khi nhúng nước (ướt 100 %), rồi dùng map() giữa hai số đó.",
-      "Kéo \"moisture\" để tưới hoặc để đất khô đi."
+      "Kéo \"moisture\" để tưới hoặc để đất khô đi.",
+      "\"dryRate\" cho đất tự khô dần theo thời gian (đã tua nhanh). Có máy bơm (water-pump) chạy thì nước làm độ ẩm tăng lên."
     ]
   }
 }

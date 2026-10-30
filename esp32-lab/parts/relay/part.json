@@ -49,6 +49,7 @@
       "label": "NC (thường đóng)"
     }
   ],
+  "isolated": [["in", "vcc", "gnd"], ["no", "com", "nc"]],
   "props": {
     "trigger": {
       "type": "enum",

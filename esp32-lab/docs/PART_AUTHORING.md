@@ -18,6 +18,8 @@ The kernel and solver never need to change.
 - `terminals`: name plus offset in breadboard pitches from the first terminal. A resistor's legs
   are 4 holes apart (`dx: 4`), an LED's 1, and a pushbutton straddles the centre gap (`dy: 3`).
 - `internalShorts`: legs that are always joined inside the part.
+- `isolated`: terminal groups with no path between them inside the part (a relay's coil side
+  and its contacts), so the workbench doesn't call a shared supply across them a short.
 - `props`: user-editable values with defaults (`number`, `enum`, `boolean`).
 - `stock`: the props that make a different item to buy and keep (`["resistance"]`, `["color"]`),
   not the ones the simulation varies (temperature, knob position). The user's parts box and the
@@ -61,6 +63,9 @@ Rules:
   `pulses(terminal, train)`: `train.t` is when it started, `train.pulses` the levels and their
   durations in ns. Decode it yourself; pass data on with `env.emit(terminal, train)`. See
   `parts/neopixel/index.ts`.
+- **Coupling without a wire** (a pump wetting the soil a probe sits in) goes through
+  `env.world.get(key)` / `env.world.set(key, value)`. The writer re-derives its value on every
+  solve, since the world starts empty after a rebuild. See `parts/water-pump/index.ts`.
 - **I2C devices** expose `i2c: I2cTarget` and name their SDA/SCL terminals in the module's `bus`.
   State that must survive a rebuild of the circuit (what a display shows) goes through
   `persist()` / `restore()`. See `parts/lcd1602/index.ts`.
