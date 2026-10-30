@@ -1,6 +1,7 @@
 <script lang="ts">
   // Selected part: editable props from its manifest and live observables from the solver.
   // Selected breadboard or board: what it is, and what can be done with it.
+  // Several things selected: how many of what, and what can be done with them all.
   import { BOARDS, PARTS } from '../lib/catalog';
   import { breadboard } from '../lib/geometry';
   import { lab } from '../lib/lab.svelte';
@@ -82,10 +83,27 @@
 {:else if bbInst && bb}
   <section>
     <h2>{bbInst.id} <span class="type">{bb.def.name}</span></h2>
-    <p class="note">{bb.holes.size} lỗ · kéo để di chuyển.{#if plugged} Xoá breadboard sẽ xoá luôn {plugged} linh kiện đang cắm trên nó.{/if}</p>
+    <p class="note">{bb.holes.size} lỗ · kéo để di chuyển.{#if plugged} Xoá breadboard thì {plugged} linh kiện đang cắm trên nó vẫn ở lại trên bàn, nối dây trực tiếp như các thanh nối của breadboard.{/if}</p>
     <div class="actions">
       <button onclick={() => (lab.docPage = `bb:${bbInst.type}`)}>Trang chi tiết</button>
       <button onclick={() => lab.deleteSelected()}>Xoá breadboard (Del)</button>
+    </div>
+  </section>
+{:else if lab.selection?.kind === 'group'}
+  {@const items = lab.selection.items}
+  {@const count = (kind: string) => items.filter((i) => i.kind === kind).length}
+  <section>
+    <h2>Đã chọn {items.length} mục</h2>
+    <p class="note">
+      {[count('part') && `${count('part')} linh kiện`, count('wire') && `${count('wire')} dây`, count('breadboard') && `${count('breadboard')} breadboard`, count('board') && 'board']
+        .filter(Boolean).join(' · ')}.
+      Kéo một mục để dời cả nhóm (phím mũi tên dời từng ô). Shift + bấm để thêm / bỏ, Shift + kéo chỗ trống để quét vùng.
+    </p>
+    <div class="actions">
+      {#if count('part')}<button onclick={() => lab.rotateSelected()}>Xoay từng linh kiện (R)</button>{/if}
+      {#if count('part') || count('breadboard')}<button onclick={() => lab.duplicateSelected()}>Nhân bản (Ctrl+D)</button>{/if}
+      <button onclick={() => lab.deleteSelected()}>Xoá cả nhóm (Del)</button>
+      <button onclick={() => (lab.selection = null)}>Bỏ chọn (Esc)</button>
     </div>
   </section>
 {:else if lab.selection?.kind === 'board'}

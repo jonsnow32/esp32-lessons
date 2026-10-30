@@ -13,6 +13,8 @@ import { resolvePlacement, rotate } from '@esp32lab/project-model';
 import { breadboard, type Box } from './geometry';
 import { loadSettings, saveSettings } from './settings';
 import { TIDY_MODES, tidyWires } from './tidy';
+import { unplugBreadboard } from './wiring';
+import { duplicate, sameItem, shiftGroup, type Item } from './group';
 
 export interface BuildError {
   line: number;
@@ -52,7 +54,8 @@ export function emptyProject(): Project {
   };
 }
 
-type Selection = { kind: 'part'; id: string } | { kind: 'wire'; id: string } | { kind: 'breadboard'; id: string } | { kind: 'board' } | null;
+/** One thing, or several picked together (see group.ts). */
+type Selection = Item | { kind: 'group'; items: Item[] } | null;
 
 const WIRE_COLORS = ['#e5484d', '#3e63dd', '#30a46c', '#f5d90a', '#f76b15', '#8e4ec6', '#1c2024'];
 
@@ -175,6 +178,8 @@ class Lab {
   private settings = loadSettings();
   /** How the bench shows the solved circuit. */
   overlay = $state(this.settings.overlay);
+  /** Whether the circuit is locked while the program runs (see locked()). */
+  lockWhileRunning = $state(this.settings.lockWhileRunning);
   /** Static netlist for hover highlighting (no simulation). */
   netKernel = $derived.by(() => this.buildNetKernel(this.project));
 
@@ -189,7 +194,7 @@ class Lab {
     this.myProjects = loadMyProjects();
     // Keep the user's settings in the browser as they change
     $effect.root(() => {
-      $effect(() => saveSettings({ tidyMode: this.tidyMode, overlay: this.overlay }));
+      $effect(() => saveSettings({ tidyMode: this.tidyMode, overlay: this.overlay, lockWhileRunning: this.lockWhileRunning }));
     });
     fetch('/pio/envs')
       .then((r) => r.json())
@@ -254,6 +259,18 @@ class Lab {
     this.send({ type: 'project', project: snapshot });
   }
 
+  /** The circuit cannot be edited now: the program runs and the user asked for the lock. */
+  get editLocked() {
+    return this.running && this.lockWhileRunning;
+  }
+
+  /** While the lock is on, say why and refuse the edit. */
+  locked(): boolean {
+    if (!this.editLocked) return false;
+    this.notice = 'Chương trình đang chạy: tạm dừng nó rồi mới di chuyển hay sửa mạch được.';
+    return true;
+  }
+
   get canUndo() {
     return this.past.length > 0;
   }
@@ -263,6 +280,7 @@ class Lab {
   }
 
   undo() {
+    if (this.locked()) return;
     const prev = this.past.at(-1);
     if (prev === undefined) return;
     this.past = this.past.slice(0, -1);
@@ -271,6 +289,7 @@ class Lab {
   }
 
   redo() {
+    if (this.locked()) return;
     const next = this.future.at(-1);
     if (next === undefined) return;
     this.future = this.future.slice(0, -1);
@@ -282,11 +301,8 @@ class Lab {
     this.current = json;
     this.lastChange = undefined;
     this.project = JSON.parse(json) as Project;
-    // Keep the selection only if what it points at still exists
-    const s = this.selection;
-    if (s?.kind === 'part' && !this.part(s.id)) this.selection = null;
-    if (s?.kind === 'wire' && !this.project.wires.some((w) => w.id === s.id)) this.selection = null;
-    if (s?.kind === 'breadboard' && !this.project.breadboards.some((b) => b.id === s.id)) this.selection = null;
+    // Keep the selection only as far as what it points at still exists
+    this.select(this.selected.filter((i) => this.exists(i)));
     this.save();
     this.send({ type: 'project', project: $state.snapshot(this.project) as Project });
   }
@@ -330,6 +346,69 @@ class Lab {
     localStorage.removeItem(wsKey(id));
   }
 
+  // --- Selection ------------------------------------------------------------------------------
+
+  /** The selection as a list: nothing, one thing or a group. */
+  get selected(): Item[] {
+    const s = this.selection;
+    return !s ? [] : s.kind === 'group' ? s.items : [s];
+  }
+
+  isSelected(item: Item): boolean {
+    return this.selected.some((i) => sameItem(i, item));
+  }
+
+  /** Select these: one thing, or a group of several. */
+  select(items: Item[]) {
+    this.selection = items.length > 1 ? { kind: 'group', items } : (items[0] ?? null);
+  }
+
+  /** Add a thing to the selection, or take it out if it is in (Shift+click). */
+  toggleSelect(item: Item) {
+    const now = this.selected;
+    this.select(now.some((i) => sameItem(i, item)) ? now.filter((i) => !sameItem(i, item)) : [...now, item]);
+  }
+
+  /** Everything on the bench, the board too. */
+  selectAll() {
+    this.select([
+      { kind: 'board' },
+      ...this.project.breadboards.map((b) => ({ kind: 'breadboard' as const, id: b.id })),
+      ...this.project.parts.map((p) => ({ kind: 'part' as const, id: p.id })),
+      ...this.project.wires.map((w) => ({ kind: 'wire' as const, id: w.id })),
+    ]);
+  }
+
+  private exists(i: Item): boolean {
+    if (i.kind === 'board') return true;
+    if (i.kind === 'part') return !!this.part(i.id);
+    if (i.kind === 'wire') return this.project.wires.some((w) => w.id === i.id);
+    return this.project.breadboards.some((b) => b.id === i.id);
+  }
+
+  /** Move what is selected by whole pitches (arrow keys). Refused when a part would not fit. */
+  moveSelected(dx: number, dy: number) {
+    if (!this.selected.length || this.locked()) return;
+    const { project, ok } = shiftGroup($state.snapshot(this.project) as Project, this.selected, dx, dy);
+    if (!ok) return;
+    this.project = project;
+    this.retidy();
+    this.commit();
+  }
+
+  /** Copy what is selected beside it, and select the copy (Ctrl+D). */
+  duplicateSelected() {
+    if (this.locked()) return;
+    const copy = duplicate($state.snapshot(this.project) as Project, this.selected);
+    if (!copy) {
+      if (this.selected.some((i) => i.kind === 'part' || i.kind === 'breadboard')) this.notice = 'Không còn chỗ trống gần đó để đặt bản sao.';
+      return;
+    }
+    this.project = copy.project;
+    this.select(copy.items);
+    this.commit();
+  }
+
   // --- Editing ----------------------------------------------------------------------------
 
   canPlace(type: string, bb: string, hole: string, rot: Rotation, ignore?: string): boolean {
@@ -358,6 +437,7 @@ class Lab {
   }
 
   addPart(type: string, bb: string, hole: string, rot: Rotation = 0) {
+    if (this.locked()) return;
     const id = this.newPartId(type);
     this.project.parts.push({ id, type, props: {}, placement: { bb, hole, rot } });
     this.selection = { kind: 'part', id };
@@ -366,6 +446,7 @@ class Lab {
 
   /** A new part lying on the bench, off the breadboard: wire its legs directly. */
   addPartOnBench(type: string, x: number, y: number, rot: Rotation = 0) {
+    if (this.locked()) return;
     const id = this.newPartId(type);
     this.project.parts.push({ id, type, props: {}, placement: null, bench: { x, y, rot } });
     this.selection = { kind: 'part', id };
@@ -377,6 +458,7 @@ class Lab {
    * on the breadboard its legs connect through the holes.
    */
   movePart(id: string, bb: string, hole: string, rot?: Rotation) {
+    if (this.locked()) return;
     const p = this.part(id);
     if (!p) return;
     const was = p.placement ?? p.bench;
@@ -393,6 +475,7 @@ class Lab {
    * from each hole a leg was in to that leg, as if it were on jumper leads.
    */
   benchPart(id: string, x: number, y: number, rot: Rotation) {
+    if (this.locked()) return;
     const p = this.part(id);
     const manifest = p && PARTS[p.type]?.manifest;
     if (!p || !manifest) return;
@@ -423,19 +506,28 @@ class Lab {
    * nearby spot fits it tries the next quarter turn.
    */
   rotateSelected() {
-    const s = this.selection;
-    const p = s?.kind === 'part' ? this.part(s.id) : undefined;
-    if (p?.bench && !p.placement) {
+    if (this.locked()) return;
+    // In a group, each part turns where it is
+    let turned = false;
+    for (const i of this.selected) {
+      const p = i.kind === 'part' ? this.part(i.id) : undefined;
+      if (p && this.turn(p)) turned = true;
+    }
+    if (turned) this.commit();
+  }
+
+  /** Turn a part a quarter (see rotateSelected). Did it turn? */
+  private turn(p: PartInstance): boolean {
+    if (p.bench && !p.placement) {
       // On the bench nothing is in the way: turn in place, the leg wires follow
       p.bench = { ...p.bench, rot: ((p.bench.rot + 90) % 360) as Rotation };
-      this.commit();
-      return;
+      return true;
     }
-    const manifest = p && PARTS[p.type]?.manifest;
-    const inst = p?.placement && this.project.breadboards.find((b) => b.id === p.placement!.bb);
+    const manifest = PARTS[p.type]?.manifest;
+    const inst = p.placement && this.project.breadboards.find((b) => b.id === p.placement!.bb);
     const ex = inst && breadboard(inst.type);
-    const anchor = ex && p?.placement && ex.holes.get(p.placement.hole);
-    if (!p?.placement || !manifest || !ex || !anchor) return;
+    const anchor = ex && p.placement && ex.holes.get(p.placement.hole);
+    if (!p.placement || !manifest || !ex || !anchor) return false;
     const [ox, oy] = centreOffset(manifest, p.placement.rot);
     const centre = { x: anchor.x + ox, y: anchor.y + oy };
     for (const step of [90, 180, 270]) {
@@ -448,10 +540,10 @@ class Lab {
       }
       if (best) {
         p.placement = { ...p.placement, hole: best.hole, rot };
-        this.commit();
-        return;
+        return true;
       }
     }
+    return false;
   }
 
   /** `slide`: one of many updates while a slider is dragged, undone as a single step. */
@@ -473,6 +565,7 @@ class Lab {
   }
 
   addWire(a: Endpoint, b: Endpoint, points: { x: number; y: number }[] = []) {
+    if (this.locked()) return;
     const color = WIRE_COLORS[this.nextWire++ % WIRE_COLORS.length];
     const wire: Wire = { id: `w${Date.now().toString(36)}${this.nextWire}`, a, b, color };
     if (points.length) wire.points = points;
@@ -485,6 +578,7 @@ class Lab {
 
   /** Re-route every wire in the next tidy mode, round and round (see tidy.ts). One undo step. */
   tidyWires() {
+    if (this.locked()) return;
     this.tidyMode = (this.tidyMode + 1) % TIDY_MODES.length;
     if (this.reroute()) this.commit();
   }
@@ -519,6 +613,7 @@ class Lab {
 
   /** Forget a wire's own corners: it bends on its own again. */
   unbendWire(id: string) {
+    if (this.locked()) return;
     const w = this.project.wires.find((q) => q.id === id);
     if (!w?.points) return;
     delete w.points;
@@ -531,6 +626,7 @@ class Lab {
    * board (D2 → IO2); wires to a pin it does not have are removed.
    */
   setBoard(type: string) {
+    if (this.locked()) return;
     const from = BOARDS[this.project.board.type];
     const to = BOARDS[type];
     if (!from || !to || type === this.project.board.type) return;
@@ -560,6 +656,7 @@ class Lab {
 
   /** A new breadboard on the bench, its a1 hole at (x, y). */
   addBreadboard(type: string, x: number, y: number) {
+    if (this.locked()) return;
     let n = this.project.breadboards.length + 1;
     while (this.project.breadboards.some((b) => b.id === `bb${n}`)) n++;
     this.project.breadboards.push({ id: `bb${n}`, type, x, y });
@@ -568,19 +665,29 @@ class Lab {
   }
 
   deleteSelected() {
+    if (this.locked()) return;
     const s = this.selection;
     if (!s || s.kind === 'board') return;
-    if (s.kind === 'part') {
+    if (s.kind === 'group') {
+      const ids = (kind: Item['kind']) => new Set(s.items.flatMap((i) => (i.kind === kind && 'id' in i ? [i.id] : [])));
+      const parts = ids('part');
+      const wires = ids('wire');
+      this.project.wires = this.project.wires.filter((w) => !wires.has(w.id) && ![...parts].some((id) => onPart(w, id)));
+      this.project.parts = this.project.parts.filter((p) => !parts.has(p.id));
+      // Breadboards go as one at a time would (the board stays)
+      const bbs = ids('breadboard');
+      let project = $state.snapshot(this.project) as Project;
+      for (const id of bbs) project = unplugBreadboard(project, id, (p) => this.buildNetKernel(p));
+      this.project = project;
+      if (bbs.size) this.retidy();
+    } else if (s.kind === 'part') {
       this.project.parts = this.project.parts.filter((p) => p.id !== s.id);
       // Wires to its legs would hang in the air
       this.project.wires = this.project.wires.filter((w) => !onPart(w, s.id));
     } else if (s.kind === 'breadboard') {
-      // The parts plugged into it go with it, and so does every wire to its holes or their legs
-      const gone = new Set(this.project.parts.filter((p) => p.placement?.bb === s.id).map((p) => p.id));
-      const inHole = (e: Endpoint) => e.kind === 'hole' && e.bb === s.id;
-      this.project.breadboards = this.project.breadboards.filter((b) => b.id !== s.id);
-      this.project.parts = this.project.parts.filter((p) => !gone.has(p.id));
-      this.project.wires = this.project.wires.filter((w) => !inHole(w.a) && !inHole(w.b) && ![...gone].some((id) => onPart(w, id)));
+      // The parts plugged into it stay on the bench, wired up as its strips joined them (see wiring.ts)
+      this.project = unplugBreadboard($state.snapshot(this.project) as Project, s.id, (p) => this.buildNetKernel(p));
+      this.retidy();
     } else this.project.wires = this.project.wires.filter((w) => w.id !== s.id);
     this.selection = null;
     this.commit();
@@ -591,6 +698,7 @@ class Lab {
   }
 
   clear() {
+    if (this.locked()) return;
     this.project = emptyProject();
     this.selection = null;
     this.commit();

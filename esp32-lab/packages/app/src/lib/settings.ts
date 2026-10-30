@@ -7,6 +7,8 @@ export interface Settings {
   tidyMode: number;
   /** How the bench shows the solved circuit. */
   overlay: 'current' | 'voltage' | 'off';
+  /** The circuit cannot be edited while the program runs (pause it first). */
+  lockWhileRunning: boolean;
 }
 
 interface Stored {
@@ -18,7 +20,7 @@ interface Stored {
 
 const KEY = 'esp32lab.settings';
 
-export const DEFAULT_SETTINGS: Settings = { tidyMode: -1, overlay: 'current' };
+export const DEFAULT_SETTINGS: Settings = { tidyMode: -1, overlay: 'current', lockWhileRunning: false };
 
 /** The stored settings over the defaults; the defaults alone if none or unreadable. */
 export function loadSettings(): Settings {
