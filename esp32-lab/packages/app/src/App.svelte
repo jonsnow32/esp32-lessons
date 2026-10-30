@@ -13,6 +13,7 @@
   import Workbench from './components/Workbench.svelte';
   import Dock from './components/Dock.svelte';
   import Icon, { type IconName } from './components/Icon.svelte';
+  import TitleInput from './components/TitleInput.svelte';
   import { FREE, lab } from './lib/lab.svelte';
   import { DOCKS, layout, type DockId, type ViewId } from './lib/layout.svelte';
 
@@ -20,6 +21,10 @@
   const SPEEDS = [0.1, 0.25, 0.5, 1, 2, 5, 10];
   let damaged = $derived(lab.diagnostics.filter((d) => d.severity === 'error'));
   let menuOpen = $state(false);
+  /** The open project's name is being edited in the top bar. */
+  let renaming = $state(false);
+  /** Started from an empty bench (the sandbox, or a project of the user's own not copied from a featured one). */
+  let blank = $derived(lab.route === FREE || (!!lab.mine && !lab.mine.from));
 
   const time = (at: number) => new Date(at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
@@ -107,8 +112,12 @@
       <span class="kind">{lab.mine ? 'Dự án của tôi' : lab.route === FREE ? 'Tự do' : lab.featured ? 'Dự án mẫu' : 'Bài học'}</span>
       {#if lab.mine}
         {@const mine = lab.mine}
-        <h1>{mine.title}</h1>
-        <button class="icon" title="Đổi tên dự án" onclick={() => { const t = prompt('Tên dự án', mine.title); if (t) lab.renameMyProject(mine.id, t); }}><Icon name="edit" size={14} /></button>
+        {#if renaming}
+          <h1><TitleInput value={mine.title} onsave={(t) => lab.renameMyProject(mine.id, t)} ondone={() => (renaming = false)} /></h1>
+        {:else}
+          <h1>{mine.title}</h1>
+          <button class="icon" title="Đổi tên dự án" onclick={() => (renaming = true)}><Icon name="edit" size={14} /></button>
+        {/if}
       {:else if lab.route !== FREE}
         <h1>{lab.featured ? lab.featured.title : (lab.lesson?.titleVi ?? lab.lesson?.title)}</h1>
       {/if}
@@ -129,8 +138,8 @@
         {#if menuOpen}
           <div class="menu" role="menu">
             {#if !lab.featured}
-            <button role="menuitem" onclick={() => menu(() => confirm(lab.route === FREE ? 'Xoá hết mạch và code trong chế độ Tự do?' : (lab.mine ? 'Đưa mạch và code của bản sao về như dự án gốc? Phần bạn đã sửa sẽ mất.' : 'Đưa mạch và code về như lúc mới mở bài? Phần bạn đã sửa sẽ mất.')) && lab.restart())}>
-              <Icon name="reset" />{lab.route === FREE ? 'Xoá bàn và code' : lab.mine ? 'Đưa bản sao về như bản gốc' : 'Làm lại bài từ đầu'}
+            <button role="menuitem" onclick={() => menu(() => confirm(blank ? 'Xoá hết mạch và code trên bàn này?' : (lab.mine ? 'Đưa mạch và code của bản sao về như dự án gốc? Phần bạn đã sửa sẽ mất.' : 'Đưa mạch và code về như lúc mới mở bài? Phần bạn đã sửa sẽ mất.')) && lab.restart())}>
+              <Icon name="reset" />{blank ? 'Xoá bàn và code' : lab.mine ? 'Đưa bản sao về như bản gốc' : 'Làm lại bài từ đầu'}
             </button>
             {/if}
             <button role="menuitem" onclick={() => menu(() => (visible('code') ? layout.toggle(layout.dockOf('code')) : layout.reveal('code')))}>{visible('code') ? 'Ẩn' : 'Hiện'} trình soạn code</button>

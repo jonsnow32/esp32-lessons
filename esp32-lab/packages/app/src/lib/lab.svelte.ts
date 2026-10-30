@@ -76,11 +76,11 @@ interface Workspace {
 
 export const FREE = 'free';
 
-/** A project of the user's own: so far always a copy of a featured project they changed. */
+/** A project of the user's own: a copy of a featured project they changed, or a blank bench. */
 export interface MyProject {
   id: string;
   title: string;
-  /** The featured project it was copied from. */
+  /** The featured project it was copied from; none for a project started from a blank bench. */
   from?: string;
   created: number;
   updated: number;
@@ -114,6 +114,14 @@ function isOriginal(f: FeaturedProject, project: Project, code: string): boolean
 function copyTitle(base: string, taken: MyProject[]): string {
   for (let n = 1; ; n++) {
     const title = `${base} (bản sao${n > 1 ? ` ${n}` : ''})`;
+    if (!taken.some((p) => p.title === title)) return title;
+  }
+}
+
+/** "Dự án mới", then "Dự án mới 2"… */
+function newTitle(taken: MyProject[]): string {
+  for (let n = 1; ; n++) {
+    const title = `Dự án mới${n > 1 ? ` ${n}` : ''}`;
     if (!taken.some((p) => p.title === title)) return title;
   }
 }
@@ -335,6 +343,14 @@ class Lab {
   private updateMyProjects(list: MyProject[]) {
     this.myProjects = list.sort((a, b) => b.updated - a.updated);
     localStorage.setItem(MY_PROJECTS, JSON.stringify(this.myProjects));
+  }
+
+  /** Start a project of the user's own on a blank bench, and open it. */
+  async newMyProject() {
+    const now = Date.now();
+    const p: MyProject = { id: `my-${now.toString(36)}`, title: newTitle(this.myProjects), created: now, updated: now };
+    this.updateMyProjects([p, ...this.myProjects]);
+    await this.open(p.id);
   }
 
   renameMyProject(id: string, title: string) {
@@ -979,8 +995,19 @@ function migrateOldStorage() {
   }
   localStorage.removeItem('esp32lab.project');
   localStorage.removeItem('esp32lab.code');
-  // Work saved on a featured project before originals became read-only: keep it as a copy
   const mine = loadMyProjects();
+  // The one sandbox bench from before "Tạo bàn làm việc mới" made projects: keep it as one of them
+  const free = loadWorkspace(FREE);
+  if (free) {
+    localStorage.removeItem(wsKey(FREE));
+    if (free.project.parts.length || free.project.wires.length || free.code !== DEFAULT_SKETCH) {
+      const now = Date.now();
+      const p: MyProject = { id: `my-${now.toString(36)}free`, title: 'Bàn làm việc tự do', created: now, updated: now };
+      mine.unshift(p);
+      localStorage.setItem(wsKey(p.id), JSON.stringify(free));
+    }
+  }
+  // Work saved on a featured project before originals became read-only: keep it as a copy
   for (const f of FEATURED) {
     const ws = loadWorkspace(f.id);
     if (!ws) continue;

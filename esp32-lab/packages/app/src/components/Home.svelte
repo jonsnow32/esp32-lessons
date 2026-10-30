@@ -8,8 +8,9 @@
   import BreadboardView from './BreadboardView.svelte';
   import CircuitThumb from './CircuitThumb.svelte';
   import Icon from './Icon.svelte';
+  import TitleInput from './TitleInput.svelte';
   import { SCENE_DEFS } from '../lib/scene';
-  import { FREE, lab, loadWorkspace } from '../lib/lab.svelte';
+  import { lab, loadWorkspace } from '../lib/lab.svelte';
   import { inventory, itemName } from '../lib/inventory.svelte';
 
   const cards = LESSONS.map((l) => {
@@ -25,6 +26,9 @@
     const parts = f.project.parts.filter((p) => !seen.has(p.type) && seen.add(p.type));
     return { f, parts };
   });
+
+  /** The project whose name is being edited on its card. */
+  let renaming = $state<string | null>(null);
 
   let stocked = $derived(inventory.items.filter((i) => i.qty > 0));
 
@@ -126,17 +130,21 @@
   <div class="row">
     {#each mine as { p, ws, from } (p.id)}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <div class="card project trace" role="button" tabindex="0" onclick={() => lab.open(p.id)} onkeydown={(e) => e.key === 'Enter' && lab.open(p.id)}>
+      <div class="card project trace" role="button" tabindex="0" onclick={() => renaming !== p.id && lab.open(p.id)} onkeydown={(e) => e.key === 'Enter' && renaming !== p.id && lab.open(p.id)}>
         <span class="thumb">{#if ws}<CircuitThumb project={ws.project} />{/if}</span>
-        <span class="title">{p.title}</span>
+        {#if renaming === p.id}
+          <span class="title"><TitleInput value={p.title} onsave={(t) => lab.renameMyProject(p.id, t)} ondone={() => (renaming = null)} /></span>
+        {:else}
+          <span class="title">{p.title}</span>
+        {/if}
         <span class="summary">{from ? `Từ "${from.title}". ` : ''}Sửa lần cuối {when(p.updated)}.</span>
         <span class="actions">
-          <button title="Đổi tên" onclick={(e) => { e.stopPropagation(); const t = prompt('Tên dự án', p.title); if (t) lab.renameMyProject(p.id, t); }} ><Icon name="edit" size={14} />Đổi tên</button>
-          <button title="Xoá dự án" onclick={(e) => { e.stopPropagation(); if (confirm(`Xoá "${p.title}"? Mạch và code của bản sao này sẽ mất.`)) lab.deleteMyProject(p.id); }} class="danger"><Icon name="trash" size={14} />Xoá</button>
+          <button title="Đổi tên" onclick={(e) => { e.stopPropagation(); renaming = p.id; }} ><Icon name="edit" size={14} />Đổi tên</button>
+          <button title="Xoá dự án" onclick={(e) => { e.stopPropagation(); if (confirm(`Xoá "${p.title}"? Mạch và code của dự án này sẽ mất.`)) lab.deleteMyProject(p.id); }} class="danger"><Icon name="trash" size={14} />Xoá</button>
         </span>
       </div>
     {/each}
-    <button class="card free" onclick={() => lab.open(FREE)}>
+    <button class="card free" onclick={() => lab.newMyProject()}>
       <span class="thumb blank"><Icon name="bench" size={44} /></span>
       <span class="title">Tạo bàn làm việc mới</span>
     </button>
