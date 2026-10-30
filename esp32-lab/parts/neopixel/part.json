@@ -52,6 +52,7 @@
       "max": 64
     }
   },
+  "plug": {"pins": {"gnd": "gnd", "vcc": "5v", "din": "out"}},
   "learn": {
     "summary": "Mỗi LED có sẵn một con chip nhỏ: chỉ một dây dữ liệu đi qua cả dải, mỗi LED giữ lại 24 bit màu đầu tiên (xanh lá, đỏ, xanh dương, mỗi màu 0–255) rồi chuyển phần còn lại cho LED sau. Dừng gửi hơn 50 µs là cả dải đổi màu cùng lúc.",
     "howToPlug": [

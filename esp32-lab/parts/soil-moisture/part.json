@@ -37,6 +37,7 @@
       "max": 100
     }
   },
+  "plug": {"pins": {"gnd": "gnd", "vcc": "3v3", "aout": "adc"}},
   "learn": {
     "summary": "Que cắm vào đất đo điện dung giữa hai lớp đồng: đất càng ướt, điện dung càng lớn và điện áp AOUT càng THẤP. Loại điện dung không bị gỉ như loại hai que kim loại.",
     "howToPlug": [

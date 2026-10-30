@@ -56,6 +56,7 @@
       "max": 100
     }
   },
+  "plug": {"pins": {"gnd": "gnd", "vcc": "3v3", "vrx": "adc", "vry": "adc", "sw": "in"}},
   "learn": {
     "summary": "Cần điều khiển gồm hai biến trở 10 kΩ, một cho trục X và một cho trục Y, cộng một nút nhấn khi ấn cần xuống. Thả tay thì cần tự về giữa (khoảng nửa điện áp nguồn).",
     "howToPlug": [

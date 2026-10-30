@@ -50,6 +50,7 @@
     "powerMax": 0.125,
     "overstressTime": 2000000000
   },
+  "plug": {"pins": {"a": "gnd", "wiper": "adc", "b": "3v3"}},
   "learn": {
     "summary": "Biến trở là một điện trở có con chạy ở giữa. Hai chân ngoài luôn có đủ giá trị (ví dụ 10 kΩ); xoay núm thì con chạy trượt dọc lớp than, chia điện áp giữa hai đầu thành một điện áp bất kỳ ở chân giữa.",
     "howToPlug": [

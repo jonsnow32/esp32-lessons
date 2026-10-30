@@ -41,6 +41,7 @@
     }
   ],
   "props": {},
+  "plug": {"pins": {"clk": "in", "dt": "in", "sw": "in", "vcc": "3v3", "gnd": "gnd"}},
   "learn": {
     "summary": "Núm xoay vô tận, mỗi nấc 'tạch' phát ra hai xung lệch pha trên CLK và DT. Xung nào tới trước cho biết chiều xoay, đếm xung cho biết xoay bao nhiêu nấc. Ấn núm xuống là một nút nhấn.",
     "howToPlug": [

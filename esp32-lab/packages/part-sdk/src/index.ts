@@ -60,6 +60,24 @@ export interface PartManifest {
     howToPlug: string[];
     tips?: string[];
   };
+  /** How the part is usually wired to the ESP32, for the one-click plug-in (see PlugSpec). */
+  plug?: PlugSpec;
+}
+
+/**
+ * What a terminal connects to: a supply, GND, a free GPIO that can drive (`out`) or read (`in`),
+ * an ADC1 pin, the I2C pins, or `common`, which follows the part's `common` prop (GND for a
+ * common cathode, 3V3 for a common anode).
+ */
+export type PlugRole = 'gnd' | '3v3' | '5v' | 'out' | 'in' | 'adc' | 'sda' | 'scl' | 'common';
+
+export interface PlugSpec {
+  /** Terminals left out stay free. */
+  pins: Record<string, PlugRole>;
+  /** A resistor between the terminal and what it connects to (Ω): an LED's current limit. */
+  series?: Record<string, number>;
+  /** A resistor from the terminal to a supply as well (Ω): a pull-up, the low half of a divider. */
+  pull?: Record<string, ['3v3' | 'gnd', number]>;
 }
 
 // ---------------------------------------------------------------------------

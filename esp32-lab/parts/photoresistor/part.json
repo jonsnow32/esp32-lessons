@@ -41,6 +41,7 @@
     "powerMax": 0.1,
     "overstressTime": 2000000000
   },
+  "plug": {"pins": {"a": "3v3", "b": "adc"}, "pull": {"b": ["gnd", 10000]}},
   "learn": {
     "summary": "Quang trở (LDR) là điện trở thay đổi theo ánh sáng: trời tối thì rất lớn (hàng trăm kΩ đến 1 MΩ), càng sáng càng nhỏ (vài kΩ). Nó không có chiều, cắm xuôi hay ngược đều được.",
     "howToPlug": [

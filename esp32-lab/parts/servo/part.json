@@ -28,6 +28,7 @@
     }
   ],
   "props": {},
+  "plug": {"pins": {"gnd": "gnd", "vcc": "5v", "sig": "out"}},
   "learn": {
     "summary": "Servo quay cần tới một góc 0–180° và giữ nguyên ở đó. Góc được chọn bằng độ rộng xung: cứ 20 ms một xung, xung 0,5 ms là 0°, 1,5 ms là 90°, 2,5 ms là 180°.",
     "howToPlug": [

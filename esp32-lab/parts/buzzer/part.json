@@ -26,6 +26,7 @@
     "currentMax": 0.04,
     "overstressTime": 2000000000
   },
+  "plug": {"pins": {"plus": "out", "minus": "gnd"}},
   "learn": {
     "summary": "Còi chủ động có sẵn mạch dao động bên trong: chỉ cần cấp điện đúng chiều là kêu \"bíp\", ngắt điện là im. Có cực tính: chân dài (+, có dấu + trên vỏ) phải ở phía điện áp cao.",
     "howToPlug": [

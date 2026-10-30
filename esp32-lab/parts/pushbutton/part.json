@@ -45,6 +45,7 @@
       "default": true
     }
   },
+  "plug": {"pins": {"a1": "in", "b1": "gnd"}},
   "learn": {
     "summary": "Nút nhấn là công tắc tạm thời: nhấn thì nối hai phía lại, nhả thì ngắt. Hai chân cùng một phía luôn thông với nhau.",
     "howToPlug": [

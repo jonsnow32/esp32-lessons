@@ -50,6 +50,7 @@
       "max": 10000
     }
   },
+  "plug": {"pins": {"vcc": "5v", "gnd": "gnd", "do": "in", "ao": "adc"}},
   "learn": {
     "summary": "MQ-2 có một lớp thiếc oxit được nung nóng: gặp khí gas (LPG), khói hoặc hydro, điện trở của nó giảm và điện áp AO tăng. Module có sẵn mạch so sánh: vượt ngưỡng chỉnh bằng biến trở xanh thì DO xuống LOW.",
     "howToPlug": [

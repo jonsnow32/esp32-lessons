@@ -14,6 +14,7 @@ import { breadboard, type Box } from './geometry';
 import { loadSettings, saveSettings } from './settings';
 import { TIDY_MODES, tidyWires } from './tidy';
 import { unplugBreadboard } from './wiring';
+import { autoPlug } from './autoplug';
 import { duplicate, sameItem, shiftGroup, type Item } from './group';
 
 export interface BuildError {
@@ -544,6 +545,24 @@ class Lab {
       }
     }
     return false;
+  }
+
+  /**
+   * Plug a part in the way its manifest says: onto a breadboard if it lies on the bench, each
+   * leg wired to its supply or a free GPIO (see autoplug.ts). Says where each leg went.
+   */
+  autoPlug(id: string) {
+    if (this.locked()) return;
+    const r = autoPlug($state.snapshot(this.project) as Project, id, (p) => this.buildNetKernel(p));
+    if (!r.ok) {
+      this.notice = r.reason;
+      return;
+    }
+    this.project = r.project;
+    this.retidy();
+    this.selection = { kind: 'part', id };
+    this.notice = `Đã cắm ${id}: ${r.report.join(' · ')}.`;
+    this.commit();
   }
 
   /** `slide`: one of many updates while a slider is dragged, undone as a single step. */

@@ -65,6 +65,7 @@
       </div>
     {/if}
     <div class="actions">
+      {#if manifest.plug}<button onclick={() => lab.autoPlug(part.id)} title="Cắm lên breadboard và nối dây tới board theo cách cắm mẫu">Cắm tự động</button>{/if}
       <button onclick={() => (lab.docPage = part.type)}>Trang chi tiết</button>
       <button onclick={() => lab.rotateSelected()}>Xoay (R)</button>
       <button onclick={() => lab.deleteSelected()}>Xoá (Del)</button>

@@ -43,6 +43,7 @@
       "max": 450
     }
   },
+  "plug": {"pins": {"vcc": "5v", "trig": "out", "echo": "in", "gnd": "gnd"}},
   "learn": {
     "summary": "HC-SR04 đo khoảng cách bằng tiếng vang siêu âm: kích chân Trig một xung 10 µs, module phát 8 xung 40 kHz rồi giữ chân Echo ở mức HIGH đúng bằng thời gian âm thanh đi tới vật và dội về. Đo được từ 2 cm đến 4 m.",
     "howToPlug": [

@@ -61,6 +61,7 @@
     "currentAbsMax": 30,
     "overstressTime": 1000000000
   },
+  "plug": {"pins": {"in": "out", "vcc": "5v", "gnd": "gnd"}},
   "learn": {
     "summary": "Relay là công tắc do nam châm điện bật tắt: một tín hiệu nhỏ từ ESP32 đóng ngắt được thiết bị điện lớn (đèn, quạt, máy bơm). Bên tín hiệu và bên tải cách điện hoàn toàn với nhau.",
     "howToPlug": [

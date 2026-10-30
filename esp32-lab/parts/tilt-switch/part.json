@@ -30,6 +30,7 @@
     "currentMax": 0.02,
     "overstressTime": 2000000000
   },
+  "plug": {"pins": {"a": "in", "b": "gnd"}},
   "learn": {
     "summary": "Bên trong ống kim loại có hai viên bi. Đứng thẳng thì bi chạm hai chân nên mạch đóng; nghiêng quá ~45° thì bi lăn ra và mạch hở. Dùng để phát hiện đổ, rung hay lật.",
     "howToPlug": [

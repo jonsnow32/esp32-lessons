@@ -37,6 +37,7 @@
       "max": 125
     }
   },
+  "plug": {"pins": {"gnd": "gnd", "dq": "in", "vdd": "3v3"}, "pull": {"dq": ["3v3", 4700]}},
   "learn": {
     "summary": "Cảm biến nhiệt số đo từ −55 °C đến 125 °C, sai số ±0,5 °C. Nó nói chuyện qua giao thức 1-Wire: chỉ một dây dữ liệu, và nhiều cảm biến có thể dùng chung dây đó vì mỗi con có một mã số 64 bit riêng.",
     "howToPlug": [

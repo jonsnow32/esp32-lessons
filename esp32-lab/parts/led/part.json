@@ -40,6 +40,7 @@
     "reverseVoltageMax": 5,
     "overstressTime": 50000000
   },
+  "plug": {"pins": {"anode": "out", "cathode": "gnd"}, "series": {"anode": 220}},
   "learn": {
     "summary": "Đèn LED chỉ cho dòng điện đi theo một chiều: từ chân dài (+, anode) sang chân ngắn (−, cathode). Có dòng thì sáng, dòng càng lớn càng sáng, nhưng quá khoảng 30 mA là cháy.",
     "howToPlug": [

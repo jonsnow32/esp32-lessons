@@ -41,6 +41,7 @@
       ]
     }
   },
+  "plug": {"pins": {"vcc": "5v", "out": "in", "gnd": "gnd"}},
   "learn": {
     "summary": "Cảm biến PIR thấy được tia hồng ngoại từ cơ thể người. Khi có người di chuyển trước mái vòm, chân OUT lên 3,3 V và giữ thêm vài giây sau khi hết chuyển động, rồi về 0 V.",
     "howToPlug": [

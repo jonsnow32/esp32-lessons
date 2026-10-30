@@ -39,6 +39,7 @@
     "reverseVoltageMax": 5,
     "overstressTime": 50000000
   },
+  "plug": {"pins": {"a": "out", "b": "out", "c": "out", "d": "out", "e": "out", "f": "out", "g": "out", "dp": "out", "com1": "common"}, "series": {"a": 220, "b": 220, "c": 220, "d": 220, "e": 220, "f": 220, "g": 220, "dp": 220}},
   "learn": {
     "summary": "Tám đèn LED (7 thanh a–g và dấu chấm dp) xếp thành hình số 8, chung một chân. Bật đúng các thanh là hiện được số 0–9 và vài chữ cái.",
     "howToPlug": [

@@ -33,6 +33,7 @@
     "powerMax": 0.05,
     "overstressTime": 2000000000
   },
+  "plug": {"pins": {"a": "3v3", "b": "adc"}, "pull": {"b": ["gnd", 10000]}},
   "learn": {
     "summary": "Nhiệt điện trở NTC là điện trở giảm khi nóng lên: 10 kΩ ở 25 °C, khoảng 33 kΩ ở 0 °C và chỉ còn ~0,7 kΩ ở 100 °C. Nó không có chiều.",
     "howToPlug": [

@@ -10,8 +10,8 @@ import { GROUND_KEY, keyOf, type SimKernel } from '@esp32lab/sim-core';
 import { PARTS } from './catalog';
 import { breadboard, endpointPos, partAnchor } from './geometry';
 
-const RAIL_COLORS: Record<string, string> = { GND: '#1f2023', '3V3': '#e5484d', '5V': '#f76b15' };
-const SIGNAL_COLORS = ['#3e63dd', '#30a46c', '#f5d90a', '#8e4ec6', '#12a594', '#d6409f'];
+export const RAIL_COLORS: Record<string, string> = { GND: '#1f2023', '3V3': '#e5484d', '5V': '#f76b15' };
+export const SIGNAL_COLORS = ['#3e63dd', '#30a46c', '#f5d90a', '#8e4ec6', '#12a594', '#d6409f'];
 
 /**
  * The project without breadboard `bb`, its parts on the bench and rewired. `netlist` builds the

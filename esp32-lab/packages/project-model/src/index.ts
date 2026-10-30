@@ -121,7 +121,16 @@ export interface BoardDef {
   onboard: BoardPart[];
   /** How the UI draws it; DevKit V1 look (blue PCB, ESP32-WROOM-32, CP2102) when omitted. */
   look?: { pcb?: 'blue' | 'black'; module?: string; usbChip?: string };
+  /** Pin choices when parts are wired for the user (one-click plug-in). */
+  wiring?: BoardWiring;
   learn?: BoardLearn;
+}
+
+export interface BoardWiring {
+  /** The pads Wire.begin() uses without arguments; I2C parts go there and share them. */
+  i2c?: { sda: string; scl: string };
+  /** Pads never picked for a part, besides flash and serial: e.g. a strapping pin that stops the boot when pulled. */
+  avoid?: string[];
 }
 
 // ---------------------------------------------------------------------------

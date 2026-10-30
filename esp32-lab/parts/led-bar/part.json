@@ -149,6 +149,7 @@
     "reverseVoltageMax": 5,
     "overstressTime": 50000000
   },
+  "plug": {"pins": {"a0": "out", "a1": "out", "a2": "out", "a3": "out", "a4": "out", "a5": "out", "a6": "out", "a7": "out", "a8": "out", "a9": "out", "k0": "gnd", "k1": "gnd", "k2": "gnd", "k3": "gnd", "k4": "gnd", "k5": "gnd", "k6": "gnd", "k7": "gnd", "k8": "gnd", "k9": "gnd"}, "series": {"a0": 220, "a1": 220, "a2": 220, "a3": 220, "a4": 220, "a5": 220, "a6": 220, "a7": 220, "a8": 220, "a9": 220}},
   "learn": {
     "summary": "Mười đèn LED riêng biệt xếp thành một thanh, mỗi vạch có chân + và chân − của nó. Thường dùng làm thanh mức: âm lượng, pin, giá trị cảm biến.",
     "howToPlug": [

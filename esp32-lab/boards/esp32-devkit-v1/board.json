@@ -359,6 +359,7 @@
       "y": 16.6
     }
   ],
+  "wiring": {"i2c": {"sda": "GPIO21", "scl": "GPIO22"}, "avoid": ["GPIO12"]},
   "learn": {
     "summary": "Board ESP32 phổ biến và rẻ nhất: 30 chân, module ESP32-WROOM-32 (chip ESP32-D0WD lõi kép 240 MHz, Wi-Fi, Bluetooth, 4 MB flash), cổng micro-USB qua chip CP2102 để nạp code và mở Serial. Có sẵn LED xanh ở GPIO2 để thử blink ngay.",
     "tips": [

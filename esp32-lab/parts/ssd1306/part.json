@@ -53,6 +53,7 @@
       ]
     }
   },
+  "plug": {"pins": {"gnd": "gnd", "vcc": "3v3", "scl": "scl", "sda": "sda"}},
   "learn": {
     "summary": "Màn hình OLED 128 × 64 điểm, mỗi điểm tự phát sáng nên không cần đèn nền, nhìn rõ cả trong tối. Vẽ được chữ, số, đường, hình và ảnh nhỏ qua I2C.",
     "howToPlug": [

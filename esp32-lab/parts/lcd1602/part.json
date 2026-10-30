@@ -53,6 +53,7 @@
       ]
     }
   },
+  "plug": {"pins": {"gnd": "gnd", "vcc": "5v", "sda": "sda", "scl": "scl"}},
   "learn": {
     "summary": "Màn hình 2 dòng × 16 ký tự, có thêm bo mạch PCF8574 phía sau để chỉ cần 2 dây tín hiệu I2C (SDA, SCL) thay vì 6–10 dây. Hiện chữ, số và tối đa 8 ký tự tự vẽ.",
     "howToPlug": [

@@ -59,6 +59,7 @@
     }
   ],
   "props": {},
+  "plug": {"pins": {"r1": "out", "r2": "out", "r3": "out", "r4": "out", "c1": "in", "c2": "in", "c3": "in", "c4": "in"}},
   "learn": {
     "summary": "16 phím xếp thành 4 hàng × 4 cột nhưng chỉ có 8 dây: mỗi phím khi nhấn nối một dây hàng với một dây cột. ESP32 tìm phím bằng cách quét lần lượt từng hàng.",
     "howToPlug": [

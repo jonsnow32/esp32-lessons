@@ -41,6 +41,7 @@
     "currentMax": 0.5,
     "overstressTime": 2000000000
   },
+  "plug": {"pins": {"a": "gnd", "common": "in", "b": "3v3"}},
   "learn": {
     "summary": "Công tắc gạt giữ nguyên vị trí sau khi gạt (khác nút nhấn tự nhả). Chân giữa luôn được nối với một trong hai chân ngoài: gạt sang trái nối giữa–trái, gạt sang phải nối giữa–phải.",
     "howToPlug": [

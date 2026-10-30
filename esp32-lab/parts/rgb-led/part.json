@@ -49,6 +49,7 @@
     "reverseVoltageMax": 5,
     "overstressTime": 50000000
   },
+  "plug": {"pins": {"red": "out", "common": "common", "green": "out", "blue": "out"}, "series": {"red": 220, "green": 220, "blue": 220}},
   "learn": {
     "summary": "LED RGB là ba LED đỏ, xanh lá, xanh dương trong cùng một vỏ, dùng chung một chân (chân dài nhất). Bật từng màu hoặc trộn chúng để ra màu khác: đỏ + xanh lá = vàng, cả ba = trắng.",
     "howToPlug": [

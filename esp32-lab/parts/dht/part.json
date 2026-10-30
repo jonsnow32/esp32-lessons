@@ -59,6 +59,7 @@
       "max": 100
     }
   },
+  "plug": {"pins": {"vcc": "3v3", "data": "in", "gnd": "gnd"}, "pull": {"data": ["3v3", 10000]}},
   "learn": {
     "summary": "DHT11 (vỏ xanh) và DHT22 (vỏ trắng, chính xác hơn) đo nhiệt độ và độ ẩm rồi gửi về qua một dây DATA duy nhất: ESP32 kéo dây xuống thấp để \"gọi\", cảm biến trả lời 40 bit, mỗi bit là một xung HIGH ngắn (0) hoặc dài (1).",
     "howToPlug": [
