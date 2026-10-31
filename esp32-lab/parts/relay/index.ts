@@ -88,18 +88,23 @@ function view(_props: RelayProps, obs: Record<string, unknown>): string {
   const screws = [5, 7, 9]
     .map((x) => `<path d="M${x},0 V-0.6" stroke="#a7adb4" stroke-width="0.14"/><circle cx="${x}" cy="0" r="0.13" fill="#5f646b"/><circle cx="${x}" cy="-1.6" r="0.55" fill="#c9ced6" stroke="#6f767e" stroke-width="0.05"/><path d="M${x - 0.35},-1.6 H${x + 0.35}" stroke="#6f767e" stroke-width="0.1"/>`)
     .join('');
+  // One label over each pin, the screw terminals labelled just above the block
+  const labels = (
+    [[0, -0.95, 'IN'], [1, -0.95, 'VCC'], [2, -0.95, 'GND'], [5, -2.7, 'NO'], [7, -2.7, 'COM'], [9, -2.7, 'NC']] as const
+  )
+    .map(([x, y, t]) => `<text x="${x}" y="${y}" font-size="0.34" font-weight="bold" text-anchor="middle" fill="#e6efff" font-family="ui-monospace, monospace">${t}</text>`)
+    .join('');
   return `
     <rect x="-0.6" y="-6.4" width="10.8" height="5.9" rx="0.15" fill="#1d4f9c" stroke="#0f2f63" stroke-width="0.05"/>
     <rect x="4.2" y="-2.5" width="5.8" height="1.9" rx="0.08" fill="#2f74d0" stroke="#174d93" stroke-width="0.05"/>
     ${pins}${screws}
-    <rect x="3.6" y="-6.1" width="6.2" height="3.4" rx="0.1" fill="#2a64c4" stroke="#123e7a" stroke-width="0.05"/>
-    <text x="6.7" y="-4.6" font-size="0.45" text-anchor="middle" fill="#e6efff" font-family="ui-monospace, monospace">SRD-05VDC</text>
-    <text x="6.7" y="-3.9" font-size="0.32" text-anchor="middle" fill="#c9d8f5" font-family="ui-monospace, monospace">10A 250VAC</text>
-    <path d="M${on ? 5.3 : 8.1},-3.25 L6.7,-3.25" stroke="#e6efff" stroke-width="0.08" stroke-linecap="round"/>
+    <rect x="3.6" y="-6.2" width="6.2" height="3.1" rx="0.1" fill="#2a64c4" stroke="#123e7a" stroke-width="0.05"/>
+    <text x="6.7" y="-4.9" font-size="0.45" text-anchor="middle" fill="#e6efff" font-family="ui-monospace, monospace">SRD-05VDC</text>
+    <text x="6.7" y="-4.25" font-size="0.32" text-anchor="middle" fill="#c9d8f5" font-family="ui-monospace, monospace">10A 250VAC</text>
+    <path d="M${on ? 5.3 : 8.1},-3.6 L6.7,-3.6" stroke="#e6efff" stroke-width="0.08" stroke-linecap="round"/>
     <circle cx="0.1" cy="-5.6" r="0.28" fill="${obs.driven === true ? '#ff4a3d' : '#5a2a2a'}"/>
     <circle cx="1.1" cy="-5.6" r="0.28" fill="#3dd16b"/>
-    <text x="1" y="-1.15" font-size="0.36" text-anchor="middle" fill="#dbe6ff" font-family="ui-monospace, monospace">IN + −</text>
-    <text x="7" y="-2.6" font-size="0.3" text-anchor="middle" fill="#dbe6ff" font-family="ui-monospace, monospace">NO  COM  NC</text>`;
+    ${labels}`;
 }
 
 export const relay: PartModule<RelayProps> = {

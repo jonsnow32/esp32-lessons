@@ -5,17 +5,21 @@
 // How much bends, pins and holes weigh against each other is a matter of taste: see TIDY_MODES.
 // Running half a pitch to a pitch beside another wire is cheaper than open space, so wires
 // bundle up in parallel. Between the rows of holes (on the half pitch) a wire passes nothing.
-// Wires are routed shortest first, then each once more with all the others in place.
+// Wires are routed shortest first, then each once more with all the others in place. The board's
+// body costs a little, so a wire leaves a pin on its own side unless going round is much longer.
+// Routing only some wires leaves the others where they lie.
 
 import type { Project } from '@esp32lab/project-model';
 import { rotate } from '@esp32lab/project-model';
 import { PARTS } from './catalog';
-import { benchBounds, board, breadboard, endpointPos, partAnchor, terminalPos, type Box, type Pt } from './geometry';
+import { benchBounds, board, boardBox, breadboard, endpointPos, partAnchor, terminalPos, wireRoute, type Box, type Pt } from './geometry';
 
 const STEP = 0.1; // per half pitch
 const BESIDE = 0.05; // per half pitch, next to another wire
 const OVERLAP = 20; // per half pitch along another wire: reads as one wire
 const CROSS = 1;
+/** Per half pitch over the board's module: a short way across beats a long way round, a long one does not. */
+const OVER_BOARD = 1;
 
 // Headings: right, down, left, up
 const DX = [1, 0, -1, 0];
@@ -83,9 +87,10 @@ class Heap {
 /**
  * The corners each wire should bend through (empty: a straight run), by wire id. `bodies`: each
  * part's drawn box, by part id, in its own unrotated units (as the part view is drawn); wires
- * keep off them like off a pin.
+ * keep off them like off a pin. `only`: route just these wires (the ones just added), around the
+ * others as they lie now, so adding a part leaves the rest of the wiring alone.
  */
-export function tidyWires(project: Project, mode: TidyMode = TIDY_MODES[0]!, bodies?: ReadonlyMap<string, Box>): Map<string, Pt[]> {
+export function tidyWires(project: Project, mode: TidyMode = TIDY_MODES[0]!, bodies?: ReadonlyMap<string, Box>, only?: ReadonlySet<string>): Map<string, Pt[]> {
   const { bend: BEND, pin: PIN, hole: HOLE } = mode;
   const box = benchBounds(project, 3);
   const x0 = Math.floor(box.x);
@@ -104,7 +109,15 @@ export function tidyWires(project: Project, mode: TidyMode = TIDY_MODES[0]!, bod
   for (const inst of project.breadboards) {
     for (const h of breadboard(inst.type)?.holes.values() ?? []) mark({ x: inst.x + h.x, y: inst.y + h.y }, HOLE);
   }
-  for (const pin of board(project).pins) mark({ x: project.board.x + pin.x, y: project.board.y + pin.y }, PIN);
+  // The board's body, so a wire to a pin leaves on its own side rather than crossing the module
+  const bb = boardBox(board(project));
+  for (let y = Math.ceil((project.board.y + bb.y) * 2); y <= (project.board.y + bb.y + bb.h) * 2; y++) {
+    for (let x = Math.ceil((project.board.x + bb.x) * 2); x <= (project.board.x + bb.x + bb.w) * 2; x++) mark({ x: x / 2, y: y / 2 }, OVER_BOARD);
+  }
+  // Along a header between its pins: a wire there lies over the pins, so leave them sideways
+  for (const pin of board(project).pins) {
+    for (const dy of [-0.5, 0.5]) mark({ x: project.board.x + pin.x, y: project.board.y + pin.y + dy }, PIN / 2);
+  }
   for (const part of project.parts) {
     const b = bodies?.get(part.id);
     const anchor = partAnchor(project, part);
@@ -140,6 +153,30 @@ export function tidyWires(project: Project, mode: TidyMode = TIDY_MODES[0]!, bod
 
   /** Grid points a route passes, in order. */
   const routes = new Map<string, number[]>();
+
+  // The wires that stay put, as the grid steps they take now (a slanted run as a staircase)
+  if (only) {
+    for (const w of project.wires) {
+      const e = ends.get(w.id);
+      if (!e || only.has(w.id)) continue;
+      const path: number[] = [];
+      const route = wireRoute(e[0], e[1], w.points ?? [], !!w.free);
+      for (let i = 1; i < route.length; i++) {
+        const [sx, sy] = [Math.round((route[i - 1]!.x - x0) * 2), Math.round((route[i - 1]!.y - y0) * 2)];
+        const [tx, ty] = [Math.round((route[i]!.x - x0) * 2), Math.round((route[i]!.y - y0) * 2)];
+        if (!path.length) path.push(sx + W * sy);
+        const n = Math.max(Math.abs(tx - sx), Math.abs(ty - sy));
+        let [x, y] = [sx, sy];
+        for (let k = 1; k <= n; k++) {
+          const [nx, ny] = [Math.round(sx + ((tx - sx) * k) / n), Math.round(sy + ((ty - sy) * k) / n)];
+          if (nx !== x && ny !== y) path.push(nx + W * y);
+          path.push(nx + W * ny);
+          [x, y] = [nx, ny];
+        }
+      }
+      routes.set(w.id, path);
+    }
+  }
 
   function route(id: string) {
     const [a, b] = ends.get(id)!;
@@ -211,7 +248,7 @@ export function tidyWires(project: Project, mode: TidyMode = TIDY_MODES[0]!, bod
     routes.set(id, path.reverse());
   }
 
-  const order = [...ends.keys()].sort((i, j) => {
+  const order = [...ends.keys()].filter((id) => !only || only.has(id)).sort((i, j) => {
     const [a, b] = ends.get(i)!;
     const [c, d] = ends.get(j)!;
     return Math.abs(b.x - a.x) + Math.abs(b.y - a.y) - (Math.abs(d.x - c.x) + Math.abs(d.y - c.y));
@@ -232,6 +269,7 @@ export function tidyWires(project: Project, mode: TidyMode = TIDY_MODES[0]!, bod
 
   const out = new Map<string, Pt[]>();
   for (const [id, r] of routes) {
+    if (only && !only.has(id)) continue;
     if (mode.free) {
       // From each corner kept, on to the farthest point of the route in straight sight
       const path = new Set(r);

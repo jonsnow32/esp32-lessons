@@ -9,6 +9,24 @@
   let part = $derived(lab.selection?.kind === 'part' ? lab.part(lab.selection.id) : undefined);
   let manifest = $derived(part ? PARTS[part.type]?.manifest : undefined);
   let obs = $derived(part ? lab.observables[part.id] ?? {} : {});
+  // A number prop the part also reports live (a pot drying out) shows where it is now, not where it started
+  // A value just set by the slider holds until the worker reports it back; until then the reading
+  // is the old one, and showing it would snap the thumb back for a frame.
+  let pending = $state<{ id: string; key: string; value: number; until: number } | null>(null);
+  const live = (key: string, prop: unknown) => {
+    const v = obs[key];
+    const p = pending;
+    if (p && p.id === part?.id && p.key === key) {
+      if ((typeof v !== 'number' || Math.abs(v - p.value) > 0.5) && performance.now() < p.until) return p.value;
+      queueMicrotask(() => pending === p && (pending = null));
+    }
+    return typeof v === 'number' ? v : Number(prop);
+  };
+  function slide(id: string, key: string, value: number) {
+    pending = { id, key, value, until: performance.now() + 500 };
+    lab.setProp(id, key, value, true);
+  }
+  let readings = $derived(Object.entries(obs).filter(([k, v]) => !(typeof v === 'number' && manifest?.props[k]?.type === 'number')));
   let bbInst = $derived(lab.selection?.kind === 'breadboard' ? lab.project.breadboards.find((b) => b.id === (lab.selection as { id: string }).id) : undefined);
   let bb = $derived(bbInst && breadboard(bbInst.type));
   let plugged = $derived(bbInst ? lab.project.parts.filter((p) => p.placement?.bb === bbInst!.id).length : 0);
@@ -38,10 +56,12 @@
             {#each schema.options as o}<option value={String(o)}>{o >= 1000 ? `${o / 1000}k` : o} {schema.unit ?? ''}</option>{/each}
           </select>
         {:else if schema.type === 'number'}
+          {@const now = live(key, part.props?.[key] ?? schema.default)}
           <span class="range">
-            <input type="range" min={schema.min ?? 0} max={schema.max ?? 100} step="1" value={Number(part.props?.[key] ?? schema.default)}
-              oninput={(e) => lab.setProp(part.id, key, Number(e.currentTarget.value), true)} />
-            <output>{part.props?.[key] ?? schema.default}{schema.unit ?? ''}</output>
+            <input type="range" min={schema.min ?? 0} max={schema.max ?? 100} step="1" value={now}
+              oninput={(e) => slide(part.id, key, Number(e.currentTarget.value))} />
+            <!-- As wide as the longest reading (max, one decimal): a live value ticking between 57 and 57.3 must not shove the slider -->
+            <output style:width="{String(Math.round(schema.max ?? 100)).length + 2 + (schema.unit ?? '').length}ch">{Math.round(now * 10) / 10}{schema.unit ?? ''}</output>
           </span>
         {:else if schema.type === 'boolean'}
           <input type="checkbox" checked={Boolean(part.props?.[key] ?? schema.default)} onchange={(e) => lab.setProp(part.id, key, e.currentTarget.checked)} />
@@ -49,7 +69,7 @@
       </label>
     {/each}
     <dl>
-      {#each Object.entries(obs) as [k, v] (k)}
+      {#each readings as [k, v] (k)}
         <dt>{k}</dt><dd class:bad={k === 'damaged' && v === true}>{fmt(k, v)}</dd>
       {/each}
     </dl>
@@ -122,7 +142,7 @@
   label { display: flex; justify-content: space-between; align-items: center; font: 12px var(--font-mono); color: var(--ink-2); margin: 0; padding: 4px 0; border-bottom: 1px dotted var(--line); }
   .range { display: flex; align-items: center; gap: 6px; }
   .range input { width: 120px; }
-  .range output { font: 12px var(--font-mono); font-variant-numeric: tabular-nums; min-width: 3.5em; text-align: right; color: var(--ink); }
+  .range output { font: 12px var(--font-mono); font-variant-numeric: tabular-nums; flex: none; white-space: nowrap; text-align: right; color: var(--ink); }
   /* Live readings in a meter window */
   dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 12px; margin: 10px 0; padding: 7px 10px; background: var(--surface-2); border: 1px solid var(--line); }
   dl:empty { display: none; }

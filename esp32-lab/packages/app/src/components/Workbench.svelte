@@ -582,35 +582,79 @@
     return 0.62 / speed;
   }
 
-  interface Stream { d: string; dur: number; key: string }
+  interface Stream { d: string; dur: number; key: string; w: number }
 
-  /** Animated current paths: wires, strip segments, internal shorts and through parts. */
+  /** Below this share of the largest current a path is leakage (pull-ups, inputs): not drawn. */
+  const MINOR = 0.02;
+
+  /** Core width by share of the largest current: the main loop reads bold, side paths thin. */
+  function streamWidth(amps: number, max: number): number {
+    return 0.1 + 0.12 * Math.sqrt(Math.min(1, Math.abs(amps) / max));
+  }
+
+  /**
+   * Animated current paths: wires, breadboard strips (a run of holes as one path) and through
+   * parts. Legs, header pins and internal shorts are sub-pitch stubs that only add noise.
+   */
   let streams = $derived.by((): Stream[] => {
     if (lab.overlay !== 'current') return [];
+    const max = Math.max(1e-9, ...lab.flows.map((f) => Math.abs(f.amps)));
+    const flows = lab.flows.filter((f) => (f.kind === 'wire' || f.kind === 'strip') && Math.abs(f.amps) >= MINOR * max);
     const out: Stream[] = [];
-    for (const f of lab.flows) {
+    // Strips: chain hole-to-hole segments, oriented with the current, into continuous runs
+    const strips = flows.filter((f) => f.kind === 'strip').map((f) => ({ f, from: f.amps > 0 ? f.a : f.b, to: f.amps > 0 ? f.b : f.a }));
+    const outOf = new Map<string, typeof strips>();
+    const into = new Map<string, number>();
+    for (const s of strips) {
+      outOf.set(s.from, [...(outOf.get(s.from) ?? []), s]);
+      into.set(s.to, (into.get(s.to) ?? 0) + 1);
+    }
+    const used = new Set<(typeof strips)[number]>();
+    const through = (k: string) => into.get(k) === 1 && outOf.get(k)?.length === 1;
+    for (const start of strips) {
+      if (used.has(start) || through(start.from)) continue;
+      const keys = [start.from];
+      let amps = Math.abs(start.f.amps);
+      for (let s: (typeof strips)[number] | undefined = start; s && !used.has(s); s = through(s.to) ? outOf.get(s.to)![0] : undefined) {
+        used.add(s);
+        keys.push(s.to);
+        amps = Math.min(amps, Math.abs(s.f.amps));
+      }
+      const pts = keys.map(keyPos).filter((p): p is Pt => !!p);
+      if (pts.length < 2) continue;
+      out.push({ d: 'M' + pts.map((p) => `${p.x},${p.y}`).join(' L'), dur: flowDuration(amps), key: `strip:${keys[0]}`, w: streamWidth(amps, max) });
+    }
+    // A closed loop of strip segments has no start: draw what is left one by one
+    for (const s of strips) {
+      if (used.has(s)) continue;
+      const pa = keyPos(s.from);
+      const pb = keyPos(s.to);
+      if (pa && pb) out.push({ d: `M${pa.x},${pa.y} L${pb.x},${pb.y}`, dur: flowDuration(s.f.amps), key: `strip:${s.from}:${s.to}`, w: streamWidth(s.f.amps, max) });
+    }
+    for (const f of flows) {
+      if (f.kind !== 'wire') continue;
       const [from, to] = f.amps > 0 ? [f.a, f.b] : [f.b, f.a];
       const pa = keyPos(from);
       const pb = keyPos(to);
       if (!pa || !pb || (pa.x === pb.x && pa.y === pb.y)) continue;
-      const w = f.kind === 'wire' ? lab.project.wires.find((q) => q.id === f.id) : undefined;
+      const w = lab.project.wires.find((q) => q.id === f.id);
       // Along the wire's bends, from the end the current enters
       const route = w && (from === endpointKey(w.a) ? wireRoute(pa, pb, w.points, w.free) : wireRoute(pb, pa, w.points, w.free).reverse());
       const d = route ? routePath(route) : `M${pa.x},${pa.y} L${pb.x},${pb.y}`;
-      out.push({ d, dur: flowDuration(f.amps), key: `${f.kind}:${f.id ?? ''}:${f.a}:${f.b}` });
+      out.push({ d, dur: flowDuration(f.amps), key: `wire:${f.id ?? ''}:${f.a}:${f.b}`, w: streamWidth(f.amps, max) });
     }
     // Through two-terminal parts and closed switches: from the terminal current enters to the
     // one it leaves
     for (const part of lab.project.parts) {
       const c = lab.terminalCurrents[part.id];
       if (!c) continue;
-      const enter = Object.entries(c).filter(([, i]) => i > 1e-6).sort((x, y) => y[1] - x[1])[0];
-      const leave = Object.entries(c).filter(([, i]) => i < -1e-6).sort((x, y) => x[1] - y[1])[0];
+      const enter = Object.entries(c).filter(([, i]) => i > MINOR * max).sort((x, y) => y[1] - x[1])[0];
+      const leave = Object.entries(c).filter(([, i]) => i < -MINOR * max).sort((x, y) => x[1] - y[1])[0];
       if (!enter || !leave) continue;
       const pa = terminalPos(lab.project, part, enter[0]);
       const pb = terminalPos(lab.project, part, leave[0]);
       if (!pa || !pb) continue;
-      out.push({ d: `M${pa.x},${pa.y} L${pb.x},${pb.y}`, dur: flowDuration(enter[1]), key: `part:${part.id}` });
+      out.push({ d: `M${pa.x},${pa.y} L${pb.x},${pb.y}`, dur: flowDuration(enter[1]), key: `part:${part.id}`, w: streamWidth(enter[1], max) });
     }
     return out;
   });
@@ -876,10 +920,9 @@
       <!-- Current: dots moving from + to − along every conductor that carries current -->
       <g class="streams" class:paused={!lab.running} pointer-events="none">
         {#each streams as st (st.key)}
-          <path d={st.d} class="stream-glow" />
           <!-- Dark rim under a bright core: readable on every wire colour -->
-          <path d={st.d} class="stream rim" style="animation-duration: {st.dur}s" />
-          <path d={st.d} class="stream" style="animation-duration: {st.dur}s" />
+          <path d={st.d} class="stream rim" style="animation-duration: {st.dur}s; stroke-width: {st.w + 0.1}" />
+          <path d={st.d} class="stream" style="animation-duration: {st.dur}s; stroke-width: {st.w}" />
         {/each}
       </g>
 
@@ -943,6 +986,10 @@
     <button class:on={multi} onclick={() => (multi = !multi)} aria-pressed={multi} aria-label="Chọn nhiều"
       title="Chọn nhiều: chạm để thêm / bỏ từng thứ, kéo chỗ trống để quét vùng (như giữ Shift). Ctrl+A chọn tất cả.">
       <Icon name="select-many" size={18} />
+    </button>
+    <button onclick={() => lab.arrangeAll()} disabled={!lab.project.parts.length} aria-label="Sắp xếp lại toàn bộ"
+      title="Sắp xếp lại toàn bộ: đặt lại mọi linh kiện cho gọn, không chồng nhau, rồi đi lại mọi dây. Mạch và các chân GPIO giữ nguyên.">
+      <Icon name="arrange" size={18} />
     </button>
     <div class="tidy">
       <button onclick={tidy} disabled={!lab.project.wires.length} aria-label="Sắp xếp lại dây: {next.name}"
@@ -1073,13 +1120,6 @@
     stroke: #3b2a00;
     stroke-opacity: 0.75;
     stroke-width: 0.32;
-  }
-  .stream-glow {
-    fill: none;
-    stroke: #ffd43b;
-    stroke-opacity: 0.18;
-    stroke-width: 0.34;
-    stroke-linecap: round;
   }
   @keyframes flow {
     to {

@@ -2,7 +2,7 @@
 // strip of tabs. A tab can be dragged to another dock, a dock resized or folded down to its
 // strip. Kept in the browser so the layout is there again next time.
 
-export type ViewId = 'library' | 'code' | 'select' | 'lesson' | 'explain' | 'serial';
+export type ViewId = 'library' | 'code' | 'select' | 'lesson' | 'explain' | 'serial' | 'ai';
 export type DockId = 'left' | 'right' | 'bottom';
 
 export interface Dock {
@@ -16,24 +16,30 @@ export interface Dock {
 
 const KEY = 'esp32lab.layout';
 export const DOCKS: DockId[] = ['left', 'right', 'bottom'];
-const VIEWS: ViewId[] = ['library', 'code', 'select', 'lesson', 'explain', 'serial'];
+const VIEWS: ViewId[] = ['library', 'code', 'select', 'lesson', 'explain', 'serial', 'ai'];
 export const LIMITS: Record<DockId, [number, number]> = { left: [160, 520], right: [240, 720], bottom: [0.12, 0.85] };
 
 function defaults(): Record<DockId, Dock> {
   const codeShare = Number(localStorage.getItem('esp32lab.codeShare') ?? 0.4);
   return {
     left: { views: ['library'], active: 'library', size: 240, open: true },
-    right: { views: ['select', 'lesson', 'explain', 'serial'], active: 'lesson', size: 360, open: true },
+    right: { views: ['select', 'lesson', 'explain', 'serial', 'ai'], active: 'lesson', size: 360, open: true },
     bottom: { views: ['code'], active: 'code', size: codeShare || 0.4, open: codeShare > 0 },
   };
 }
 
-/** The stored layout if it is whole (every view in exactly one dock), the default otherwise. */
+/**
+ * The stored layout if it is whole (every view in at most one dock), the default otherwise. Views
+ * added since it was stored go at the end of the right dock.
+ */
 function load(): Record<DockId, Dock> {
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Record<DockId, Dock> | null;
     const all = stored && DOCKS.flatMap((d) => stored[d].views);
-    if (stored && all!.length === VIEWS.length && VIEWS.every((v) => all!.includes(v))) return stored;
+    if (stored && new Set(all).size === all!.length && all!.every((v) => VIEWS.includes(v))) {
+      stored.right.views.push(...VIEWS.filter((v) => !all!.includes(v)));
+      return stored;
+    }
   } catch {
     /* unreadable: start over */
   }

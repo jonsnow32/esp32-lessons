@@ -65,6 +65,8 @@ button:disabled, select:disabled, input:disabled { color: var(--ink-4); border-c
 input::placeholder { color: var(--ink-4); }
 :is(button, select, input, [tabindex], a):focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 input[type='range'], input[type='checkbox'] { accent-color: var(--accent); }
+/* The text-field box above would pad the slider: its track runs into the padding, the thumb stops short of both ends */
+input[type='range'] { padding: 0; border: 0; background: none; }
 ::selection { background: #f76b1533; }
 
 /* Circuit look: square corners everywhere; on hover the border becomes a dashed trace whose

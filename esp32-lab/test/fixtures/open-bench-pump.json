@@ -1,0 +1,291 @@
+{
+ "schemaVersion": 1,
+ "name": "open-bench-pump",
+ "board": {
+  "type": "esp32-devkit-v1",
+  "x": -18,
+  "y": -25
+ },
+ "breadboards": [],
+ "parts": [
+  {
+   "id": "soil1",
+   "type": "soil-moisture",
+   "props": {
+    "moisture": 100,
+    "dryRate": 5
+   },
+   "placement": null,
+   "bench": {
+    "x": 9,
+    "y": 5,
+    "rot": 0
+   }
+  },
+  {
+   "id": "mosfet1",
+   "type": "mosfet",
+   "props": {
+    "model": "IRLZ44N"
+   },
+   "placement": null,
+   "bench": {
+    "x": 9,
+    "y": 0,
+    "rot": 0
+   }
+  },
+  {
+   "id": "pump1",
+   "type": "water-pump",
+   "props": {},
+   "placement": null,
+   "bench": {
+    "x": 4,
+    "y": -3,
+    "rot": 0
+   }
+  },
+  {
+   "id": "d1",
+   "type": "diode",
+   "props": {},
+   "placement": null,
+   "bench": {
+    "x": 2,
+    "y": -12,
+    "rot": 0
+   }
+  },
+  {
+   "id": "led1",
+   "type": "led",
+   "props": {
+    "color": "green"
+   },
+   "placement": null,
+   "bench": {
+    "x": 4,
+    "y": -5,
+    "rot": 0
+   }
+  },
+  {
+   "id": "resistor1",
+   "type": "resistor",
+   "props": {
+    "resistance": 10000
+   },
+   "placement": null,
+   "bench": {
+    "x": 7,
+    "y": 3,
+    "rot": 0
+   }
+  },
+  {
+   "id": "resistor2",
+   "type": "resistor",
+   "props": {
+    "resistance": 220
+   },
+   "placement": null,
+   "bench": {
+    "x": 2,
+    "y": -2,
+    "rot": 0
+   }
+  }
+ ],
+ "wires": [
+  {
+   "id": "wmvvxb47ep0",
+   "a": {
+    "kind": "board",
+    "pin": "GND.R"
+   },
+   "b": {
+    "kind": "part",
+    "part": "soil1",
+    "terminal": "gnd"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47ep1",
+   "a": {
+    "kind": "board",
+    "pin": "3V3"
+   },
+   "b": {
+    "kind": "part",
+    "part": "soil1",
+    "terminal": "vcc"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47ep2",
+   "a": {
+    "kind": "board",
+    "pin": "D34"
+   },
+   "b": {
+    "kind": "part",
+    "part": "soil1",
+    "terminal": "aout"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47ep3",
+   "a": {
+    "kind": "part",
+    "part": "mosfet1",
+    "terminal": "gate"
+   },
+   "b": {
+    "kind": "part",
+    "part": "resistor1",
+    "terminal": "a"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47ep4",
+   "a": {
+    "kind": "board",
+    "pin": "GND.R"
+   },
+   "b": {
+    "kind": "part",
+    "part": "resistor1",
+    "terminal": "b"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47ep5",
+   "a": {
+    "kind": "board",
+    "pin": "D25"
+   },
+   "b": {
+    "kind": "part",
+    "part": "mosfet1",
+    "terminal": "gate"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47ep6",
+   "a": {
+    "kind": "board",
+    "pin": "GND.R"
+   },
+   "b": {
+    "kind": "part",
+    "part": "mosfet1",
+    "terminal": "source"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47ep7",
+   "a": {
+    "kind": "board",
+    "pin": "VIN"
+   },
+   "b": {
+    "kind": "part",
+    "part": "pump1",
+    "terminal": "pos"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47fp8",
+   "a": {
+    "kind": "board",
+    "pin": "VIN"
+   },
+   "b": {
+    "kind": "part",
+    "part": "d1",
+    "terminal": "cathode"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47fp9",
+   "a": {
+    "kind": "part",
+    "part": "led1",
+    "terminal": "anode"
+   },
+   "b": {
+    "kind": "part",
+    "part": "resistor2",
+    "terminal": "a"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47fp10",
+   "a": {
+    "kind": "board",
+    "pin": "D2"
+   },
+   "b": {
+    "kind": "part",
+    "part": "resistor2",
+    "terminal": "b"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47fp11",
+   "a": {
+    "kind": "board",
+    "pin": "GND.R"
+   },
+   "b": {
+    "kind": "part",
+    "part": "led1",
+    "terminal": "cathode"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47fa12",
+   "a": {
+    "kind": "part",
+    "part": "mosfet1",
+    "terminal": "drain"
+   },
+   "b": {
+    "kind": "part",
+    "part": "pump1",
+    "terminal": "neg"
+   },
+   "color": "#3e63dd"
+  },
+  {
+   "id": "wmvvxb47fa13",
+   "a": {
+    "kind": "part",
+    "part": "mosfet1",
+    "terminal": "drain"
+   },
+   "b": {
+    "kind": "part",
+    "part": "d1",
+    "terminal": "anode"
+   },
+   "color": "#3e63dd"
+  }
+ ],
+ "firmware": {
+  "kind": "none"
+ }
+}

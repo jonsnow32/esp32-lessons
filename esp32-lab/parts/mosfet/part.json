@@ -1,0 +1,65 @@
+{
+  "id": "mosfet",
+  "version": "0.1.0",
+  "name": "MOSFET kênh N (TO-220)",
+  "category": "output",
+  "stock": [
+    "model"
+  ],
+  "tags": [
+    "through-hole",
+    "transistor",
+    "switch",
+    "high-power"
+  ],
+  "terminals": [
+    {
+      "name": "gate",
+      "dx": 0,
+      "dy": 0,
+      "label": "G (cổng, nối GPIO)"
+    },
+    {
+      "name": "drain",
+      "dx": 1,
+      "dy": 0,
+      "label": "D (máng, nối − của tải)"
+    },
+    {
+      "name": "source",
+      "dx": 2,
+      "dy": 0,
+      "label": "S (nguồn, nối GND)"
+    }
+  ],
+  "props": {
+    "model": {
+      "type": "enum",
+      "default": "IRLZ44N",
+      "options": [
+        "IRLZ44N",
+        "IRF520"
+      ]
+    }
+  },
+  "plug": {
+    "pins": {"gate": "out", "source": "gnd"},
+    "series": {"gate": 220},
+    "pull": {"gate": ["gnd", 10000]}
+  },
+  "learn": {
+    "summary": "MOSFET kênh N là công tắc điện tử không có bộ phận chuyển động: điện áp ở chân G (cổng) mở hay đóng đường dẫn giữa D (máng) và S (nguồn). Chân G gần như không ăn dòng, nên một chân GPIO bật tắt được máy bơm, động cơ, dải LED vài ampe. Nhỏ, rẻ, im lặng và bật tắt nhanh hơn relay rất nhiều.",
+    "howToPlug": [
+      "Nhìn mặt có chữ, chân để xuống: trái sang phải là G, D, S.",
+      "S nối GND. D nối dây − của tải, dây + của tải nối nguồn (VIN 5 V). MOSFET nằm ở phía GND của tải (low-side).",
+      "G nối GPIO qua điện trở 220 Ω, thêm điện trở 10 kΩ từ G xuống GND để tải không tự chạy khi ESP32 đang khởi động hay chân GPIO đang thả nổi.",
+      "Tải là động cơ, máy bơm, cuộn dây: mắc diode 1N4007 song song với tải, vạch về phía +."
+    ],
+    "tips": [
+      "Chọn loại logic-level (chữ L trong tên: IRLZ44N, IRL540N, AO3400): mở hoàn toàn với 3,3 V của ESP32.",
+      "IRF520 (hay bán sẵn thành module) cần khoảng 10 V ở chân G. Với 3,3 V nó chỉ mở hé: tải chạy yếu và MOSFET nóng lên.",
+      "Phía tải và ESP32 phải chung GND, nếu không chân G không có mốc để so điện áp.",
+      "MOSFET hỏng thường bị chập D–S: tải chạy mãi không tắt được."
+    ]
+  }
+}

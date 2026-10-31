@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AiPanel from './components/AiPanel.svelte';
   import CodePanel from './components/CodePanel.svelte';
   import ExplainPanel from './components/ExplainPanel.svelte';
   import Home from './components/Home.svelte';
@@ -25,6 +26,8 @@
   let renaming = $state(false);
   /** Started from an empty bench (the sandbox, or a project of the user's own not copied from a featured one). */
   let blank = $derived(lab.route === FREE || (!!lab.mine && !lab.mine.from));
+  /** A project of the user's own set up with the new-bench steps: restarting goes back to that bench. */
+  let setUp = $derived(!!lab.mine?.start);
 
   const time = (at: number) => new Date(at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
@@ -54,6 +57,7 @@
     lesson: lab.lesson ? 'Bài học' : 'Dự án',
     explain: 'Mạch',
     serial: 'Serial',
+    ai: 'Trợ lý AI',
   });
   /** "Đang chọn" only exists while something is selected, the lesson page with a lesson or project. */
   const available = (v: ViewId) => (v === 'select' ? !!lab.selection : v === 'lesson' ? !!(lab.lesson || lab.source) : true);
@@ -138,8 +142,8 @@
         {#if menuOpen}
           <div class="menu" role="menu">
             {#if !lab.featured}
-            <button role="menuitem" onclick={() => menu(() => confirm(blank ? 'Xoá hết mạch và code trên bàn này?' : (lab.mine ? 'Đưa mạch và code của bản sao về như dự án gốc? Phần bạn đã sửa sẽ mất.' : 'Đưa mạch và code về như lúc mới mở bài? Phần bạn đã sửa sẽ mất.')) && lab.restart())}>
-              <Icon name="reset" />{blank ? 'Xoá bàn và code' : lab.mine ? 'Đưa bản sao về như bản gốc' : 'Làm lại bài từ đầu'}
+            <button role="menuitem" onclick={() => menu(() => confirm(setUp ? 'Đưa bàn về như lúc mới tạo và code về mặc định? Phần bạn đã sửa sẽ mất.' : blank ? 'Xoá hết mạch và code trên bàn này?' : (lab.mine ? 'Đưa mạch và code của bản sao về như dự án gốc? Phần bạn đã sửa sẽ mất.' : 'Đưa mạch và code về như lúc mới mở bài? Phần bạn đã sửa sẽ mất.')) && lab.restart())}>
+              <Icon name="reset" />{setUp ? 'Đưa bàn về như lúc mới tạo' : blank ? 'Xoá bàn và code' : lab.mine ? 'Đưa bản sao về như bản gốc' : 'Làm lại bài từ đầu'}
             </button>
             {/if}
             <button role="menuitem" onclick={() => menu(() => (visible('code') ? layout.toggle(layout.dockOf('code')) : layout.reveal('code')))}>{visible('code') ? 'Ẩn' : 'Hiện'} trình soạn code</button>
@@ -166,6 +170,7 @@
     {:else if v === 'select'}<Inspector />
     {:else if v === 'lesson'}<LessonPanel />
     {:else if v === 'explain'}<ExplainPanel />
+    {:else if v === 'ai'}<AiPanel />
     {:else}<SerialMonitor />{/if}
   {/snippet}
   {#snippet badge(v: ViewId)}

@@ -58,6 +58,41 @@ export interface Box {
   h: number;
 }
 
+/**
+ * Where a part's body lies on the bench, in world units. `drawn`: the box the workbench measured,
+ * in the part's own unrotated units; without it, the library icon frame (a little larger), or
+ * else its legs with half a pitch around them.
+ */
+export function partRect(project: Project, part: PartInstance, drawn?: Box): Box | undefined {
+  const anchor = partAnchor(project, part);
+  const m = PARTS[part.type];
+  if (!anchor || !m) return undefined;
+  let b = drawn;
+  if (!b && m.icon) {
+    const [x, y, w, h] = m.icon.split(' ').map(Number) as [number, number, number, number];
+    b = { x, y, w, h };
+  }
+  if (!b) {
+    const first = m.manifest.terminals[0]!;
+    const xs = m.manifest.terminals.map((t) => t.dx - first.dx);
+    const ys = m.manifest.terminals.map((t) => t.dy - first.dy);
+    b = { x: Math.min(...xs) - 0.5, y: Math.min(...ys) - 0.5, w: Math.max(...xs) - Math.min(...xs) + 1, h: Math.max(...ys) - Math.min(...ys) + 1 };
+  }
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const [cx, cy] of [[b.x, b.y], [b.x + b.w, b.y], [b.x, b.y + b.h], [b.x + b.w, b.y + b.h]] as const) {
+    const [dx, dy] = rotate(cx, cy, anchor.rot);
+    xs.push(anchor.at.x + dx);
+    ys.push(anchor.at.y + dy);
+  }
+  return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+}
+
+/** Do two boxes overlap once each is grown by `margin` on every side? */
+export function boxesMeet(a: Box, b: Box, margin = 0): boolean {
+  return a.x - margin < b.x + b.w + margin && b.x - margin < a.x + a.w + margin && a.y - margin < b.y + b.h + margin && b.y - margin < a.y + a.h + margin;
+}
+
 /** The plastic of a breadboard type, relative to its a1 hole (as BreadboardView draws it). */
 export function breadboardBox(type: string): Box | undefined {
   const def = breadboard(type)?.def;

@@ -8,6 +8,7 @@
   import BreadboardView from './BreadboardView.svelte';
   import CircuitThumb from './CircuitThumb.svelte';
   import Icon from './Icon.svelte';
+  import NewBench from './NewBench.svelte';
   import TitleInput from './TitleInput.svelte';
   import { SCENE_DEFS } from '../lib/scene';
   import { lab, loadWorkspace } from '../lib/lab.svelte';
@@ -26,6 +27,9 @@
     const parts = f.project.parts.filter((p) => !seen.has(p.type) && seen.add(p.type));
     return { f, parts };
   });
+
+  /** The new-bench steps are open. */
+  let setup = $state(false);
 
   /** The project whose name is being edited on its card. */
   let renaming = $state<string | null>(null);
@@ -144,7 +148,7 @@
         </span>
       </div>
     {/each}
-    <button class="card free" onclick={() => lab.newMyProject()}>
+    <button class="card free" onclick={() => (setup = true)}>
       <span class="thumb blank"><Icon name="bench" size={44} /></span>
       <span class="title">Tạo bàn làm việc mới</span>
     </button>
@@ -170,6 +174,8 @@
   </div>
 
 </main>
+
+{#if setup}<NewBench onclose={() => (setup = false)} />{/if}
 
 <style>
   main { max-width: 1120px; margin: 0 auto; padding: 40px 24px; }

@@ -21,6 +21,7 @@ import joystick from '@esp32lab-parts/joystick';
 import keypad from '@esp32lab-parts/keypad';
 import lcd1602 from '@esp32lab-parts/lcd1602';
 import ledBar from '@esp32lab-parts/led-bar';
+import mosfet from '@esp32lab-parts/mosfet';
 import relay from '@esp32lab-parts/relay';
 import rotaryEncoder from '@esp32lab-parts/rotary-encoder';
 import servo from '@esp32lab-parts/servo';
@@ -53,6 +54,7 @@ export const PARTS = {
   keypad,
   'led-bar': ledBar,
   lcd1602,
+  mosfet,
   relay,
   'rotary-encoder': rotaryEncoder,
   'seven-segment': sevenSegment,

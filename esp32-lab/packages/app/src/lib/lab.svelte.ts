@@ -10,11 +10,12 @@ import type { Note } from '@esp32lab/explain';
 import type { PartManifest } from '@esp32lab/part-sdk';
 import type { FirmwareFiles, FlowView, FromWorker, StepResult, ToWorker } from '../sim/protocol';
 import { resolvePlacement, rotate } from '@esp32lab/project-model';
-import { breadboard, type Box } from './geometry';
+import { boardBox, breadboard, breadboardBox, type Box } from './geometry';
 import { loadSettings, saveSettings } from './settings';
 import { TIDY_MODES, tidyWires } from './tidy';
 import { unplugBreadboard } from './wiring';
-import { autoPlug } from './autoplug';
+import { applyChange, autoPlug, type CircuitChange } from './autoplug';
+import { arrange } from './arrange';
 import { duplicate, sameItem, shiftGroup, type Item } from './group';
 
 export interface BuildError {
@@ -82,6 +83,8 @@ export interface MyProject {
   title: string;
   /** The featured project it was copied from; none for a project started from a blank bench. */
   from?: string;
+  /** The bench as the new-bench steps set it up (board, breadboard, parts), to go back to. */
+  start?: Project;
   created: number;
   updated: number;
 }
@@ -133,6 +136,47 @@ export function loadWorkspace(id: string): Workspace | null {
   } catch {
     return null;
   }
+}
+
+/** What the new-bench steps chose (see NewBench.svelte). */
+export interface BenchSetup {
+  title: string;
+  board: string;
+  /** A breadboard type, or null for none: the parts are then wired straight to the board. */
+  breadboard: string | null;
+  /** Part types, once per part wanted. */
+  parts: string[];
+  /** Plug each part in the way its manifest says (see autoplug.ts). */
+  plug: boolean;
+}
+
+/**
+ * The bench a setup asks for: the board, the breadboard beside it, and the parts laid in a row
+ * below them (or beside the board when there is no breadboard), each in its own icon frame.
+ */
+function setupProject(setup: BenchSetup): Project {
+  const project = emptyProject();
+  project.board = { ...project.board, type: setup.board };
+  project.breadboards = setup.breadboard ? [{ id: 'bb1', type: setup.breadboard, x: 15, y: 6 }] : [];
+  const bb = setup.breadboard && breadboardBox(setup.breadboard);
+  const b = boardBox(BOARDS[setup.board]!);
+  const left = setup.breadboard ? project.board.x + b.x : 15;
+  let x = left;
+  let y = setup.breadboard ? Math.max(project.board.y + b.y + b.h, bb ? 6 + bb.y + bb.h : 0) + 2 : project.board.y + b.y;
+  let rowH = 0;
+  for (const type of setup.parts) {
+    const [ix, iy, iw, ih] = (PARTS[type]?.icon ?? '-1 -3 6 6.5').split(/[\s,]+/).map(Number) as [number, number, number, number];
+    if (x > left && x + iw > left + 48) {
+      x = left;
+      y += rowH + 1;
+      rowH = 0;
+    }
+    const n = project.parts.filter((p) => p.type === type).length + 1;
+    project.parts.push({ id: `${type}${n}`, type, props: {}, placement: null, bench: { x: Math.round(x - ix), y: Math.round(y - iy), rot: 0 } });
+    x += iw + 1;
+    rowH = Math.max(rowH, ih);
+  }
+  return project;
 }
 
 /** Undo steps kept per workspace. */
@@ -345,12 +389,35 @@ class Lab {
     localStorage.setItem(MY_PROJECTS, JSON.stringify(this.myProjects));
   }
 
-  /** Start a project of the user's own on a blank bench, and open it. */
-  async newMyProject() {
+  /** A free name for a new project: "Dự án mới", then "Dự án mới 2"… */
+  get nextTitle() {
+    return newTitle(this.myProjects);
+  }
+
+  /**
+   * Start a project of the user's own on the bench the setup asks for, and open it. Parts that
+   * cannot be plugged in on their own stay on the bench, and the notice says which.
+   */
+  async newMyProject(setup: BenchSetup) {
     const now = Date.now();
-    const p: MyProject = { id: `my-${now.toString(36)}`, title: newTitle(this.myProjects), created: now, updated: now };
+    let project = setupProject(setup);
+    const plugged: string[] = [];
+    const left: string[] = [];
+    if (setup.plug) {
+      for (const { id, type } of [...project.parts]) {
+        if (!PARTS[type]?.manifest.plug) continue;
+        const r = autoPlug(project, id, (q) => this.buildNetKernel(q));
+        if (r.ok) {
+          project = r.project;
+          plugged.push(id);
+        } else left.push(`${id} (${r.reason})`);
+      }
+    }
+    const p: MyProject = { id: `my-${now.toString(36)}`, title: setup.title.trim() || newTitle(this.myProjects), created: now, updated: now, start: project };
+    localStorage.setItem(wsKey(p.id), JSON.stringify({ project, code: DEFAULT_SKETCH, passed: [] } satisfies Workspace));
     this.updateMyProjects([p, ...this.myProjects]);
     await this.open(p.id);
+    if (left.length) this.notice = `Đã cắm ${plugged.length}/${plugged.length + left.length} linh kiện. Chưa cắm được: ${left.join('; ')}. Các linh kiện này nằm trên bàn, bạn tự nối dây nhé.`;
   }
 
   renameMyProject(id: string, title: string) {
@@ -569,16 +636,55 @@ class Lab {
    */
   autoPlug(id: string) {
     if (this.locked()) return;
-    const r = autoPlug($state.snapshot(this.project) as Project, id, (p) => this.buildNetKernel(p));
+    const r = autoPlug($state.snapshot(this.project) as Project, id, (p) => this.buildNetKernel(p), this.partBoxes);
+    if (!r.ok) {
+      this.notice = r.reason;
+      return;
+    }
+    const old = new Set(this.project.wires.map((w) => w.id));
+    this.project = r.project;
+    // Only the new wires find their way: the rest of the bench stays as the user knows it
+    this.retidy(new Set(r.project.wires.map((w) => w.id).filter((w) => !old.has(w))));
+    this.selection = { kind: 'part', id };
+    this.notice = `Đã cắm ${id}: ${r.report.join(' · ')}.`;
+    this.commit();
+  }
+
+  /**
+   * Lay every part and wire out again the way the one-click plug-in would, the circuit and the
+   * GPIOs the sketch uses unchanged (see arrange.ts), then route the wires. One undo step.
+   */
+  arrangeAll() {
+    if (this.locked()) return;
+    const r = arrange($state.snapshot(this.project) as Project, (p) => this.buildNetKernel(p), this.partBoxes);
     if (!r.ok) {
       this.notice = r.reason;
       return;
     }
     this.project = r.project;
-    this.retidy();
-    this.selection = { kind: 'part', id };
-    this.notice = `Đã cắm ${id}: ${r.report.join(' · ')}.`;
+    // Routed even when the user never picked a tidy mode: the first one
+    this.reroute(undefined, Math.max(0, this.tidyMode));
+    this.selection = null;
+    this.notice = `Đã sắp xếp lại: ${r.report.join(' · ')}. Mạch và các chân GPIO vẫn y như cũ; Ctrl+Z để quay lại.`;
     this.commit();
+  }
+
+  /** The circuit with `change` made, worked out on the bench as it is now; nothing changes yet. */
+  planChange(change: CircuitChange) {
+    return applyChange($state.snapshot(this.project) as Project, change, (p) => this.buildNetKernel(p), this.partBoxes);
+  }
+
+  /** Put a planned circuit on the bench as one undoable step, `highlight` emphasised. Done? */
+  setCircuit(project: Project, highlight: string[], notice: string): boolean {
+    if (this.locked()) return false;
+    const old = new Set(this.project.wires.map((w) => w.id));
+    this.project = project;
+    this.retidy(new Set(project.wires.map((w) => w.id).filter((w) => !old.has(w))));
+    this.selection = null;
+    this.emphasis = highlight;
+    this.notice = notice;
+    this.commit();
+    return true;
   }
 
   /** `slide`: one of many updates while a slider is dragged, undone as a single step. */
@@ -622,17 +728,17 @@ class Lab {
    * Re-route every wire in the tidy mode last chosen, if one was (after the board or a
    * breadboard moved). Not committed: it goes with the change that called for it.
    */
-  retidy() {
-    if (this.tidyMode >= 0) this.reroute();
+  retidy(only?: ReadonlySet<string>) {
+    if (this.tidyMode >= 0) this.reroute(only);
   }
 
   /** Each part's drawn box, by part id, as the workbench measured it (so tidy keeps wires off it). */
   readonly partBoxes = new Map<string, Box>();
 
-  /** Re-route every wire in the current tidy mode. Did any wire change? */
-  private reroute(): boolean {
-    const mode = TIDY_MODES[this.tidyMode]!;
-    const routes = tidyWires($state.snapshot(this.project) as Project, mode, this.partBoxes);
+  /** Re-route every wire (or `only` these, around the others) in the current tidy mode. Did any wire change? */
+  private reroute(only?: ReadonlySet<string>, modeIndex = this.tidyMode): boolean {
+    const mode = TIDY_MODES[modeIndex]!;
+    const routes = tidyWires($state.snapshot(this.project) as Project, mode, this.partBoxes, only);
     let changed = false;
     for (const w of this.project.wires) {
       const points = routes.get(w.id);
@@ -797,11 +903,11 @@ class Lab {
     this.route = 'home';
   }
 
-  /** Back to the lesson's or project's circuit and original code (or an empty sandbox). */
+  /** Back to the lesson's or project's circuit and original code (or the bench as it was set up). */
   restart() {
     const lesson = this.lesson;
     this.stopProgram();
-    this.project = structuredClone(lesson?.template ?? this.source?.project ?? emptyProject());
+    this.project = structuredClone(lesson?.template ?? this.source?.project ?? this.mine?.start ?? emptyProject());
     this.code = this.originalCode ?? DEFAULT_SKETCH;
     this.selection = null;
     this.build = { status: 'idle', log: '', ms: 0, errors: [] };

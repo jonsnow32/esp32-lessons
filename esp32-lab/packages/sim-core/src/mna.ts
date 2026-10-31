@@ -26,6 +26,7 @@ export function bindContext(sys: MnaSystem, nets: Record<string, number>, voltag
   return {
     conductance: (a, b, g) => sys.conductance(n(a), n(b), g),
     current: (a, b, i) => sys.current(n(a), n(b), i),
+    transconductance: (a, b, cp, cn, gm) => sys.transconductance(n(a), n(b), n(cp), n(cn), gm),
     voltageSource: (p, m, v) => sys.voltageSource(n(p), n(m), v),
     v: (t) => voltages[n(t)] ?? 0,
     limited: () => {
@@ -37,6 +38,7 @@ export function bindContext(sys: MnaSystem, nets: Record<string, number>, voltag
 export class MnaSystem {
   private g: { a: number; b: number; g: number }[] = [];
   private i: { a: number; b: number; i: number }[] = [];
+  private gm: { a: number; b: number; cp: number; cn: number; gm: number }[] = [];
   private vs: { p: number; m: number; v: number }[] = [];
   /** Set by a part that limited its Newton step this iteration. */
   limited = false;
@@ -46,6 +48,7 @@ export class MnaSystem {
   reset(): void {
     this.g.length = 0;
     this.i.length = 0;
+    this.gm.length = 0;
     this.vs.length = 0;
     this.limited = false;
   }
@@ -56,6 +59,10 @@ export class MnaSystem {
 
   current(a: number, b: number, i: number): void {
     if (a !== b) this.i.push({ a, b, i });
+  }
+
+  transconductance(a: number, b: number, cp: number, cn: number, gm: number): void {
+    if (a !== b && cp !== cn) this.gm.push({ a, b, cp, cn, gm });
   }
 
   voltageSource(p: number, m: number, v: number): void {
@@ -80,6 +87,14 @@ export class MnaSystem {
       if (a && b) {
         A[at(a - 1, b - 1)] = A[at(a - 1, b - 1)]! - g;
         A[at(b - 1, a - 1)] = A[at(b - 1, a - 1)]! - g;
+      }
+    }
+    // Not counted in `strength`: a controlled source does not tie its nodes to anything
+    for (const { a, b, cp, cn, gm } of this.gm) {
+      for (const [row, sign] of [[a, 1], [b, -1]] as const) {
+        if (!row) continue;
+        if (cp) A[at(row - 1, cp - 1)] = A[at(row - 1, cp - 1)]! + sign * gm;
+        if (cn) A[at(row - 1, cn - 1)] = A[at(row - 1, cn - 1)]! - sign * gm;
       }
     }
     for (const { a, b, i } of this.i) {

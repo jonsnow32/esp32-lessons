@@ -15,6 +15,10 @@
     forward: `<path d="M3 8h7"/><path class="f" d="M9 4v8l5-4z"/>${PAD(3, 8)}`,
     close: '<path d="M4 4l8 8M12 4l-8 8"/>',
     plus: '<path d="M8 3v10M3 8h10"/>',
+    // Four parts squared up on a grid, one of them copper: lay the bench out again
+    arrange: '<path d="M2.5 2.5h4v4h-4zM9.5 2.5h4v4h-4zM2.5 9.5h4v4h-4z"/><path class="af" d="M9.5 9.5h4v4h-4z"/>',
+    // A clock face with copper hands: earlier conversations
+    history: '<path d="M5.5 2.5h5l3 3v5l-3 3h-5l-3-3v-5z"/><path class="a" d="M8 5v3.5h2.5"/>',
     minus: '<path d="M3 8h10"/>',
     more: `${PAD(3, 8)}${PAD(8, 8)}${PAD(13, 8)}`,
     // Crop marks around a copper square: frame everything

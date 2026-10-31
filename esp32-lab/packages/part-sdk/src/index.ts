@@ -102,6 +102,11 @@ export interface PlugSpec {
 export interface StampContext {
   conductance(a: string, b: string, g: number): void;
   current(a: string, b: string, i: number): void;
+  /**
+   * Voltage-controlled current source: pushes gm·(v(cp) − v(cn)) amperes from a to b through the
+   * part, as a transistor's channel follows its gate (SPICE's G element).
+   */
+  transconductance(a: string, b: string, cp: string, cn: string, gm: number): void;
   /** Ideal source v(pos) - v(neg) = v. Use a series conductance for real-world sources. */
   voltageSource(pos: string, neg: string, v: number): void;
 }

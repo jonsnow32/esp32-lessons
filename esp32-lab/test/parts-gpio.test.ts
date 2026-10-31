@@ -169,6 +169,49 @@ describe('water pump and soil moisture', () => {
   });
 });
 
+describe('N-channel MOSFET', () => {
+  // G a5, D a6, S a7 (on GND); 10 kΩ b5–b9 pulls the gate to GND; pump + h12 on VIN, − h13 on D
+  const bench = (model: string, drive: (m: ScriptedMcu) => void) =>
+    kernel(
+      project([part('q', 'mosfet', 'a5', { model }), resistor('rpd', 'b5', 10_000), part('pump', 'water-pump', 'h12')], [
+        wire('w1', pin('D4'), hole('e5')),
+        wire('w2', hole('e7'), pin('GND.R')),
+        wire('w3', hole('e9'), pin('GND.R')),
+        wire('w4', pin('VIN'), hole('j12')),
+        wire('w5', hole('e6'), hole('j13')),
+      ]),
+      drive,
+    ).k;
+
+  it('runs the pump from a 3,3 V gate with a few mV across it (IRLZ44N)', () => {
+    const k = bench('IRLZ44N', (m) => m.set('GPIO4', { output: 'high' }, 0));
+    k.advanceTo(1 * MS);
+    const pump = k.observables('pump');
+    expect(pump.running).toBe(true);
+    expect(Number(pump.current)).toBeGreaterThan(0.15);
+    expect(Number(pump.current)).toBeLessThan(0.21);
+    const q = k.observables('q');
+    expect(Number(q.vds)).toBeLessThan(0.05);
+    expect(Number(q.current)).toBeCloseTo(Number(pump.current), 4);
+  });
+
+  it('stops the pump with the gate LOW or left floating on its pull-down', () => {
+    for (const drive of [{ output: 'low' as const }, {}]) {
+      const k = bench('IRLZ44N', (m) => m.set('GPIO4', drive, 0));
+      k.advanceTo(1 * MS);
+      expect(k.observables('pump').running).toBe(false);
+      expect(Math.abs(Number(k.observables('q').current))).toBeLessThan(1e-6);
+    }
+  });
+
+  it('barely opens with 3,3 V on the gate (IRF520)', () => {
+    const k = bench('IRF520', (m) => m.set('GPIO4', { output: 'high' }, 0));
+    k.advanceTo(1 * MS);
+    expect(Number(k.observables('pump').current)).toBeLessThan(0.06);
+    expect(Number(k.observables('q').vds)).toBeGreaterThan(3);
+  });
+});
+
 describe('4×4 keypad', () => {
   // R1–R4 a5–a8, C1–C4 a9–a12; R2 driven LOW, C2 read with a pull-up
   it('joins row 2 and column 2 while 5 is held', () => {

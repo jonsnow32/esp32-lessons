@@ -46,6 +46,11 @@ export function terminalCurrents(behavior: PartBehavior, v: (terminal: string) =
       add(a, i);
       add(b, -i);
     },
+    transconductance(a, b, cp, cn, gm) {
+      const i = gm * (v(cp) - v(cn));
+      add(a, i);
+      add(b, -i);
+    },
     voltageSource() {
       /* not supported: see header */
     },

@@ -74,6 +74,9 @@ Rules:
 
 - **Diodes and LEDs** use `Junction` from the SDK (`Junction.fit(vf, i, n)` from a datasheet
   point, then `junction.stamp(ctx, anode, cathode)`): it does the companion model and `pnjlim`.
+- **Transistors** stamp how the channel follows the gate with
+  `ctx.transconductance(d, s, g, s, gm)`: gm·(v(g) − v(s)) amperes from d to s. See
+  `parts/mosfet/index.ts`.
 
 See `parts/led/index.ts` (nonlinear + damage), `parts/pushbutton/index.ts` (switch + contact
 bounce), `parts/rgb-led/index.ts` (several junctions in one part) and `parts/buzzer/index.ts`
