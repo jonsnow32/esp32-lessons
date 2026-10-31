@@ -372,7 +372,7 @@ class Lab {
     const ws: Workspace = { project, code: this.code, passed: this.passed };
     localStorage.setItem(wsKey(this.route), JSON.stringify(ws));
     const mine = this.mine;
-    if (mine) this.updateMyProjects(this.myProjects.map((p) => (p.id === mine.id ? { ...p } : p)));
+    if (mine) this.updateMyProjects(this.myProjects.map((p) => (p.id === mine.id ? { ...p, updated: Date.now() } : p)));
   }
 
   /** Carry on in a new project of the user's own, with the bench, code and history as they are. */

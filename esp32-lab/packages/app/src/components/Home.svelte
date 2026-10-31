@@ -36,8 +36,8 @@
 
   let stocked = $derived(inventory.items.filter((i) => i.qty > 0));
 
-  /** The user's projects with their saved bench, for the thumbnails. */
-  let mine = $derived(lab.myProjects.map((p) => ({ p, ws: loadWorkspace(p.id), from: FEATURED.find((f) => f.id === p.from) })));
+  /** The user's projects, last edited first, with their saved bench for the thumbnails. */
+  let mine = $derived([...lab.myProjects].sort((a, b) => b.updated - a.updated).map((p) => ({ p, ws: loadWorkspace(p.id), from: FEATURED.find((f) => f.id === p.from) })));
 
   /** Each part at rest, for the component cards. */
   const parts = Object.entries(PARTS).map(([type, m]) => {
@@ -132,6 +132,10 @@
 
   <h2>Dự án của tôi</h2>
   <div class="row">
+    <button class="card free" onclick={() => (setup = true)}>
+      <span class="thumb blank"><Icon name="bench" size={44} /></span>
+      <span class="title">Tạo bàn làm việc mới</span>
+    </button>
     {#each mine as { p, ws, from } (p.id)}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <div class="card project trace" role="button" tabindex="0" onclick={() => renaming !== p.id && lab.open(p.id)} onkeydown={(e) => e.key === 'Enter' && renaming !== p.id && lab.open(p.id)}>
@@ -148,10 +152,6 @@
         </span>
       </div>
     {/each}
-    <button class="card free" onclick={() => (setup = true)}>
-      <span class="thumb blank"><Icon name="bench" size={44} /></span>
-      <span class="title">Tạo bàn làm việc mới</span>
-    </button>
   </div>
 
   <h2>Dự án mẫu</h2>
