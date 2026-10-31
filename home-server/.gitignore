@@ -1,0 +1,7 @@
+# Lives on the server, not in git
+.env
+mosquitto/config/passwd
+mosquitto/data/
+homeassistant/
+esphome/
+esp32-mqtt/secrets.h

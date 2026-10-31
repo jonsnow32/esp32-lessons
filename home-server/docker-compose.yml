@@ -1,0 +1,42 @@
+# Home server for the ESP32 devices: MQTT broker + Home Assistant (+ ESPHome when needed).
+# Runs on the RK3318 box under Armbian (arm64). See README.md.
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    # Host network so it can discover devices on the LAN (mDNS, SSDP); UI on port 8123
+    network_mode: host
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+    volumes:
+      - ./homeassistant:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    depends_on:
+      - mosquitto
+
+  # Only started on demand: docker compose --profile esphome up -d esphome  (UI on port 6052).
+  # Compose still reads ESPHOME_PASSWORD from .env when this profile is off.
+  esphome:
+    image: ghcr.io/esphome/esphome:stable
+    container_name: esphome
+    profiles: [esphome]
+    restart: "no"
+    network_mode: host
+    environment:
+      - USERNAME=admin
+      - PASSWORD=${ESPHOME_PASSWORD:?set ESPHOME_PASSWORD in .env}
+    volumes:
+      - ./esphome:/config

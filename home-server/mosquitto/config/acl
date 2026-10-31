@@ -1,0 +1,10 @@
+# Home Assistant (and you, for testing) see everything
+user ha
+topic readwrite #
+
+# Every device logs in with its own id as the user name (e.g. esp32-den) and may only
+# write under its own topics: home/<id>/... and its Home Assistant discovery config
+pattern readwrite home/%u/#
+pattern write homeassistant/+/%u/#
+# Home Assistant says "online" here when it restarts, so devices send their config again
+pattern read homeassistant/status
