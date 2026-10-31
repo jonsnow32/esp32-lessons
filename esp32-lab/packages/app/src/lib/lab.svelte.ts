@@ -399,7 +399,6 @@ class Lab {
    * cannot be plugged in on their own stay on the bench, and the notice says which.
    */
   async newMyProject(setup: BenchSetup) {
-    const now = Date.now();
     let project = setupProject(setup);
     const plugged: string[] = [];
     const left: string[] = [];
@@ -413,11 +412,22 @@ class Lab {
         } else left.push(`${id} (${r.reason})`);
       }
     }
-    const p: MyProject = { id: `my-${now.toString(36)}`, title: setup.title.trim() || newTitle(this.myProjects), created: now, updated: now, start: project };
-    localStorage.setItem(wsKey(p.id), JSON.stringify({ project, code: DEFAULT_SKETCH, passed: [] } satisfies Workspace));
+    await this.createMyProject(setup.title, project);
+    if (left.length) this.notice = `Đã cắm ${plugged.length}/${plugged.length + left.length} linh kiện. Chưa cắm được: ${left.join('; ')}. Các linh kiện này nằm trên bàn, bạn tự nối dây nhé.`;
+  }
+
+  /** A project of the user's own on this bench and code, opened. */
+  async createMyProject(title: string, project: Project, code = DEFAULT_SKETCH) {
+    const now = Date.now();
+    const p: MyProject = { id: `my-${now.toString(36)}`, title: title.trim() || newTitle(this.myProjects), created: now, updated: now, start: project };
+    localStorage.setItem(wsKey(p.id), JSON.stringify({ project, code, passed: [] } satisfies Workspace));
     this.updateMyProjects([p, ...this.myProjects]);
     await this.open(p.id);
-    if (left.length) this.notice = `Đã cắm ${plugged.length}/${plugged.length + left.length} linh kiện. Chưa cắm được: ${left.join('; ')}. Các linh kiện này nằm trên bàn, bạn tự nối dây nhé.`;
+  }
+
+  /** A new bench with this board and breadboard, `change` made on it (see applyChange); nothing is saved. */
+  planBench(board: string, bb: string | null, change: CircuitChange) {
+    return applyChange(setupProject({ title: '', board, breadboard: bb, parts: [], plug: false }), change, (p) => this.buildNetKernel(p));
   }
 
   renameMyProject(id: string, title: string) {

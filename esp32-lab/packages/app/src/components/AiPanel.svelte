@@ -3,7 +3,7 @@
   // for one first; the key stays in this browser. On the dev server, Claude Code on this machine
   // can answer instead.
   import { untrack } from 'svelte';
-  import { ai, CLI, MODELS, type ModelId, type Source } from '../lib/ai.svelte';
+  import { ai, cli, MODELS, type ModelId, type Source } from '../lib/ai.svelte';
   import { lab } from '../lib/lab.svelte';
   import { layout } from '../lib/layout.svelte';
   import Icon from './Icon.svelte';
@@ -13,14 +13,10 @@
   let key = $state(ai.apiKey);
   let model = $state<ModelId>(ai.model);
   let source = $state<Source>(ai.source);
-  /** Whether the dev server found the claude command. */
-  let cliFound = $state<boolean | null>(null);
-  if (CLI) {
-    fetch('/api/ai/claude')
-      .then((r) => r.json())
-      .then((r: { available: boolean }) => (cliFound = r.available))
-      .catch(() => (cliFound = false));
-  }
+  // Claude Code chosen before but not on this computer after all: back to asking for a key
+  $effect(() => {
+    if (!ai.ready) setup = true;
+  });
   let list: HTMLDivElement;
   /** Proposals whose code is unfolded. */
   let open = $state<number[]>([]);
@@ -86,11 +82,10 @@
 
   {#if setup}
     <form class="setup" onsubmit={(e) => { e.preventDefault(); save(); }}>
-      {#if CLI}
+      {#if cli.available}
         <fieldset>
-          <legend>Nguồn (bản dev)</legend>
-          <label class="radio"><input type="radio" bind:group={source} value="cli" disabled={cliFound === false} />Claude Code trên máy này (gói Pro/Max)</label>
-          {#if cliFound === false}<p class="note">Không thấy lệnh <code>claude</code> trên máy chạy dev server.</p>{/if}
+          <legend>Nguồn</legend>
+          <label class="radio"><input type="radio" bind:group={source} value="cli" />Claude Code trên máy này (gói Pro/Max)</label>
           <label class="radio"><input type="radio" bind:group={source} value="api" />Anthropic API key</label>
         </fieldset>
       {/if}
@@ -100,7 +95,7 @@
           <input type="password" bind:value={key} placeholder="sk-ant-…" autocomplete="off" spellcheck="false" />
         </label>
       {:else}
-        <p class="note">Câu hỏi chạy qua <code>claude -p</code> với tài khoản Claude Code đang đăng nhập, tính vào hạn mức gói của bạn. Chỉ có ở bản dev.</p>
+        <p class="note">Câu hỏi chạy qua <code>claude -p</code> với tài khoản Claude Code đang đăng nhập, tính vào hạn mức gói của bạn.</p>
       {/if}
       <label>Model
         <select bind:value={model}>

@@ -1,9 +1,11 @@
 <script lang="ts">
   // Setting up a new bench, one step at a time: the board, the parts to start with, then a
   // breadboard or none (the parts are then wired straight to the board) and the project's name.
+  // Or the whole bench from a description, designed by Claude (AiBench.svelte).
   import { BOARDS, BREADBOARDS, CATEGORY, PARTS } from '../lib/catalog';
   import { breadboard, breadboardBox } from '../lib/geometry';
   import { lab } from '../lib/lab.svelte';
+  import AiBench from './AiBench.svelte';
   import BoardView from './BoardView.svelte';
   import BreadboardView from './BreadboardView.svelte';
   import Icon from './Icon.svelte';
@@ -12,6 +14,8 @@
 
   const STEPS = ['Board', 'Linh kiện', 'Breadboard'];
   let step = $state(0);
+  /** Pick everything by hand, or describe the project to Claude. */
+  let mode = $state<'pick' | 'ai'>('pick');
 
   let board = $state(Object.keys(BOARDS)[0]!);
   /** How many of each part type, by type. */
@@ -78,6 +82,11 @@
   <div class="dialog" role="dialog" aria-modal="true" aria-label="Tạo bàn làm việc mới">
     <header>
       <h2>Tạo bàn làm việc mới</h2>
+      <div class="modes" role="tablist">
+        <button role="tab" aria-selected={mode === 'pick'} onclick={() => (mode = 'pick')}>Tự chọn</button>
+        <button role="tab" aria-selected={mode === 'ai'} onclick={() => (mode = 'ai')}>Mô tả bằng AI</button>
+      </div>
+      {#if mode === 'ai'}<span class="spacer"></span>{:else}
       <ol class="steps">
         {#each STEPS as s, i}
           <li class:on={i === step} class:done={i < step}>
@@ -85,9 +94,13 @@
           </li>
         {/each}
       </ol>
+      {/if}
       <button class="close" aria-label="Đóng" onclick={onclose}><Icon name="close" size={14} /></button>
     </header>
 
+    {#if mode === 'ai'}
+      <AiBench {onclose} />
+    {:else}
     <div class="body">
       {#if step === 0}
         <p class="lead">Chọn board ESP32 bạn sẽ dùng. Đổi lại sau được, dây nối sẽ theo chân tương ứng.</p>
@@ -157,6 +170,7 @@
         <button class="primary" disabled={creating} onclick={create}>Tạo bàn</button>
       {/if}
     </footer>
+    {/if}
   </div>
 </div>
 
@@ -165,6 +179,10 @@
   .dialog { display: flex; flex-direction: column; width: min(860px, 100%); max-height: min(720px, 100%); background: var(--surface); border: 1px solid var(--line-strong); border-top: 3px solid var(--accent); box-shadow: var(--shadow-float); }
   header { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
   h2 { font-size: 16px; font-weight: 700; margin: 0; white-space: nowrap; }
+  .modes { display: flex; border: 1px solid var(--line); }
+  .modes button { border: none; background: none; padding: 3px 10px; font-size: var(--fs-xs); font-weight: 600; color: var(--ink-3); min-height: 0; }
+  .modes button[aria-selected='true'] { background: var(--accent); color: #fff; }
+  .spacer { margin-right: auto; }
   .steps { display: flex; gap: 4px; list-style: none; margin: 0 auto 0 0; padding: 0; }
   .steps button { display: flex; align-items: center; gap: 6px; border: none; background: none; padding: 4px 8px; font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .07em; color: var(--ink-3); }
   .steps button:disabled { color: var(--ink-4); }

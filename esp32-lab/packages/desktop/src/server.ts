@@ -8,6 +8,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { extname, join, normalize, relative } from 'node:path';
+import type { claudeCli } from '../../lab-server/src/claude-cli';
 import type { labServer } from '../../lab-server/src/index';
 import { SETUP_STEPS, type ToolchainSetup } from './toolchain';
 
@@ -34,6 +35,8 @@ export interface DesktopServerOptions {
   setupDir: string;
   lab: ReturnType<typeof labServer>;
   setup: ToolchainSetup;
+  /** The AI assistant through Claude Code on this computer, when it is turned on (see main.ts). */
+  claude?: ReturnType<typeof claudeCli>;
 }
 
 /** A file under `root`, or undefined if the path leaves it or there is none. */
@@ -79,7 +82,7 @@ export async function startServer(opts: DesktopServerOptions): Promise<{ port: n
     }
     const path = decodeURIComponent(new URL(req.url ?? '/', 'http://lab').pathname);
     if (setupRoutes(req, res, path)) return;
-    opts.lab.handle(req, res, () => {
+    const lab = () => opts.lab.handle(req, res, () => {
       const file = fileIn(opts.setupDir, path) ?? fileIn(opts.webDir, path);
       if (file && req.method === 'GET') return sendFile(res, file);
       // Anything else is a page of the app
@@ -88,6 +91,8 @@ export async function startServer(opts: DesktopServerOptions): Promise<{ port: n
       res.statusCode = 404;
       res.end();
     });
+    if (opts.claude) opts.claude.handle(req, res, lab);
+    else lab();
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   return { port: (server.address() as AddressInfo).port, token };

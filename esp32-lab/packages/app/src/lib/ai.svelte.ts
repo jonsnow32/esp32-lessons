@@ -10,14 +10,15 @@
 // checked part by part first (verify.ts); one with errors goes back to Claude to fix, a few times,
 // before the user sees it.
 //
-// On the dev server there is a second way in, for the developer alone: the Claude Code CLI on
-// this machine, on their own subscription (see lab-server/src/claude-cli.ts). It cannot call the
-// tools, so each question carries a snapshot of the bench and proposals come back as tagged text.
+// Where the lab's server offers it (the dev server, the desktop app when turned on there) there is
+// a second way in: the Claude Code CLI on this machine, on the user's own Claude login (see
+// lab-server/src/claude-cli.ts). It cannot call the tools, so each question carries a snapshot of
+// the bench and proposals come back as tagged text.
 
 import Anthropic from '@anthropic-ai/sdk';
 import type * as Beta from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import type { PartProps } from '@esp32lab/part-sdk';
-import type { Project } from '@esp32lab/project-model';
+import type { BoardDef, Project } from '@esp32lab/project-model';
 import { keyOf } from '@esp32lab/sim-core';
 import type { CircuitChange } from './autoplug';
 import { BOARDS, PARTS } from './catalog';
@@ -34,8 +35,15 @@ export type ModelId = (typeof MODELS)[number]['id'];
 
 /** Where the answers come from: the Anthropic API with the user's key, or Claude Code (dev only). */
 export type Source = 'api' | 'cli';
-/** The Claude Code way in exists on the dev server only. */
-export const CLI = import.meta.env.DEV;
+/**
+ * Whether the lab's server can run Claude Code on this computer: null until it answers. Only the
+ * dev server and the desktop app (when turned on there) can; a web build answers with its page.
+ */
+export const cli = $state<{ available: boolean | null }>({ available: null });
+fetch('/api/ai/claude')
+  .then((r) => r.json())
+  .then((r: { available?: unknown }) => (cli.available = r.available === true))
+  .catch(() => (cli.available = false));
 
 interface AiConfig {
   apiKey: string;
@@ -49,7 +57,7 @@ function loadConfig(): AiConfig {
   try {
     const stored = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<AiConfig> | null;
     const model = MODELS.some((m) => m.id === stored?.model) ? stored!.model! : 'claude-opus-5-5';
-    return { apiKey: stored?.apiKey ?? '', model, source: CLI && stored?.source === 'cli' ? 'cli' : 'api' };
+    return { apiKey: stored?.apiKey ?? '', model, source: stored?.source === 'cli' ? 'cli' : 'api' };
   } catch {
     return { apiKey: '', model: 'claude-opus-5-5', source: 'api' };
   }
@@ -361,7 +369,7 @@ function situation(): string {
 }
 
 /** A circuit proposal as Claude sent it, checked for shape; a string says what is wrong. */
-function parseChange(input: Record<string, unknown>): { summary: string; change: CircuitChange } | string {
+export function parseChange(input: Record<string, unknown>): { summary: string; change: CircuitChange } | string {
   const { summary, parts = [], wires = [], remove = [], disconnect = [] } = input;
   if (typeof summary !== 'string' || !Array.isArray(parts) || !Array.isArray(wires)) return 'Cần summary (chuỗi), parts và wires (danh sách).';
   if (!Array.isArray(remove) || !remove.every((x) => typeof x === 'string')) return 'remove phải là danh sách id linh kiện.';
@@ -452,12 +460,13 @@ class Assistant {
   get model() {
     return this.config.model;
   }
-  get source() {
-    return this.config.source;
+  /** The way in chosen, or the API while Claude Code turns out not to be there. */
+  get source(): Source {
+    return this.config.source === 'cli' && cli.available === false ? 'api' : this.config.source;
   }
   /** There is a way to ask: a key for the API, or Claude Code. */
   get ready() {
-    return this.config.source === 'cli' || !!this.config.apiKey;
+    return this.source === 'cli' || !!this.config.apiKey;
   }
 
   constructor() {
@@ -526,7 +535,7 @@ class Assistant {
     if (!this.entries.some((e) => e.kind === 'user')) return;
     const id = (this.chatId ??= `c${Date.now().toString(36)}`);
     const first = this.entries.find((e) => e.kind === 'user')!.text.replace(/\s+/g, ' ').trim();
-    const info: ChatInfo = { id, route: this.route, title: first.length > 70 ? `${first.slice(0, 69)}…` : first, updated: Date.now(), source: this.chatSource ?? this.config.source };
+    const info: ChatInfo = { id, route: this.route, title: first.length > 70 ? `${first.slice(0, 69)}…` : first, updated: Date.now(), source: this.chatSource ?? this.source };
     const others = this.chats.filter((c) => c.id !== id);
     // The bench's oldest conversations beyond the limit go
     const old = others.filter((c) => c.route === this.route).slice(PER_BENCH - 1);
@@ -552,8 +561,8 @@ class Assistant {
   }
 
   configure(apiKey: string, model: ModelId, source: Source) {
-    if (source !== this.config.source) this.reset();
-    this.config = { apiKey: apiKey.trim(), model, source: CLI ? source : 'api' };
+    if (source !== this.source) this.reset();
+    this.config = { apiKey: apiKey.trim(), model, source };
     if (this.config.apiKey || this.config.source === 'cli') localStorage.setItem(KEY, JSON.stringify(this.config));
     else localStorage.removeItem(KEY);
   }
@@ -626,10 +635,10 @@ class Assistant {
   async ask(question: string) {
     if (this.busy || !question.trim() || !this.ready) return;
     // A conversation resumed from the other way in cannot go on: start a new one
-    if (this.chatSource && this.chatSource !== this.config.source) this.reset();
-    this.chatSource = this.config.source;
+    if (this.chatSource && this.chatSource !== this.source) this.reset();
+    this.chatSource = this.source;
     this.fixes = 0;
-    if (this.config.source === 'cli') return this.askCli(question);
+    if (this.source === 'cli') return this.askCli(question);
     const turn = this.turn;
     this.entries.push({ kind: 'user', text: question });
     this.history.push({ role: 'user', content: `<lab>${situation()}</lab>\n\n${question}` });
@@ -719,7 +728,7 @@ class Assistant {
         body: JSON.stringify({ prompt, system: SYSTEM_CLI, model: this.config.model, session: this.session }),
         signal: controller.signal,
       });
-      if (!r.ok || !r.body) throw new Error(r.status === 404 ? 'Chế độ Claude Code chỉ có khi chạy bản dev (pnpm dev).' : await r.text());
+      if (!r.ok || !r.body) throw new Error(r.status === 404 ? 'Bản này không bật Claude Code.' : await r.text());
       const reader = r.body.getReader();
       const decoder = new TextDecoder();
       let pending = '';
@@ -790,6 +799,11 @@ class Assistant {
   private run(use: Beta.BetaToolUseBlock): Beta.BetaToolResultBlockParam {
     const input = use.input as Record<string, unknown>;
     const result = (content: string, is_error = false): Beta.BetaToolResultBlockParam => ({ type: 'tool_result', tool_use_id: use.id, content, is_error });
+    const known = lookup(use.name, input, BOARDS[lab.project.board.type]);
+    if (known) {
+      this.entries.push({ kind: 'tool', text: known.label });
+      return result(known.text, known.error);
+    }
     switch (use.name) {
       case 'get_circuit':
         this.entries.push({ kind: 'tool', text: 'Xem mạch' });
@@ -800,40 +814,9 @@ class Assistant {
       case 'get_serial':
         this.entries.push({ kind: 'tool', text: 'Đọc Serial' });
         return result(lab.serial ? lab.serial.slice(-4000) : '(chưa có dữ liệu Serial)');
-      case 'list_parts':
-        this.entries.push({ kind: 'tool', text: 'Xem danh mục linh kiện' });
-        return result(partCatalog());
-      case 'get_part': {
-        const type = String(input.type ?? '');
-        this.entries.push({ kind: 'tool', text: `Tra linh kiện ${PARTS[type]?.manifest.name ?? type}` });
-        const props = input.props && typeof input.props === 'object' ? (input.props as PartProps) : undefined;
-        const text = partInfo(type, props);
-        return result(text ?? `Không có loại linh kiện "${type}". Các loại có: ${Object.keys(PARTS).join(', ')}`, !text);
-      }
-      case 'get_pin': {
-        const board = BOARDS[lab.project.board.type];
-        if (!board) return result('Không biết board trên bàn.', true);
-        const name = typeof input.name === 'string' ? input.name.trim() : '';
-        this.entries.push({ kind: 'tool', text: name ? `Tra chân ${name}` : 'Xem các chân board' });
-        if (!name) return result(boardPins(board));
-        const text = pinText(board, name);
-        return result(text ?? `${board.name} không có chân "${name}". Các chân: ${board.pins.map((p) => p.name).join(', ')}`, !text);
-      }
-      case 'list_projects':
-        this.entries.push({ kind: 'tool', text: 'Xem dự án mẫu' });
-        return result(projectCatalog());
-      case 'get_project': {
-        const id = String(input.id ?? '');
-        this.entries.push({ kind: 'tool', text: `Đọc dự án mẫu ${id}` });
-        const text = projectInfo(id);
-        return result(text ?? `Không có dự án mẫu "${id}", xem list_projects.`, !text);
-      }
       case 'get_lesson':
         this.entries.push({ kind: 'tool', text: 'Xem bài học' });
         return result(lessonSteps() ?? 'Người dùng không làm bài học nào lúc này.');
-      case 'list_libraries':
-        this.entries.push({ kind: 'tool', text: 'Xem thư viện' });
-        return result(libraryList());
       case 'highlight': {
         if (!Array.isArray(input.items) || !input.items.every((i) => typeof i === 'string')) return result('items phải là danh sách chuỗi', true);
         lab.emphasis = emphasis(input.items as string[]);
@@ -864,6 +847,43 @@ class Assistant {
   }
 }
 
+/** The lab's own knowledge, the same whatever the bench: parts, board pins, featured projects, libraries. */
+export const LOOKUPS = ['list_parts', 'get_part', 'get_pin', 'list_projects', 'get_project', 'list_libraries'];
+export const LOOKUP_TOOLS = TOOLS.filter((t) => LOOKUPS.includes(t.name));
+
+/** Answer a lookup tool (see LOOKUPS): the line the chat shows and the result; null for any other tool. */
+export function lookup(name: string, input: Record<string, unknown>, board: BoardDef | undefined): { label: string; text: string; error?: boolean } | null {
+  switch (name) {
+    case 'list_parts':
+      return { label: 'Xem danh mục linh kiện', text: partCatalog() };
+    case 'get_part': {
+      const type = String(input.type ?? '');
+      const props = input.props && typeof input.props === 'object' ? (input.props as PartProps) : undefined;
+      const text = partInfo(type, props);
+      return { label: `Tra linh kiện ${PARTS[type]?.manifest.name ?? type}`, text: text ?? `Không có loại linh kiện "${type}". Các loại có: ${Object.keys(PARTS).join(', ')}`, error: !text };
+    }
+    case 'get_pin': {
+      const pin = typeof input.name === 'string' ? input.name.trim() : '';
+      const label = pin ? `Tra chân ${pin}` : 'Xem các chân board';
+      if (!board) return { label, text: 'Không biết board trên bàn.', error: true };
+      if (!pin) return { label, text: boardPins(board) };
+      const text = pinText(board, pin);
+      return { label, text: text ?? `${board.name} không có chân "${pin}". Các chân: ${board.pins.map((p) => p.name).join(', ')}`, error: !text };
+    }
+    case 'list_projects':
+      return { label: 'Xem dự án mẫu', text: projectCatalog() };
+    case 'get_project': {
+      const id = String(input.id ?? '');
+      const text = projectInfo(id);
+      return { label: `Đọc dự án mẫu ${id}`, text: text ?? `Không có dự án mẫu "${id}", xem list_projects.`, error: !text };
+    }
+    case 'list_libraries':
+      return { label: 'Xem thư viện', text: libraryList() };
+    default:
+      return null;
+  }
+}
+
 /** The conversation so far as text, for a new Claude Code session to go on from. */
 function recap(entries: Entry[]): string {
   const said = entries.flatMap((e) => (e.kind === 'user' ? [`Người dùng: ${e.text}`] : e.kind === 'assistant' ? [`Trợ lý: ${e.text}`] : []));
@@ -871,7 +891,7 @@ function recap(entries: Entry[]): string {
   return `Cuộc trò chuyện trước đó (trợ lý lúc ấy theo hướng dẫn cũ; theo hướng dẫn hiện tại nếu khác):\n${lines.join('\n\n')}`;
 }
 
-function describe(e: unknown): string {
+export function describe(e: unknown): string {
   if (e instanceof Anthropic.APIUserAbortError) return 'Đã dừng.';
   if (e instanceof Anthropic.AuthenticationError) return 'API key không hợp lệ. Kiểm tra lại key trong phần cài đặt (⚙).';
   if (e instanceof Anthropic.PermissionDeniedError) return 'API key này không được dùng model đã chọn.';

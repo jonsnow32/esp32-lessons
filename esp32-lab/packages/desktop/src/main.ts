@@ -6,6 +6,7 @@
 
 import { app, BrowserWindow, net, protocol, shell } from 'electron';
 import { join } from 'node:path';
+import { claudeCli } from '../../lab-server/src/claude-cli';
 import { labServer } from '../../lab-server/src/index';
 import { startServer, TOKEN_HEADER } from './server';
 import { ToolchainSetup } from './toolchain';
@@ -15,6 +16,11 @@ const ORIGIN = 'app://lab';
 // ESP32LAB_DATA_DIR: keep everything (compiler, builds, the app's storage) in another folder,
 // e.g. to try the first launch on a computer that already has the app
 if (process.env.ESP32LAB_DATA_DIR) app.setPath('userData', process.env.ESP32LAB_DATA_DIR);
+
+// ESP32LAB_CLAUDE_CODE=1: the AI assistant may also run through Claude Code on this computer, on
+// the user's own Claude login (see lab-server/src/claude-cli.ts). Off until Anthropic's terms for
+// letting another app use a Claude Code login are settled; then this can turn on for everyone.
+const CLAUDE_CODE = process.env.ESP32LAB_CLAUDE_CODE === '1';
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true, codeCache: true } },
@@ -59,7 +65,8 @@ async function main() {
   // ESP32LAB_OWN_TOOLCHAIN=1: ignore a PlatformIO already on this computer (to try the setup)
   setup = new ToolchainSetup(join(base, 'toolchain'), process.env.ESP32LAB_OWN_TOOLCHAIN === '1', lab.build);
   const ready = await setup.find();
-  const { port, token } = await startServer({ webDir, setupDir, lab, setup });
+  const claude = CLAUDE_CODE ? claudeCli({ workDir: join(base, 'claude') }) : undefined;
+  const { port, token } = await startServer({ webDir, setupDir, lab, setup, claude });
 
   protocol.handle('app', async (req) => {
     const url = new URL(req.url);
