@@ -273,7 +273,73 @@ sudo tailscale up
 
 Rồi mở Home Assistant bằng IP Tailscale của box.
 
-## 10. Thêm sau này
+## 10. Cấu hình dạng code (packages)
+
+Automation, script và helper quan trọng nằm trong `homeassistant/packages/`, mỗi chủ đề một file,
+và được commit vào git. Các file khác của Home Assistant (`.storage/`, database, `secrets.yaml`)
+vẫn chỉ nằm trên box.
+
+| File | Làm gì |
+|---|---|
+| `canh_bao.yaml` | Script `thong_bao` dùng chung, báo khi thiết bị mất kết nối quá 2 phút và khi nó kết nối lại |
+| `esp32_den.yaml` | LED của `esp32-den` bật lúc hoàng hôn, tắt lúc 23:00. Tắt helper "LED esp32-den theo giờ" để dừng lịch |
+
+Bật packages một lần trên box:
+
+```sh
+cd ~/home-server
+# Docker tạo homeassistant/ bằng root, nên tạo sẵn thư mục packages cho user của bạn
+sudo mkdir -p homeassistant/packages && sudo chown $USER homeassistant/packages
+git pull   # hoặc scp -r homeassistant/packages user@<ip-box>:~/home-server/homeassistant/
+sudo nano homeassistant/configuration.yaml
+```
+
+Thêm vào đầu `configuration.yaml`:
+
+```yaml
+homeassistant:
+  packages: !include_dir_named packages
+```
+
+Rồi vào Developer Tools → YAML → **Check configuration**, báo OK thì `docker compose restart
+homeassistant`.
+
+- Package dùng entity `switch.esp32_den_led`. Nếu bạn đổi entity_id trong giao diện, sửa theo ở
+  cả hai file.
+- Thêm thiết bị mới: thêm entity chính của nó vào hai danh sách `entity_id` trong `canh_bao.yaml`.
+- Thông báo hiện ở chuông bên trái giao diện. Khi đã cài app điện thoại, bỏ comment đoạn
+  `notify.mobile_app_...` trong script `thong_bao`.
+- Automation chạy sai thì mở automation đó → ⋮ → **Traces** để xem từng bước.
+
+## 11. Sao lưu ra ngoài box
+
+Backup nằm trên box sẽ mất cùng box (eMMC hỏng, cài lại Armbian). `backup.sh` chạy trên Mac, kéo
+backup của Home Assistant và các file bí mật của server (`.env`, mật khẩu và ACL của MQTT, YAML
+của ESPHome) về `~/home-server-backup`.
+
+Làm một lần:
+
+1. Trong Home Assistant: Settings → System → Backups → bật **automatic backups** hằng ngày.
+   **Lưu encryption key** (chìa khoá mã hoá) vào trình quản lý mật khẩu. Mất chìa khoá này thì
+   không khôi phục được file backup.
+2. Trên box: cài rsync và cho phép chạy nó bằng sudo không cần mật khẩu (các file do container
+   tạo thuộc về root). Dòng này cho user đó toàn quyền qua rsync, chỉ nên dùng trong mạng nhà:
+   ```sh
+   sudo apt install -y rsync
+   echo "$USER ALL=(root) NOPASSWD: /usr/bin/rsync" | sudo tee /etc/sudoers.d/rsync-backup
+   ```
+3. Trên Mac: đăng nhập SSH bằng key để không phải gõ mật khẩu: `ssh-copy-id user@<ip-box>`.
+
+Chạy (giữ 10 bản mới nhất, đổi bằng `KEEP=20`, đổi nơi lưu bằng `DEST=...`):
+
+```sh
+./backup.sh user@<ip-box>
+```
+
+Nên chạy mỗi tuần và trước mỗi lần nâng cấp Home Assistant. Khôi phục: cài lại theo mục 2–3,
+chép thư mục `server/` về `~/home-server`, mở Home Assistant rồi chọn khôi phục từ file `.tar`.
+
+## 12. Thêm sau này
 
 - **Zigbee**: cắm USB dongle (vd Sonoff ZBDongle-E) vào box, thêm container Zigbee2MQTT. Thiết bị
   Zigbee cũng hiện ra qua MQTT như trên.

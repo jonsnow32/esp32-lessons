@@ -2,6 +2,8 @@
 .env
 mosquitto/config/passwd
 mosquitto/data/
-homeassistant/
+# Home Assistant's own files stay on the server; only our packages are in git
+homeassistant/*
+!homeassistant/packages/
 esphome/
 esp32-mqtt/secrets.h

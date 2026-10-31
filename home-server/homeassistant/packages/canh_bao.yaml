@@ -1,0 +1,64 @@
+# Alerts: tell us when a device drops off MQTT (its Last Will makes the entity unavailable)
+# and when it comes back. Add each new device's main entity to the two lists below.
+
+script:
+  # Every alert goes through here, so adding the phone app later is a change in one place
+  thong_bao:
+    alias: "Gửi thông báo"
+    mode: queued
+    fields:
+      title:
+        description: Tiêu đề
+        example: ESP32 offline
+      message:
+        description: Nội dung
+        example: esp32-den mất kết nối
+      tag:
+        description: Thông báo cùng tag sẽ thay cho thông báo cũ
+        example: esp32_den
+    sequence:
+      - action: persistent_notification.create
+        data:
+          title: "{{ title }}"
+          message: "{{ message }}"
+          notification_id: "{{ tag | default('thong_bao') }}"
+      # After installing the Companion app, uncomment and use your phone's notify action
+      # (Developer Tools → Actions, type "notify.mobile_app" to find it):
+      # - action: notify.mobile_app_ten_dien_thoai
+      #   data:
+      #     title: "{{ title }}"
+      #     message: "{{ message }}"
+      #     data:
+      #       tag: "{{ tag | default('thong_bao') }}"
+
+automation:
+  - id: canh_bao_thiet_bi_offline
+    alias: "Cảnh báo: thiết bị mất kết nối"
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id:
+          - switch.esp32_den_led
+        to: unavailable
+        for: "00:02:00"  # ignore short Wi-Fi drops
+        id: offline
+      - trigger: state
+        entity_id:
+          - switch.esp32_den_led
+        from: unavailable
+        id: online
+    conditions:
+      # Only say "back online" after a real outage, not after a short drop or an HA restart
+      - condition: template
+        value_template: >
+          {{ trigger.id == 'offline'
+             or now() - trigger.from_state.last_changed > timedelta(minutes=2) }}
+    actions:
+      - action: script.thong_bao
+        data:
+          tag: "{{ trigger.entity_id | replace('.', '_') }}"
+          title: "{{ 'Thiết bị offline' if trigger.id == 'offline' else 'Thiết bị online lại' }}"
+          message: >
+            {{ trigger.to_state.name }}
+            {{ 'mất kết nối' if trigger.id == 'offline' else 'đã kết nối lại' }}
+            lúc {{ now().strftime('%H:%M %d/%m') }}

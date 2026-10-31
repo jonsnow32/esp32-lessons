@@ -1,0 +1,28 @@
+# The esp32-den demo board (esp32-mqtt/main.cpp): its LED follows the sun.
+# Turn the helper off on the dashboard to stop the schedule without editing YAML.
+
+input_boolean:
+  esp32_den_tu_dong:
+    name: "LED esp32-den theo giờ"
+    icon: mdi:timer-outline
+
+automation:
+  - id: esp32_den_led_theo_gio
+    alias: "esp32-den: LED theo giờ"
+    mode: single
+    triggers:
+      # Sunset needs the home location set in Settings → System → General
+      - trigger: sun
+        event: sunset
+        id: "on"
+      - trigger: time
+        at: "23:00:00"
+        id: "off"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.esp32_den_tu_dong
+        state: "on"
+    actions:
+      - action: "switch.turn_{{ trigger.id }}"
+        target:
+          entity_id: switch.esp32_den_led
