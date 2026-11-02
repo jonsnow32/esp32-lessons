@@ -11,6 +11,8 @@
 //! | 0x400C_0000–0x400C_1FFF  | RTC FAST memory, instruction bus       |
 //! | 0x400D_0000–0x403F_FFFF  | External flash, instruction bus (IROM) |
 //! | 0x5000_0000–0x5000_1FFF  | RTC SLOW memory                        |
+//! | 0x3FF8_8000–0x3FF8_8FFF  | Emulator-only scratch RAM (`net`)      |
+//! | 0x3FF9_0000–0x3FF9_FFFF  | Internal ROM 1 data (tables, see rom)  |
 
 use crate::flash::Flash;
 
@@ -24,6 +26,8 @@ pub const RTC_FAST_DBUS: u32 = 0x3ff8_0000;
 pub const RTC_FAST_IBUS: u32 = 0x400c_0000;
 pub const RTC_SLOW_BASE: u32 = 0x5000_0000;
 pub const RTC_SIZE: u32 = 0x2000;
+pub const ROM_DATA_BASE: u32 = 0x3ff9_0000;
+pub const ROM_DATA_END: u32 = 0x3ffa_0000;
 pub const ROM_BASE: u32 = 0x4000_0000;
 pub const ROM_END: u32 = 0x4007_0000;
 pub const DROM_BASE: u32 = 0x3f40_0000;
@@ -43,6 +47,10 @@ pub struct Memory {
     pub dram: Vec<u8>,
     pub rtc_fast: Vec<u8>,
     pub rtc_slow: Vec<u8>,
+    /// Emulator-only RAM where HLE functions put data for the firmware (`net::SCRATCH_BASE`).
+    pub scratch: Vec<u8>,
+    /// ROM data tables the firmware reads in place (filled by `Rom::init_data`).
+    pub rom_data: Vec<u8>,
     pub flash: Flash,
     /// Per-CPU flash MMU: entry = 64 KB flash page, or MMU_INVALID.
     pub mmu: [[u32; MMU_ENTRIES]; 2],
@@ -78,6 +86,8 @@ impl Memory {
             dram: vec![0; (DRAM_END - DRAM_BASE) as usize],
             rtc_fast: vec![0; RTC_SIZE as usize],
             rtc_slow: vec![0; RTC_SIZE as usize],
+            scratch: vec![0; crate::net::SCRATCH_SIZE as usize],
+            rom_data: vec![0; (ROM_DATA_END - ROM_DATA_BASE) as usize],
             flash,
             mmu: [[MMU_INVALID; MMU_ENTRIES]; 2],
             code_generation: 0,
@@ -113,6 +123,10 @@ impl Memory {
             RTC_FAST_DBUS..0x3ff8_2000 => Target::Ram(&mut self.rtc_fast, (addr - RTC_FAST_DBUS) as usize),
             RTC_FAST_IBUS..0x400c_2000 => Target::Ram(&mut self.rtc_fast, (addr - RTC_FAST_IBUS) as usize),
             RTC_SLOW_BASE..0x5000_2000 => Target::Ram(&mut self.rtc_slow, (addr - RTC_SLOW_BASE) as usize),
+            _ if (crate::net::SCRATCH_BASE..crate::net::SCRATCH_BASE + crate::net::SCRATCH_SIZE).contains(&addr) => {
+                Target::Ram(&mut self.scratch, (addr - crate::net::SCRATCH_BASE) as usize)
+            }
+            ROM_DATA_BASE..ROM_DATA_END => Target::Ram(&mut self.rom_data, (addr - ROM_DATA_BASE) as usize),
             ROM_BASE..ROM_END => Target::Rom,
             _ if (MMU_TABLE[0]..MMU_TABLE[0] + 4 * MMU_ENTRIES as u32).contains(&addr) => {
                 Target::Mmu(0, ((addr - MMU_TABLE[0]) / 4) as usize)

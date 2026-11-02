@@ -2,6 +2,9 @@
 //! [--volts GPIO=V ...]`: boot a PlatformIO build (firmware.elf + firmware.bin + bootloader.bin +
 //! partitions.bin) and print what UART0 says. `--press 0@2.0-2.3` holds GPIO0 (the BOOT button)
 //! LOW from 2.0 s to 2.3 s; `--volts 34=1.65` puts 1.65 V on GPIO34 for the ADC.
+//!
+//! Wi-Fi always connects to a virtual access point; the firmware's TCP connections and DNS
+//! lookups go out through this machine (`--no-net` keeps them offline).
 
 use esp32_soc::{Soc, Stop, CPU_HZ};
 use std::io::Write;
@@ -14,6 +17,7 @@ pub fn run(args: &[String]) -> i32 {
     };
     let seconds: f64 = args.iter().position(|a| a == "--seconds").and_then(|i| args.get(i + 1)).and_then(|s| s.parse().ok()).unwrap_or(3.0);
     let trace_gpio = args.iter().any(|a| a == "--trace-gpio");
+    let mut bridge = (!args.iter().any(|a| a == "--no-net")).then(crate::net::Bridge::new);
     // (gpio, start s, end s)
     let presses: Vec<(usize, f64, f64)> = args
         .windows(2)
@@ -72,6 +76,9 @@ pub fn run(args: &[String]) -> i32 {
             slice = slice.min(e.0);
         }
         let stop = soc.run(slice);
+        if let Some(b) = &mut bridge {
+            b.pump(&mut soc.net);
+        }
         let out = soc.uart_output(0);
         std::io::stdout().write_all(&out[printed..]).unwrap();
         std::io::stdout().flush().unwrap();
@@ -121,6 +128,20 @@ pub fn run(args: &[String]) -> i32 {
     }
     if !soc.exceptions.is_empty() {
         eprintln!("--- {} exceptions, first: {:?}", soc.exceptions.len(), &soc.exceptions[..soc.exceptions.len().min(5)]);
+    }
+    if soc.net.wifi_connected() || soc.net.tx_bytes > 0 {
+        eprintln!(
+            "--- Wi-Fi: {} \"{}\", TCP {} bytes out, {} bytes in",
+            if soc.net.wifi_connected() { "connected to" } else { "was on" },
+            soc.net.ssid(),
+            soc.net.tx_bytes,
+            soc.net.rx_bytes
+        );
+    }
+    if let Some(b) = &bridge {
+        for line in &b.log {
+            eprintln!("---   {line}");
+        }
     }
     let frames = &soc.periph.rmt.frames;
     if !frames.is_empty() {

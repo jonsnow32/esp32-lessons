@@ -307,8 +307,8 @@ Order of work is set by what Arduino-ESP32 needs to reach `setup()`:
    constants from the TRM/SVD, in the order firmware touches them: EFUSE (MAC, chip rev),
    RTC_CNTL + TIMG (watchdogs), UART0, GPIO + IO_MUX + GPIO matrix, FRC/esp_timer (millis/micros),
    LEDC, SENS (ADC/touch), I2C, SPI, RMT.
-4. **WiFi/BLE** – the radio is not emulated. A later shim at the driver or lwIP level provides a
-   virtual network.
+4. **WiFi/BLE** – the radio is not emulated; a shim at the driver and lwIP-socket level provides
+   a virtual network (see "Virtual Wi-Fi" below). No Bluetooth.
 
 ### What M2 implements (`crates/esp32-soc`)
 
@@ -333,13 +333,32 @@ Order of work is set by what Arduino-ESP32 needs to reach `setup()`:
   and cross-core interrupts, APP_CPU control, cache state, eFuse (MAC with valid CRC, chip
   revision), RNG, RTC_CNTL presets. Unmodelled registers act as storage and are listed after a
   run (`esp32-cli run` prints them), which is the to-do list for new firmware.
+- **Virtual Wi-Fi** (`net.rs`): the Wi-Fi driver API (`esp_wifi_init/start/connect/scan...`) is
+  emulated like ROM functions, but on flash addresses: any SSID and password connect to one
+  virtual access point, and the driver posts the real events (STA_START, STA_CONNECTED,
+  SCAN_DONE...) through the firmware's own `esp_event_post`. The station's DHCP client reports
+  "stopped" and `esp_netif_get_ip_info` reports 10.0.2.15 (gateway 10.0.2.2, DNS 10.0.2.3), so
+  esp_netif posts IP_EVENT_STA_GOT_IP itself as for a static IP; Arduino's `WiFi` runs unchanged.
+  lwIP's TCP socket API and `getaddrinfo` are answered too: lwIP's stack never sends a packet,
+  each socket is a byte stream the host carries (`NetOp` out: connect / send / close / resolve;
+  answers in: connected / data / closed / failed / resolved). `esp32-cli run` opens real TCP
+  connections; the browser goes through the lab server (`/api/net`, packages/lab-server/src/net.ts).
+  10.0.2.2 is the host machine, as in QEMU. Not modelled: UDP, incoming connections (`accept`
+  never gets a client), IPv6, soft-AP clients.
+  Emulated functions can call back into the firmware (`rom::Action::Call`): the call returns to
+  a ROM address with no function (`HLE_RETURN`) where the emulated function goes on — posting an
+  event, setting errno through `__errno()`, or sleeping a tick (`vTaskDelay(1)`) and running again
+  while a blocking socket call is not ready, so other tasks keep running.
+- **ROM data**: newlib's `_ctype_` table (isalpha, tolower...) lives in ROM 1 on the ESP32 and is
+  filled in at boot.
 - **Scheduling**: both cores run in 64-instruction quanta; interrupts are re-evaluated between
   quanta; when both cores sit in WAITI the clock jumps to the next timer event (never past a
   latched interrupt).
 
 Known gaps: the clock tree is fixed at CPU 240 MHz / APB 80 MHz (frequency switches are
 bookkept, not simulated); UART TX is instantaneous (no baud-rate timing); watchdogs never fire;
-region protection (null-pointer traps) is stored but not enforced; no WiFi/BT; speed is
+region protection (null-pointer traps) is stored but not enforced; no Bluetooth, Wi-Fi only as
+above (TCP client + DNS); speed is
 ~25–35 MIPS, so busy-looping sketches (lessons 02/03) run ~6× slower than real time while
 delay()-based ones (lesson 01) run ~9× faster. A decoded-instruction cache is the next speed-up.
 

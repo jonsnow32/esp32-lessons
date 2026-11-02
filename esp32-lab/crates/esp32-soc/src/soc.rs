@@ -4,6 +4,7 @@
 use crate::elf::Elf;
 use crate::flash::{self, Flash};
 use crate::mem::{Memory, Target, ROM_BASE, ROM_END};
+use crate::net::Net;
 use crate::periph::{Periph, SOURCES};
 use crate::rom::Rom;
 use xtensa_core::cpu::{PS_CALLINC_SHIFT, PS_WOE};
@@ -13,6 +14,8 @@ use xtensa_core::{Bus, BusError, Cpu, Step};
 pub const CPU_HZ: u64 = 240_000_000;
 /// APB runs at 80 MHz: one APB tick every 3 CPU cycles.
 pub const CPU_PER_APB: u64 = 3;
+/// The emulated chip's factory MAC (eFuse), also the Wi-Fi station's MAC.
+pub const MAC: [u8; 6] = [0x24, 0x0a, 0xc4, 0x12, 0x34, 0x56];
 /// Instructions a core runs before the other gets a turn and interrupts are re-evaluated.
 const QUANTUM: u64 = 64;
 
@@ -152,6 +155,8 @@ pub struct Soc {
     pub mem: Memory,
     pub periph: Periph,
     pub rom: Rom,
+    /// Virtual Wi-Fi and TCP sockets (see `net`).
+    pub net: Net,
     pub cycles: u64,
     pub pad_events: Vec<PadEvent>,
     last_pads: [crate::periph::gpio::PadState; crate::periph::gpio::PADS],
@@ -179,7 +184,7 @@ impl Soc {
 
         let mut mem = Memory::new(flash);
         let (entry, segments) = flash::parse_app_image(&mem.flash, flash::APP_OFFSET)?;
-        let mut periph = Periph::new([0x24, 0x0a, 0xc4, 0x12, 0x34, 0x56]);
+        let mut periph = Periph::new(MAC);
 
         // What the second-stage bootloader does: copy RAM segments, map flash segments
         for seg in &segments {
@@ -207,6 +212,7 @@ impl Soc {
             mem,
             periph,
             rom,
+            net: Net::new(MAC),
             cycles: 0,
             pad_events: vec![],
             last_pads: [crate::periph::gpio::Gpio::default().pad(0); crate::periph::gpio::PADS],
@@ -314,7 +320,7 @@ impl Soc {
                 continue;
             }
             let pc = self.cpus[core].pc;
-            if ((ROM_BASE..ROM_END).contains(&pc) || self.rom.native.contains(&pc)) && !self.cpus[core].waiting {
+            if !self.cpus[core].waiting && ((ROM_BASE..ROM_END).contains(&pc) || self.rom.hooked(core, pc)) {
                 match crate::rom::call(self, core) {
                     Ok(cost) => {
                         // The core stalls for the function's duration; CCOUNT advances meanwhile

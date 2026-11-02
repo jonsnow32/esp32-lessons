@@ -10,12 +10,18 @@
 //! the to-do list when bringing up new firmware.
 //!
 //! A few functions the firmware carries in flash are emulated the same way ([`FLASH_NATIVE`]):
-//! their bodies use instructions this emulator does not model.
+//! their bodies use instructions this emulator does not model. The virtual network
+//! ([`crate::net`]) hooks Wi-Fi driver, esp_netif and lwIP socket functions the same way too.
+//!
+//! An emulated function may call back into the firmware ([`Action::Call`]): to post an event,
+//! to set errno, or to sleep a tick while a socket is not ready. The call returns to
+//! [`HLE_RETURN`], a ROM address with no function, where the emulated function picks up again
+//! ([`Then`]) and finally returns to its own caller.
 
 use crate::mem::{Memory, ROM_BASE, ROM_END};
 use crate::periph::Periph;
 use crate::soc::{CoreBus, Soc, Stop, CPU_HZ, CPU_PER_APB};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use xtensa_core::cpu::{PS_CALLINC, PS_CALLINC_SHIFT, PS_INTLEVEL};
 use xtensa_core::Bus;
 
@@ -25,6 +31,66 @@ use xtensa_core::Bus;
 /// IEEE division gives the correctly rounded result they compute.
 const FLASH_NATIVE: [&str; 1] = ["__divsf3"];
 
+/// newlib `_ctype_`: one entry for EOF, then ASCII 0–127 (_U 1, _L 2, _N 4, _S 8, _P 16, _C 32,
+/// _X 64, _B 128), then zeros for 128–255.
+const CTYPE: [u8; 257] = {
+    let mut t = [0u8; 257];
+    let mut c = 0;
+    while c < 128 {
+        t[c + 1] = match c as u8 {
+            9..=13 => 32 | 8,
+            0..=31 | 127 => 32,
+            b' ' => 8 | 128,
+            b'0'..=b'9' => 4,
+            b'A'..=b'F' => 1 | 64,
+            b'G'..=b'Z' => 1,
+            b'a'..=b'f' => 2 | 64,
+            b'g'..=b'z' => 2,
+            _ => 16,
+        };
+        c += 1;
+    }
+    t
+};
+
+/// Where firmware functions called by an emulated function return to (ROM, no function there).
+pub const HLE_RETURN: u32 = 0x4006_fff0;
+
+/// What an emulated function does once it has run.
+pub(crate) enum Action {
+    /// The result is in a2 (`Call::ret`): return to the caller.
+    Return,
+    /// Call a firmware function with these arguments (at most 6), then go on with [`Then`].
+    Call(u32, Vec<u32>, Then),
+    /// Not ready yet (a blocking socket call): sleep one FreeRTOS tick, then run again.
+    Retry,
+    /// Run the firmware's own implementation after all.
+    Pass,
+}
+
+/// What to do when a firmware function called by an emulated one returns.
+pub(crate) enum Then {
+    /// Return this value to the original caller.
+    Return(u32),
+    /// The call was `__errno()`: store `errno` through the pointer it returned, return `ret`.
+    Errno { errno: u32, ret: u32 },
+    /// Run the emulated function again with its original arguments.
+    Retry,
+    /// Make another call, then go on.
+    Chain(u32, Vec<u32>, Box<Then>),
+}
+
+/// An emulated function waiting for a firmware function it called, keyed by the caller's SP.
+struct Pending {
+    /// The caller's return address register (with the window increment in bits 31:30).
+    ret: u32,
+    callinc: u32,
+    /// The emulated function's address.
+    pc: u32,
+    args: [u32; 6],
+    then: Then,
+}
+
 pub struct Rom {
     /// ROM function address → every name the firmware knows it by (esp_rom_* aliases too).
     pub names: HashMap<u32, Vec<String>>,
@@ -32,8 +98,14 @@ pub struct Rom {
     /// Analog registers behind the internal I2C bus (rom_i2c_*): (block, reg) → value.
     i2c: HashMap<(u32, u32), u32>,
     pub calls: HashMap<String, u64>,
-    /// Addresses of the [`FLASH_NATIVE`] functions in this firmware.
-    pub native: Vec<u32>,
+    /// Addresses of the firmware (flash/IRAM) functions run natively: [`FLASH_NATIVE`] and the
+    /// virtual network's hooks.
+    native: HashSet<u32>,
+    /// One bit per 2-byte address slot (hashed): a quick "certainly not hooked" for each step.
+    filter: Vec<u64>,
+    pending: HashMap<u32, Pending>,
+    /// [`Action::Pass`]: run the instructions at this PC once instead of the hook.
+    pass: [Option<u32>; 2],
 }
 
 impl Rom {
@@ -44,22 +116,56 @@ impl Rom {
                 names.entry(addr).or_default().push(name.clone());
             }
         }
-        let mut native = vec![];
-        for name in FLASH_NATIVE {
-            if let Some(&addr) = symbols.get(name).filter(|&&a| !(ROM_BASE..ROM_END).contains(&a)) {
+        let mut native = HashSet::new();
+        let mut filter = vec![0u64; 1024];
+        for name in FLASH_NATIVE.iter().chain(crate::net::HOOKS) {
+            if let Some(&addr) = symbols.get(*name).filter(|&&a| !(ROM_BASE..ROM_END).contains(&a)) {
                 names.entry(addr).or_default().push(name.to_string());
-                native.push(addr);
+                native.insert(addr);
+                let h = Self::slot(addr);
+                filter[h >> 6] |= 1 << (h & 63);
             }
         }
         for list in names.values_mut() {
             list.sort();
         }
-        Self { names, symbols: symbols.clone(), i2c: HashMap::new(), calls: HashMap::new(), native }
+        Self {
+            names,
+            symbols: symbols.clone(),
+            i2c: HashMap::new(),
+            calls: HashMap::new(),
+            native,
+            filter,
+            pending: HashMap::new(),
+            pass: [None; 2],
+        }
+    }
+
+    fn slot(addr: u32) -> usize {
+        ((addr >> 1) ^ (addr >> 17)) as usize & 0xffff
+    }
+
+    /// Is `pc` the entry of a firmware function emulated here (and not to be run as is now)?
+    #[inline]
+    pub fn hooked(&mut self, core: usize, pc: u32) -> bool {
+        let h = Self::slot(pc);
+        if self.filter[h >> 6] >> (h & 63) & 1 == 0 || !self.native.contains(&pc) {
+            return false;
+        }
+        if self.pass[core] == Some(pc) {
+            self.pass[core] = None;
+            return false;
+        }
+        true
+    }
+
+    pub fn symbol(&self, name: &str) -> Option<u32> {
+        self.symbols.get(name).copied()
     }
 
     /// ROM .data/.bss variables the firmware reads, as the ROM and bootloader leave them.
     pub fn init_data(&self, mem: &mut Memory, periph: &mut Periph) {
-        let mut bus = CoreBus { mem, periph, cpu: 0, apb: 0 };
+        let mut bus = CoreBus { mem: &mut *mem, periph: &mut *periph, cpu: 0, apb: 0 };
         if let Some(&chip) = self.symbols.get("g_rom_flashchip") {
             // esp_rom_spiflash_chip_t: device_id, chip_size, block, sector, page, status_mask
             let fields = [0x0016_40ef, crate::flash::FLASH_SIZE as u32, 0x1_0000, 0x1000, 0x100, 0xffff];
@@ -67,6 +173,14 @@ impl Rom {
                 let _ = bus.write(chip + 4 * k as u32, 4, *v);
             }
         }
+        // newlib's character class table (isalpha, tolower...) lives in ROM 1 on the ESP32
+        if let Some(&table) = self.symbols.get("_ctype_") {
+            let start = table.wrapping_sub(crate::mem::ROM_DATA_BASE) as usize;
+            if let Some(dst) = mem.rom_data.get_mut(start..start + CTYPE.len()) {
+                dst.copy_from_slice(&CTYPE);
+            }
+        }
+        let mut bus = CoreBus { mem, periph, cpu: 0, apb: 0 };
         for name in ["g_ticks_per_us_pro", "g_ticks_per_us_app"] {
             if let Some(&a) = self.symbols.get(name) {
                 let _ = bus.write(a, 4, (CPU_HZ / 1_000_000) as u32);
@@ -76,12 +190,13 @@ impl Rom {
 }
 
 /// Argument/return access for one intercepted call.
-struct Call<'a> {
-    soc: &'a mut Soc,
-    core: usize,
+pub(crate) struct Call<'a> {
+    pub soc: &'a mut Soc,
+    pub core: usize,
     base: u8,
 }
 
+#[allow(dead_code)]
 impl Call<'_> {
     fn bus(&mut self) -> CoreBus<'_> {
         let apb = self.soc.cycles / CPU_PER_APB;
@@ -89,7 +204,7 @@ impl Call<'_> {
     }
 
     /// Argument word `i`: a2..a7 of the callee, then the caller's outgoing-argument area.
-    fn arg(&mut self, i: usize) -> u32 {
+    pub(crate) fn arg(&mut self, i: usize) -> u32 {
         if i < 6 {
             self.soc.cpus[self.core].a(self.base + i as u8)
         } else {
@@ -111,7 +226,7 @@ impl Call<'_> {
         f32::from_bits(self.arg(i))
     }
 
-    fn ret(&mut self, v: u32) {
+    pub(crate) fn ret(&mut self, v: u32) {
         let b = self.base;
         self.soc.cpus[self.core].set_a(b, v);
     }
@@ -122,7 +237,7 @@ impl Call<'_> {
         self.soc.cpus[self.core].set_a(b + 1, (v >> 32) as u32);
     }
 
-    fn r32(&mut self, a: u32) -> u32 {
+    pub(crate) fn r32(&mut self, a: u32) -> u32 {
         // Word reads also work on IRAM/flash where byte reads would fault
         let w = self.bus().read(a & !3, 4).unwrap_or(0);
         if a & 3 == 0 {
@@ -133,11 +248,11 @@ impl Call<'_> {
         (w >> shift) | (hi << (32 - shift))
     }
 
-    fn byte(&mut self, a: u32) -> u8 {
+    pub(crate) fn byte(&mut self, a: u32) -> u8 {
         (self.r32(a & !3) >> (8 * (a & 3))) as u8
     }
 
-    fn w8(&mut self, a: u32, v: u8) {
+    pub(crate) fn w8(&mut self, a: u32, v: u8) {
         if self.bus().write(a, 1, v as u32).is_err() {
             // IRAM: read-modify-write the containing word
             let shift = 8 * (a & 3);
@@ -146,21 +261,21 @@ impl Call<'_> {
         }
     }
 
-    fn w32(&mut self, a: u32, v: u32) {
+    pub(crate) fn w32(&mut self, a: u32, v: u32) {
         let _ = self.bus().write(a, 4, v);
     }
 
-    fn read_bytes(&mut self, a: u32, len: u32) -> Vec<u8> {
+    pub(crate) fn read_bytes(&mut self, a: u32, len: u32) -> Vec<u8> {
         (0..len).map(|k| self.byte(a + k)).collect()
     }
 
-    fn write_bytes(&mut self, a: u32, data: &[u8]) {
+    pub(crate) fn write_bytes(&mut self, a: u32, data: &[u8]) {
         for (k, &b) in data.iter().enumerate() {
             self.w8(a + k as u32, b);
         }
     }
 
-    fn cstr(&mut self, a: u32) -> Vec<u8> {
+    pub(crate) fn cstr(&mut self, a: u32) -> Vec<u8> {
         let mut out = vec![];
         for k in 0..4096 {
             let b = self.byte(a + k);
@@ -170,6 +285,21 @@ impl Call<'_> {
             out.push(b);
         }
         out
+    }
+
+    pub(crate) fn w16(&mut self, a: u32, v: u16) {
+        self.write_bytes(a, &v.to_le_bytes());
+    }
+
+    /// Fail with `errno` set, returning `ret` (usually −1).
+    pub(crate) fn fail(&mut self, errno: u32, ret: u32) -> Action {
+        match self.soc.rom.symbol("__errno") {
+            Some(f) => Action::Call(f, vec![], Then::Errno { errno, ret }),
+            None => {
+                self.ret(ret);
+                Action::Return
+            }
+        }
     }
 }
 
@@ -320,6 +450,9 @@ fn crc32_le(crc: u32, data: &[u8]) -> u32 {
 /// Execute the ROM function at the current PC. Returns the cycles it took.
 pub fn call(soc: &mut Soc, core: usize) -> Result<u64, Stop> {
     let pc = soc.cpus[core].pc;
+    if pc == HLE_RETURN {
+        return resume(soc, core);
+    }
     let Some(names) = soc.rom.names.get(&pc).cloned() else {
         return Err(Stop::Rom(format!("jump into ROM at {pc:#010x} (no symbol)")));
     };
@@ -366,6 +499,10 @@ fn call_named(soc: &mut Soc, core: usize, pc: u32, name: &str) -> Option<Result<
 
     let mut c = Call { soc, core, base };
     let mut cost: u64 = 20;
+
+    if let Some(action) = crate::net::call(&mut c, name) {
+        return Some(finish(c.soc, core, pc, callinc, action));
+    }
 
     let cmp = |a: f64, b: f64, nan: i32| -> u32 {
         if a.is_nan() || b.is_nan() {
@@ -772,4 +909,92 @@ fn call_named(soc: &mut Soc, core: usize, pc: u32, name: &str) -> Option<Result<
     cpu.pc = if callinc == 0 { cpu.a(0) } else { (pc & 0xc000_0000) | (cpu.a((callinc * 4) as u8) & 0x3fff_ffff) };
     cpu.retired += 1;
     Some(Ok(cost))
+}
+
+/// Point the CPU at `func` as if the caller had called it with the same window increment, with
+/// the return going to [`HLE_RETURN`].
+fn enter(soc: &mut Soc, core: usize, callinc: u32, func: u32, args: &[u32]) {
+    let cpu = &mut soc.cpus[core];
+    let base = (callinc * 4 + 2) as u8;
+    cpu.set_a((callinc * 4) as u8, (callinc << 30) | (HLE_RETURN & 0x3fff_ffff));
+    for (k, &a) in args.iter().enumerate().take(6) {
+        cpu.set_a(base + k as u8, a);
+    }
+    cpu.ps = (cpu.ps & !PS_CALLINC) | (callinc << PS_CALLINC_SHIFT);
+    cpu.pc = func;
+}
+
+/// Carry out what an emulated function asked for.
+fn finish(soc: &mut Soc, core: usize, pc: u32, callinc: u32, action: Action) -> Result<u64, Stop> {
+    let action = match action {
+        Action::Retry => match soc.rom.symbol("vTaskDelay") {
+            Some(f) => Action::Call(f, vec![1], Then::Retry),
+            // No scheduler to sleep in: stall this core 1 ms and try again
+            None => return Ok(CPU_HZ / 1000),
+        },
+        a => a,
+    };
+    match action {
+        Action::Return | Action::Retry => {
+            let cpu = &mut soc.cpus[core];
+            cpu.pc = if callinc == 0 { cpu.a(0) } else { (pc & 0xc000_0000) | (cpu.a((callinc * 4) as u8) & 0x3fff_ffff) };
+            cpu.retired += 1;
+            Ok(20)
+        }
+        Action::Pass => {
+            soc.rom.pass[core] = Some(pc);
+            Ok(0)
+        }
+        Action::Call(func, args, then) => {
+            if callinc == 0 {
+                return Err(Stop::Rom(format!("emulated function at {pc:#010x} called with CALL0 cannot call back")));
+            }
+            let cpu = &soc.cpus[core];
+            let base = (callinc * 4 + 2) as u8;
+            let saved = std::array::from_fn(|k| cpu.a(base + k as u8));
+            let pending = Pending { ret: cpu.a((callinc * 4) as u8), callinc, pc, args: saved, then };
+            soc.rom.pending.insert(cpu.a(1), pending);
+            enter(soc, core, callinc, func, &args);
+            Ok(20)
+        }
+    }
+}
+
+/// A firmware function called by an emulated one returned to [`HLE_RETURN`].
+fn resume(soc: &mut Soc, core: usize) -> Result<u64, Stop> {
+    let sp = soc.cpus[core].a(1);
+    let Some(p) = soc.rom.pending.remove(&sp) else {
+        return Err(Stop::Rom(format!("return to the HLE trampoline with no call waiting (sp {sp:#010x})")));
+    };
+    let base = (p.callinc * 4 + 2) as u8;
+    let result = soc.cpus[core].a(base);
+    let value = match p.then {
+        Then::Return(v) => v,
+        Then::Errno { errno, ret } => {
+            let mut bus = CoreBus { mem: &mut soc.mem, periph: &mut soc.periph, cpu: core, apb: 0 };
+            let _ = bus.write(result, 4, errno);
+            ret
+        }
+        Then::Retry => {
+            let cpu = &mut soc.cpus[core];
+            for (k, &a) in p.args.iter().enumerate() {
+                cpu.set_a(base + k as u8, a);
+            }
+            cpu.set_a((p.callinc * 4) as u8, p.ret);
+            cpu.ps = (cpu.ps & !PS_CALLINC) | (p.callinc << PS_CALLINC_SHIFT);
+            cpu.pc = p.pc;
+            return Ok(5);
+        }
+        Then::Chain(func, args, next) => {
+            soc.rom.pending.insert(sp, Pending { then: *next, ..p });
+            enter(soc, core, p.callinc, func, &args);
+            return Ok(5);
+        }
+    };
+    let cpu = &mut soc.cpus[core];
+    cpu.set_a(base, value);
+    cpu.set_a((p.callinc * 4) as u8, p.ret);
+    cpu.pc = (p.pc & 0xc000_0000) | (p.ret & 0x3fff_ffff);
+    cpu.retired += 1;
+    Ok(5)
 }

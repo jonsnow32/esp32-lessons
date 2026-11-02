@@ -19,3 +19,4 @@ export const ESP32_PADS: Record<string, PadCapabilities> = pads.pads;
 export const ESP32_PAD_NAMES = Object.keys(ESP32_PADS);
 
 export { Esp32Mcu, Esp32Wasm, type Firmware } from './wasm';
+export { LabNetwork, type NetEvent, type NetLink, type NetOp } from './net';

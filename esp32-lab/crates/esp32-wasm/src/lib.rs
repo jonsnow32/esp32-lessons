@@ -2,7 +2,8 @@
 //!
 //! Plain `extern "C"` exports, no wasm-bindgen: the JS side (packages/mcu-esp32/src/wasm.ts)
 //! copies firmware into memory obtained from `alloc`, creates a SoC, then alternates
-//! `run_until` with reading pad states and writing pad input levels.
+//! `run_until` with reading pad states and writing pad input levels, and carries the virtual
+//! network's requests (`soc_net_take`) and answers (`soc_net_*`) to the host.
 //!
 //! Times are in CPU cycles (240 MHz) passed as f64, which is exact up to 2^53 cycles (≈ 433 days).
 
@@ -216,4 +217,74 @@ pub unsafe extern "C" fn soc_set_pad_volts(soc: *mut Soc, gpio: u32, volts: f64)
 #[no_mangle]
 pub unsafe extern "C" fn soc_set_board_pull_ups(soc: *mut Soc, mask_lo: u32, mask_hi: u32) {
     (*soc).periph.gpio.board_pull_up = mask_lo as u64 | ((mask_hi as u64) << 32);
+}
+
+/// Requests for the host's network since the last call, at `scratch_ptr`: per request a kind
+/// byte, then 1 connect: conn u32, IPv4 (4 bytes), port u16 | 2 send: conn u32, length u32,
+/// bytes | 3 close: conn u32 | 4 resolve: name length u16, name. Little-endian.
+#[no_mangle]
+pub unsafe extern "C" fn soc_net_take(soc: *mut Soc) -> u32 {
+    use esp32_soc::net::NetOp;
+    let mut out = vec![];
+    for op in (*soc).net.take_ops() {
+        match op {
+            NetOp::Connect { conn, ip, port } => {
+                out.push(1);
+                out.extend(conn.to_le_bytes());
+                out.extend(ip);
+                out.extend(port.to_le_bytes());
+            }
+            NetOp::Send { conn, data } => {
+                out.push(2);
+                out.extend(conn.to_le_bytes());
+                out.extend((data.len() as u32).to_le_bytes());
+                out.extend(data);
+            }
+            NetOp::Close { conn } => {
+                out.push(3);
+                out.extend(conn.to_le_bytes());
+            }
+            NetOp::Resolve { name } => {
+                out.push(4);
+                out.extend((name.len() as u16).to_le_bytes());
+                out.extend(name.into_bytes());
+            }
+        }
+    }
+    scratch(out)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn soc_net_connected(soc: *mut Soc, conn: u32) {
+    (*soc).net.connected(conn);
+}
+
+/// Connection `conn` could not be opened or broke; `errno` as newlib numbers it (111 refused…).
+#[no_mangle]
+pub unsafe extern "C" fn soc_net_failed(soc: *mut Soc, conn: u32, errno: u32) {
+    (*soc).net.failed(conn, errno);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn soc_net_received(soc: *mut Soc, conn: u32, ptr: *const u8, len: u32) {
+    (*soc).net.received(conn, slice(ptr, len).unwrap_or(&[]));
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn soc_net_closed(soc: *mut Soc, conn: u32) {
+    (*soc).net.closed(conn);
+}
+
+/// Answer to a resolve request: `ip` as a.b.c.d = bytes from the high one down, `found` 0 if
+/// the name does not exist.
+#[no_mangle]
+pub unsafe extern "C" fn soc_net_resolved(soc: *mut Soc, name: *const u8, name_len: u32, ip: u32, found: u32) {
+    let name = String::from_utf8_lossy(slice(name, name_len).unwrap_or(&[])).into_owned();
+    (*soc).net.resolved(&name, (found != 0).then(|| ip.to_be_bytes()));
+}
+
+/// Is the firmware's station associated with the virtual access point?
+#[no_mangle]
+pub unsafe extern "C" fn soc_net_wifi(soc: *const Soc) -> u32 {
+    (*soc).net.wifi_connected() as u32
 }

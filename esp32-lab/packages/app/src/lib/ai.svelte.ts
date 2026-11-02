@@ -389,7 +389,7 @@ function situation(): string {
         files.length ? `Các file nguồn, build cùng nhau: ${[MAIN_FILE, ...files].join(', ')}.` : 'Hiện chỉ có main.cpp.',
         ...(secret.length ? [`${secret.join(', ')} chứa mật khẩu (Wi-Fi, MQTT…): bạn chỉ biết tên, không thấy nội dung và không đề xuất sửa; giữ nguyên các #include và tên macro code đang dùng từ đó, đừng chép giá trị bí mật vào file khác.`] : []),
         'Đổi code thì theo cấu trúc sẵn có: đề xuất đúng file chứa phần cần đổi, mỗi file toàn bộ nội dung mới; đừng gộp hết vào main.cpp. Khi main.cpp dài hay có một phần tách bạch (Wi-Fi, MQTT, cảm biến…), có thể tách ra file mới như wifi_conn.h + wifi_conn.cpp rồi #include "wifi_conn.h", nhớ đề xuất cả main.cpp đã bỏ phần đó. Có thể dùng thư mục con (vd sensors/soil.cpp; #include tính từ file đang viết, vd trong main.cpp là #include "sensors/soil.h"). File ở ngay cạnh main.cpp không được trùng tên header của Arduino hay thư viện, kể cả khác hoa thường (wifi.h, network.h, wire.h…), vì sẽ che mất header đó.',
-        'Code này cũng được nạp vào board ESP32 thật: trình giả lập không có Wi-Fi/Bluetooth, nên phần mạng chỉ chạy trên board thật.',
+        'Code này cũng được nạp vào board ESP32 thật. Trình giả lập có Wi-Fi ảo: WiFi.begin với SSID/mật khẩu bất kỳ đều kết nối được (IP 10.0.2.15, gateway 10.0.2.2), kết nối TCP (WiFiClient, PubSubClient, HTTP) và DNS đi ra mạng thật qua máy tính, còn 10.0.2.2 chính là máy tính đang chạy lab. Chưa có UDP, server (WiFiServer không nhận được client), IPv6 và Bluetooth: những phần đó chỉ chạy trên board thật.',
       );
     }
   }

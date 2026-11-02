@@ -33,6 +33,10 @@
 //   POST /api/device/serial/write { text }   send to the board
 //   POST /api/device/serial/reset         restart the chip (EN through RTS)
 //
+// The emulator's virtual network (see net.ts): the firmware's TCP connections and DNS lookups
+//   GET  /api/net/events?s=…              the session's events, streamed
+//   POST /api/net/ops?s=…      { ops }    connect / send / close / resolve
+//
 // The sketch lives in its own PlatformIO project (<workDir>/sketch) whose [env] copies
 // platform / board / framework from the course's platformio.ini, so it builds against exactly
 // the same core as `pio run -e lessonNN`. The course's platformio.ini is never touched.
@@ -44,6 +48,7 @@ import { homedir } from 'node:os';
 import { dirname, join, normalize, relative } from 'node:path';
 import libraries from '../libraries.json';
 import { listPorts, pythonFor, SerialLine } from './device';
+import { netRelay } from './net';
 import { checkNewFolder, findFolders, folderPath, folderSources, isSourceName, linkFolder, readFolder, unlinkFolder, writeFolder } from './folders';
 import { PROBE_CPP, PROBE_FILE } from './probe';
 
@@ -500,6 +505,8 @@ export function labServer(opts: LabServerOptions) {
     next();
   }
 
+  const net = netRelay();
+
   /** Connect-style handler: answers the lab's endpoints, passes anything else to `next`. */
   function handle(req: IncomingMessage, res: ServerResponse, next: Next) {
     // Joined, not resolved: a path like "//" would be read as a host and throw
@@ -524,6 +531,8 @@ export function labServer(opts: LabServerOptions) {
     if (path === '/api/folders' || under('/api/folder') !== null) return folders(req, path, url.searchParams, res, next);
     const devicePath = under('/api/device');
     if (devicePath !== null) return device(req, devicePath, url.searchParams, res, next);
+    const netPath = under('/api/net');
+    if (netPath !== null) return net.handle(req, res, netPath, url.searchParams, next);
     next();
   }
 

@@ -13,6 +13,7 @@ import {
   type PadElectrical,
   type PadInput,
 } from '@esp32lab/sim-core';
+import type { NetEvent, NetLink, NetOp } from './net';
 
 /** Emulated CPU clock: 240 cycles per µs. */
 const CYCLES_PER_NS = 0.24;
@@ -39,11 +40,19 @@ interface Exports {
   soc_set_pad_input(soc: number, gpio: number, level: number): void;
   soc_set_pad_volts(soc: number, gpio: number, volts: number): void;
   soc_set_board_pull_ups(soc: number, lo: number, hi: number): void;
+  soc_net_take(soc: number): number;
+  soc_net_connected(soc: number, conn: number): void;
+  soc_net_failed(soc: number, conn: number, errno: number): void;
+  soc_net_received(soc: number, conn: number, ptr: number, len: number): void;
+  soc_net_closed(soc: number, conn: number): void;
+  soc_net_resolved(soc: number, name: number, nameLen: number, ip: number, found: number): void;
+  soc_net_wifi(soc: number): number;
 }
 
 const REQUIRED_EXPORTS = [
   'alloc', 'dealloc', 'scratch_ptr', 'last_error_len', 'soc_new', 'soc_free', 'soc_run_until', 'soc_cycles',
   'soc_uart_take', 'soc_uart_push', 'soc_pad_state', 'soc_pad_pwm_period', 'soc_pad_pwm_high', 'soc_i2c_take', 'soc_i2c_answer', 'soc_rmt_take', 'soc_set_pad_input', 'soc_set_pad_volts', 'soc_set_board_pull_ups',
+  'soc_net_take', 'soc_net_connected', 'soc_net_failed', 'soc_net_received', 'soc_net_closed', 'soc_net_resolved', 'soc_net_wifi',
 ] as const satisfies readonly Exclude<keyof Exports, 'memory'>[];
 
 /** A PlatformIO build: .pio/build/<env>/{firmware.elf, firmware.bin, bootloader.bin, partitions.bin}. */
@@ -136,6 +145,9 @@ export class Esp32Mcu implements McuModel {
   resets = 0;
   private i2cBus: ((tx: I2cTransaction) => I2cReply) | null = null;
   private pulseSink: ((pad: string, train: PulseTrain) => void) | null = null;
+  /** Carries the firmware's TCP connections and DNS lookups (null: offline). */
+  private network: (() => NetLink) | null = null;
+  private link: NetLink | null = null;
 
   constructor(
     private readonly x: Exports,
@@ -152,6 +164,9 @@ export class Esp32Mcu implements McuModel {
 
   private boot(): number {
     const soc = this.wasm.createSoc(this.firmware);
+    // A rebooted chip starts with no connections: the old ones go with the old link
+    this.link?.close();
+    this.link = null;
     // The circuit models the board's own pull-ups (BOOT, EN), so the chip must not assume them
     this.x.soc_set_board_pull_ups(soc, 0, 0);
     this.soc = soc;
@@ -228,11 +243,13 @@ export class Esp32Mcu implements McuModel {
 
   runUntil(t: SimTime): McuStep {
     if (this.halted || this.inReset) return { t, padsChanged: false };
+    this.netIn();
     let code: number;
     // An I2C transaction is answered on the spot and the chip runs on
     while ((code = this.x.soc_run_until(this.soc, Math.ceil((t - this.bootedAt) * CYCLES_PER_NS))) === 3) this.answerI2c();
     this.flushSerial();
     this.flushPulses();
+    this.netOut();
     if (code === 2) {
       this.halted = new TextDecoder().decode(this.wasm.scratch(this.x.last_error_len()));
       return { t, padsChanged: false };
@@ -293,6 +310,86 @@ export class Esp32Mcu implements McuModel {
     if (len) this.x.dealloc(ptr, len);
   }
 
+  /**
+   * Give the firmware a network: `link` is called for each boot of the chip (a reset drops
+   * every connection). Without one, Wi-Fi still connects but no connection or lookup succeeds.
+   */
+  setNetwork(link: (() => NetLink) | null): void {
+    this.link?.close();
+    this.link = null;
+    this.network = link;
+  }
+
+  /** Is the firmware's station on the virtual Wi-Fi? */
+  get wifiConnected(): boolean {
+    return this.x.soc_net_wifi(this.soc) !== 0;
+  }
+
+  /** Hand the firmware's requests to the network. */
+  private netOut(): void {
+    const len = this.x.soc_net_take(this.soc);
+    if (len === 0) return;
+    const b = this.wasm.scratch(len);
+    const v = new DataView(b.buffer, b.byteOffset, b.length);
+    const ops: NetOp[] = [];
+    for (let i = 0; i < b.length; ) {
+      const kind = b[i++]!;
+      if (kind === 4) {
+        const n = v.getUint16(i, true);
+        ops.push({ t: 'resolve', name: new TextDecoder().decode(b.subarray(i + 2, i + 2 + n)) });
+        i += 2 + n;
+        continue;
+      }
+      const conn = v.getUint32(i, true);
+      i += 4;
+      if (kind === 1) {
+        ops.push({ t: 'connect', conn, ip: [...b.subarray(i, i + 4)].join('.'), port: v.getUint16(i + 4, true) });
+        i += 6;
+      } else if (kind === 2) {
+        const n = v.getUint32(i, true);
+        ops.push({ t: 'send', conn, data: b.slice(i + 4, i + 4 + n) });
+        i += 4 + n;
+      } else ops.push({ t: 'close', conn });
+    }
+    if (!this.network) {
+      // Offline: connections fail at once, names are unknown
+      for (const op of ops) this.netEvent(op.t === 'connect' ? { t: 'failed', conn: op.conn, errno: 118 } : op.t === 'resolve' ? { t: 'resolved', name: op.name, ip: null } : null);
+      return;
+    }
+    this.link ??= this.network();
+    this.link.send(ops);
+  }
+
+  /** Answers that arrived since the chip last ran. */
+  private netIn(): void {
+    for (const e of this.link?.take() ?? []) this.netEvent(e);
+  }
+
+  private netEvent(e: NetEvent | null): void {
+    if (!e) return;
+    switch (e.t) {
+      case 'connected':
+        return this.x.soc_net_connected(this.soc, e.conn);
+      case 'closed':
+        return this.x.soc_net_closed(this.soc, e.conn);
+      case 'failed':
+        return this.x.soc_net_failed(this.soc, e.conn, e.errno);
+      case 'data': {
+        const [ptr, len] = this.wasm.copyIn(e.data);
+        this.x.soc_net_received(this.soc, e.conn, ptr, len);
+        if (len) this.x.dealloc(ptr, len);
+        return;
+      }
+      case 'resolved': {
+        const [ptr, len] = this.wasm.copyIn(new TextEncoder().encode(e.name));
+        const p = (e.ip ?? '').split('.').map(Number);
+        const ok = p.length === 4 && p.every((n) => n >= 0 && n <= 255);
+        this.x.soc_net_resolved(this.soc, ptr, len, ok ? ((p[0]! << 24) | (p[1]! << 16) | (p[2]! << 8) | p[3]!) >>> 0 : 0, ok ? 1 : 0);
+        if (len) this.x.dealloc(ptr, len);
+      }
+    }
+  }
+
   padDamaged(pad: string): void {
     this.damaged.add(pad);
   }
@@ -314,6 +411,8 @@ export class Esp32Mcu implements McuModel {
   }
 
   dispose(): void {
+    this.link?.close();
+    this.link = null;
     this.x.soc_free(this.soc);
   }
 }

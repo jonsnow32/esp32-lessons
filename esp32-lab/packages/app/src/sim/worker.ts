@@ -3,7 +3,7 @@
 
 import { explain } from '@esp32lab/explain';
 import { evaluateStep, type Lesson } from '@esp32lab/lesson-engine';
-import { Esp32Mcu, Esp32Wasm } from '@esp32lab/mcu-esp32';
+import { Esp32Mcu, Esp32Wasm, LabNetwork } from '@esp32lab/mcu-esp32';
 import { MS, S } from '@esp32lab/part-sdk';
 import type { Project } from '@esp32lab/project-model';
 import { ScriptedMcu, SimKernel, type McuModel } from '@esp32lab/sim-core';
@@ -34,6 +34,8 @@ function newMcu(): McuModel {
   if (live) return new LiveMcu(ESP32_PAD_NAMES);
   if (wasm && firmware) {
     const m = wasm.boot(firmware);
+    // Wi-Fi is virtual; TCP connections and DNS lookups go out through the lab server
+    m.setNetwork(() => new LabNetwork());
     m.onSerial((_p, bytes) => {
       const text = new TextDecoder().decode(bytes);
       serial += text;

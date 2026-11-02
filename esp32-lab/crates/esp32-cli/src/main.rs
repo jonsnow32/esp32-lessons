@@ -4,6 +4,7 @@
 //!   esp32-cli run <.pio/build/ENV>          boot a PlatformIO build and show UART0
 
 mod disasm_check;
+mod net;
 mod run;
 
 fn main() {
