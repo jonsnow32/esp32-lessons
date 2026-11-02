@@ -9,12 +9,13 @@
 //                                         line "@@RESULT {json}" with ok / duration / errors
 //   GET  /api/build/out/<file>            the sketch build's firmware files
 //   GET  /api/sketch?path=lession/…       a lesson's main.cpp, as starting code
+//   GET  /api/headers                     header names a top-level source must not take (lower case)
 //
 // Linked folders (see folders.ts), a sketch kept in its own folder of the course:
 //   GET  /api/folders                     every linked folder: [{ path, title, updated }]
-//   GET  /api/folder?path=…               { title, project, code, files: { name: text } }
+//   GET  /api/folder?path=…               { title, project, code, files: { path: text } } (net/wifi.cpp…)
 //   PUT  /api/folder           { path, title?, project?, code?, files? }   write what changed;
-//                                         files: { name: text | null } (null deletes the file)
+//                                         files: { path: text | null } (null deletes the file)
 //   DELETE /api/folder?path=…             unlink: esp32-lab.json goes, main.cpp and the rest stay
 //   GET  /api/folder/check?path=…         can a new project live there: { ok, path, exists, hasCode } | { ok: false, error }
 //   POST /api/folder/link      { path, title, project, code }   a new project in that folder
@@ -40,7 +41,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { homedir } from 'node:os';
-import { join, normalize, relative } from 'node:path';
+import { dirname, join, normalize, relative } from 'node:path';
 import libraries from '../libraries.json';
 import { listPorts, pythonFor, SerialLine } from './device';
 import { checkNewFolder, findFolders, folderPath, folderSources, isSourceName, linkFolder, readFolder, unlinkFolder, writeFolder } from './folders';
@@ -162,9 +163,9 @@ if version:
 export function parseErrors(log: string): BuildError[] {
   const out: BuildError[] = [];
   // src/… relative or …/sketch/src/… absolute; not a library's own src/ (.pio/libdeps/sketch/<lib>/src/…)
-  const re = /(?:^|\s)(?:\S*[/\\]sketch[/\\])?src[/\\]([A-Za-z0-9_][A-Za-z0-9_.-]*\.(?:cpp|c|hpp|h)):(\d+):(\d+): (fatal error|error|warning): (.*)$/gm;
+  const re = /(?:^|\s)(?:\S*[/\\]sketch[/\\])?src[/\\]((?:[A-Za-z0-9_][A-Za-z0-9_.-]*[/\\])*[A-Za-z0-9_][A-Za-z0-9_.-]*\.(?:cpp|c|hpp|h)):(\d+):(\d+): (fatal error|error|warning): (.*)$/gm;
   for (let m = re.exec(log); m; m = re.exec(log)) {
-    out.push({ file: m[1]!, line: Number(m[2]), column: Number(m[3]), severity: m[4] === 'warning' ? 'warning' : 'error', message: m[5]! });
+    out.push({ file: m[1]!.replace(/\\/g, '/'), line: Number(m[2]), column: Number(m[3]), severity: m[4] === 'warning' ? 'warning' : 'error', message: m[5]! });
   }
   return out;
 }
@@ -177,6 +178,39 @@ function bodyFiles(v: unknown): Record<string, string> | undefined {
   return out;
 }
 
+/** Delete what is in `dir` but not in `keep` (paths relative to it), then the folders left empty. */
+function clearStale(dir: string, keep: Set<string>, prefix = '') {
+  for (const n of readdirSync(dir)) {
+    const rel = prefix + n;
+    const full = join(dir, n);
+    if (statSync(full).isDirectory()) {
+      clearStale(full, keep, `${rel}/`);
+      if (!readdirSync(full).length) rmSync(full, { recursive: true });
+    } else if (!keep.has(rel)) rmSync(full, { force: true });
+  }
+}
+
+/**
+ * The headers a sketch's own top-level files must not be named like (lower case): the Arduino
+ * core's, its bundled libraries' and the lab's libraries'. src/ is on the include path and macOS
+ * ignores case, so a network.h beside main.cpp would stand in for the core's Network.h.
+ */
+export function reservedHeaders(coreDir: string): string[] {
+  const names = new Set(Object.keys(LIBRARIES).map((n) => n.toLowerCase()));
+  const fw = join(coreDir, 'packages', 'framework-arduinoespressif32');
+  const add = (d: string) => {
+    try {
+      for (const n of readdirSync(d)) if (/\.(h|hpp)$/i.test(n)) names.add(n.toLowerCase());
+    } catch {}
+  };
+  add(join(fw, 'cores', 'esp32'));
+  try {
+    for (const lib of readdirSync(join(fw, 'libraries'))) add(join(fw, 'libraries', lib, 'src'));
+  } catch {}
+  for (const n of ['arduino.h', 'wifi.h', 'network.h', 'wire.h', 'spi.h', 'preferences.h', 'fs.h', 'sd.h', 'eeprom.h', 'ticker.h', 'update.h']) names.add(n);
+  return [...names].sort();
+}
+
 type Next = () => void;
 
 /** The lab's server: `build` compiles a sketch, `handle` answers the endpoints above. */
@@ -186,6 +220,8 @@ export function labServer(opts: LabServerOptions) {
   const project = join(opts.workDir, 'sketch');
   const outDir = join(project, '.pio', 'build', ENV);
   let building = false;
+  /** reservedHeaders(), read once. */
+  let headers: string[] | null = null;
 
   /** Write `text` to `path` unless it holds just that: an untouched file keeps the build cache. */
   function keep(path: string, text: string) {
@@ -217,12 +253,16 @@ export function labServer(opts: LabServerOptions) {
     keep(join(project, 'fast_bin.py'), FAST_BIN);
     mkdirSync(join(project, 'probe'), { recursive: true });
     keep(join(project, 'probe', PROBE_FILE), PROBE_CPP);
-    // A linked folder's other sources next to the code (as the editor has them, else from disk);
-    // nothing left from another sketch's
+    // A linked folder's other sources next to the code (as the editor has them, else from disk),
+    // in their subfolders; nothing left from another sketch's or a renamed file
     const dir = folder ? folderPath(opts.projectRoot, folder) : null;
     const extra = dir ? (files ?? folderSources(dir)) : {};
-    for (const n of readdirSync(src)) if (n !== 'main.cpp' && !(n in extra)) rmSync(join(src, n), { recursive: true, force: true });
-    for (const [n, text] of Object.entries(extra)) keep(join(src, n), text);
+    clearStale(src, new Set([...Object.keys(extra), 'main.cpp']));
+    for (const [n, text] of Object.entries(extra)) {
+      const file = join(src, ...n.split('/'));
+      mkdirSync(dirname(file), { recursive: true });
+      keep(file, text);
+    }
     writeFileSync(join(src, 'main.cpp'), code);
   }
 
@@ -477,6 +517,10 @@ export function labServer(opts: LabServerOptions) {
     const buildPath = under('/api/build');
     if (buildPath !== null) return sketchBuild(req, buildPath, res, next);
     if (path === '/api/sketch') return lessonSketch(url.searchParams, res, next);
+    if (path === '/api/headers' && req.method === 'GET') {
+      headers ??= reservedHeaders(env().PLATFORMIO_CORE_DIR || join(homedir(), '.platformio'));
+      return send(res, 'application/json', JSON.stringify(headers));
+    }
     if (path === '/api/folders' || under('/api/folder') !== null) return folders(req, path, url.searchParams, res, next);
     const devicePath = under('/api/device');
     if (devicePath !== null) return device(req, devicePath, url.searchParams, res, next);

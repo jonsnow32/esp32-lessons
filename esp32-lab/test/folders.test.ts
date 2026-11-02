@@ -1,7 +1,7 @@
 // Linked folders: found under the course, read and written in place, never outside it.
 
 import { checkNewFolder, findFolders, folderPath, folderSources, isSourceName, linkFolder, readFolder, unlinkFolder, writeFolder } from '../packages/lab-server/src/folders';
-import { parseErrors } from '../packages/lab-server/src/index';
+import { parseErrors, reservedHeaders } from '../packages/lab-server/src/index';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -83,14 +83,44 @@ describe('linked folders', () => {
     expect(readFolder(dir).files).toEqual({ 'secrets.h': '#define X 1\n', 'wifi.cpp': '// wifi\n', 'wifi.h': '#pragma once\n' });
     writeFolder(dir, { files: { 'wifi.cpp': null, 'wifi.h': '// v2\n' } });
     expect(readFolder(dir).files).toEqual({ 'secrets.h': '#define X 1\n', 'wifi.h': '// v2\n' });
-    // Not plain source names: left alone
-    writeFolder(dir, { files: { '../evil.h': 'x', 'sub/a.h': 'x', 'main.cpp': 'x', 'README.md': 'x', '.hidden.h': 'x' } });
+    // Not plain source paths: left alone
+    writeFolder(dir, { files: { '../evil.h': 'x', 'sub/../../evil.h': 'x', '/abs.h': 'x', 'main.cpp': 'x', 'README.md': 'x', '.hidden.h': 'x', 'node_modules/a.h': 'x', 'a/b/c/d/e.h': 'x' } });
     expect(existsSync(join(root, 'home-server/evil.h'))).toBe(false);
+    expect(existsSync(join(dir, 'node_modules'))).toBe(false);
+    expect(existsSync(join(dir, 'a'))).toBe(false);
     expect(readFileSync(join(dir, 'main.cpp'), 'utf8')).toBe('// mqtt\n');
     expect(readFileSync(join(dir, 'README.md'), 'utf8')).toBe('');
     expect(existsSync(join(dir, '.hidden.h'))).toBe(false);
-    expect(['wifi.h', 'a_b-1.hpp', 'x.c'].every(isSourceName)).toBe(true);
-    expect(['main.cpp', '../a.h', 'a/b.h', '.a.h', 'a.txt', 'a.h ', ''].some(isSourceName)).toBe(false);
+    expect(['wifi.h', 'a_b-1.hpp', 'x.c', 'net/wifi.cpp', 'a/b/c/x.h', 'net/main.cpp'].every(isSourceName)).toBe(true);
+    expect(['main.cpp', '../a.h', 'a//b.h', '/a.h', 'a/', '.a.h', 'x/.a.h', 'build/a.h', 'a/b/c/d/x.h', 'a.txt', 'a.h ', ''].some(isSourceName)).toBe(false);
+  });
+
+  it('keeps sources in subfolders: read, written, moved, and empty folders pruned', () => {
+    const root = course();
+    const dir = folderPath(root, 'home-server/esp32-mqtt')!;
+    writeFolder(dir, { files: { 'net/wifi.h': '// h\n', 'net/mqtt/link.cpp': '// link\n' } });
+    mkdirSync(join(dir, 'node_modules/x'), { recursive: true });
+    writeFileSync(join(dir, 'node_modules/x/skip.h'), '');
+    expect(Object.keys(folderSources(dir))).toEqual(['net/mqtt/link.cpp', 'net/wifi.h', 'secrets.h']);
+    // A move is a delete and a write: the folder left empty goes
+    writeFolder(dir, { files: { 'net/mqtt/link.cpp': null, 'net/link.cpp': '// link\n' } });
+    expect(existsSync(join(dir, 'net/mqtt'))).toBe(false);
+    writeFolder(dir, { files: { 'net/link.cpp': null, 'net/wifi.h': null } });
+    expect(existsSync(join(dir, 'net'))).toBe(false);
+    expect(existsSync(dir)).toBe(true);
+  });
+
+  it('lists the header names a top-level source would hide, case ignored', () => {
+    const core = mkdtempSync(join(tmpdir(), 'lab-core-'));
+    const fw = join(core, 'packages/framework-arduinoespressif32');
+    mkdirSync(join(fw, 'cores/esp32'), { recursive: true });
+    mkdirSync(join(fw, 'libraries/Network/src'), { recursive: true });
+    writeFileSync(join(fw, 'cores/esp32/Arduino.h'), '');
+    writeFileSync(join(fw, 'libraries/Network/src/NetworkClient.h'), '');
+    const names = reservedHeaders(core);
+    expect(names).toEqual(expect.arrayContaining(['arduino.h', 'networkclient.h', 'network.h', 'pubsubclient.h', 'dht.h']));
+    // Without the framework on disk: the lab's libraries and the common ones still
+    expect(reservedHeaders(join(core, 'none'))).toEqual(expect.arrayContaining(['wifi.h', 'pubsubclient.h']));
   });
 
   it('tells which source a compiler error is in', () => {
@@ -101,11 +131,13 @@ describe('linked folders', () => {
       'src/wifi.cpp:3:1: warning: unused variable \'x\'',
       'In file included from src/main.cpp:2:',
       'src/wifi.h:7:10: fatal error: missing.h: No such file or directory',
+      'src/net/mqtt_link.cpp:4:2: error: \'x\' was not declared in this scope',
     ].join('\n');
     expect(parseErrors(log)).toEqual([
       { file: 'main.cpp', line: 12, column: 5, severity: 'error', message: "expected ';' before '}' token" },
       { file: 'wifi.cpp', line: 3, column: 1, severity: 'warning', message: "unused variable 'x'" },
       { file: 'wifi.h', line: 7, column: 10, severity: 'error', message: 'missing.h: No such file or directory' },
+      { file: 'net/mqtt_link.cpp', line: 4, column: 2, severity: 'error', message: "'x' was not declared in this scope" },
     ]);
   });
 });

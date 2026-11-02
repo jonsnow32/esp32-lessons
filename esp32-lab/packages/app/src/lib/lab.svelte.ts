@@ -30,8 +30,19 @@ export interface BuildError {
 
 /** The editor's main file; a linked folder's other sources are in `lab.files`. */
 export const MAIN_FILE = 'main.cpp';
-/** A name another source beside main.cpp may have: plain, no folders (as lab-server isSourceName). */
-export const isSourceName = (name: string) => name !== MAIN_FILE && /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}\.(h|hpp|c|cpp)$/.test(name);
+/** One folder or file name in a source's path (as lab-server folders.ts). */
+const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$/;
+const SKIP_DIRS = new Set(['node_modules', 'target', 'dist', 'build']);
+/** How deep a source may sit below main.cpp: wifi.h, net/wifi.h… up to a/b/c/x.h. */
+const MAX_DEPTH = 4;
+const isFolderPath = (path: string) => {
+  const segs = path.split('/');
+  return segs.length < MAX_DEPTH && segs.every((s) => SEGMENT.test(s) && !SKIP_DIRS.has(s));
+};
+/** A path another source below main.cpp may have, e.g. wifi.h or net/wifi.cpp (as lab-server isSourceName). */
+export const isSourceName = (name: string) =>
+  name !== MAIN_FILE && name.split('/').length <= MAX_DEPTH && name.split('/').every((s) => SEGMENT.test(s) && !SKIP_DIRS.has(s)) && /\.(h|hpp|c|cpp)$/.test(name);
+const BAD_NAME = 'Tên chỉ gồm chữ, số, _ . - (không bắt đầu bằng dấu chấm); file có đuôi .h, .hpp, .c hoặc .cpp; thư mục con ghi bằng / (vd net/wifi.cpp), tối đa 4 cấp.';
 /** Holds passwords (secrets.h…): open in the editor, never sent to the assistant. */
 export const isSecretFile = (name: string) => /secret|passw|credential/i.test(name);
 
@@ -315,6 +326,22 @@ class Lab {
   files = $state<Record<string, string>>({});
   /** The file shown in the editor: main.cpp or one of `files`. */
   activeFile = $state(MAIN_FILE);
+  /** The files open as tabs, main.cpp always first. */
+  openFiles = $state<string[]>([MAIN_FILE]);
+  /** Folders made in the file tree that hold no file yet (on disk a folder comes with its first file). */
+  emptyFolders = $state<string[]>([]);
+  /** Header names (lower case) a top-level source must not take, from the server (lab-server reservedHeaders). */
+  private reserved = new Set(['arduino.h', 'wifi.h', 'network.h', 'wire.h', 'spi.h', 'preferences.h', 'fs.h', 'sd.h', 'eeprom.h', 'ticker.h', 'update.h']);
+
+  /** Every folder below main.cpp: those of the files, and the empty ones made in the tree. */
+  get folders(): string[] {
+    const out = new Set(this.emptyFolders);
+    for (const n of Object.keys(this.files)) {
+      const segs = n.split('/');
+      for (let i = 1; i < segs.length; i++) out.add(segs.slice(0, i).join('/'));
+    }
+    return [...out].sort();
+  }
 
   /** The linked folder's other sources, by name. */
   get folderFiles(): string[] {
@@ -338,6 +365,10 @@ class Lab {
     });
     void this.refreshPorts();
     void this.syncFolders();
+    fetch('/api/headers')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((list: string[] | null) => list?.length && (this.reserved = new Set(list)))
+      .catch(() => {});
     // Back from the editor: main.cpp may have changed there
     window.addEventListener('focus', () => void this.reloadFolderCode());
     fetch('/pio/envs')
@@ -576,7 +607,7 @@ class Lab {
         delete this.files[n];
         delete this.diskFiles[n];
         delete this.originalFiles[n];
-        if (this.activeFile === n) this.activeFile = MAIN_FILE;
+        this.closeFile(n);
       } else {
         this.files[n] = now;
         this.diskFiles[n] = now;
@@ -606,21 +637,66 @@ class Lab {
     return null;
   }
 
-  /** Why a new source cannot have this name, or null if it can. */
+  /** Open a source as a tab (if it is not one already) and show it. */
+  openFile(name: string) {
+    if (this.fileText(name) === undefined) return;
+    if (!this.openFiles.includes(name)) this.openFiles.push(name);
+    this.activeFile = name;
+  }
+
+  /** Close a source's tab (the file stays); main.cpp stays open. */
+  closeFile(name: string) {
+    const i = this.openFiles.indexOf(name);
+    if (name === MAIN_FILE || i < 0) return;
+    this.openFiles.splice(i, 1);
+    if (this.activeFile === name) this.activeFile = this.openFiles[Math.min(i, this.openFiles.length - 1)] ?? MAIN_FILE;
+  }
+
+  /** Is this path already a file or a folder (case ignored, as on macOS)? Which one, as it is written. */
+  private taken(path: string, except?: string): string | null {
+    const lower = path.toLowerCase();
+    const same = (n: string) => n !== except && n.toLowerCase() === lower;
+    const file = [MAIN_FILE, ...Object.keys(this.files)].find(same);
+    if (file) return `Đã có file ${file}.`;
+    const folder = this.folders.find(same);
+    return folder ? `Đã có thư mục ${folder}.` : null;
+  }
+
+  /** Why a new source cannot have this path, or null if it can. */
   checkFileName(name: string, except?: string): string | null {
     if (!this.multiFile) return 'Chỉ dự án lưu trong một thư mục của repo mới có nhiều file.';
-    if (!isSourceName(name)) return 'Tên file chỉ gồm chữ, số, _ . - và có đuôi .h, .hpp, .c hoặc .cpp (không có thư mục).';
-    if (name !== except && (name in this.files || name.toLowerCase() === MAIN_FILE)) return `Đã có file ${name}.`;
+    if (!isSourceName(name)) return BAD_NAME;
+    const taken = this.taken(name, except);
+    if (taken) return taken;
+    if (!name.includes('/') && this.reserved.has(name.toLowerCase())) {
+      return `${name} trùng tên một header của Arduino hay thư viện (macOS không phân biệt chữ hoa, thường) nên sẽ che mất header đó khi build: đặt tên khác (vd my_${name}) hoặc để trong một thư mục con.`;
+    }
     return null;
   }
 
-  /** A new source beside main.cpp, opened in the editor. Null, or why it cannot be made. */
+  /** Why a new folder cannot have this path, or null if it can. */
+  checkFolderName(path: string, except?: string): string | null {
+    if (!this.multiFile) return 'Chỉ dự án lưu trong một thư mục của repo mới có thư mục con.';
+    if (!isFolderPath(path)) return BAD_NAME;
+    return this.taken(path, except);
+  }
+
+  /** A new source below main.cpp, opened in the editor. Null, or why it cannot be made. */
   addFile(name: string, text = newFileText(name)): string | null {
     const bad = this.checkFileName(name);
     if (bad) return bad;
     this.files[name] = text;
-    this.activeFile = name;
+    this.emptyFolders = this.emptyFolders.filter((f) => !name.startsWith(`${f}/`));
+    this.openFile(name);
     this.save();
+    return null;
+  }
+
+  /** A new, empty folder in the tree; on disk once a file is put in it. */
+  addFolder(path: string): string | null {
+    const bad = this.checkFolderName(path);
+    if (bad) return bad;
+    this.emptyFolders.push(path);
     return null;
   }
 
@@ -628,26 +704,74 @@ class Lab {
   removeFile(name: string) {
     const folder = this.mine?.folder;
     if (!folder || !(name in this.files)) return;
+    this.closeFile(name);
     delete this.files[name];
     delete this.originalFiles[name];
-    if (this.activeFile === name) this.activeFile = MAIN_FILE;
     this.writeFolder(folder, { files: { [name]: null } });
     this.flushFolder();
   }
 
-  /** Rename a source of the linked folder, on disk too (the #include lines that use it stay as they are). */
-  renameFile(from: string, to: string): string | null {
+  /** Delete a folder and every source in it, on disk too. */
+  removeFolder(path: string) {
     const folder = this.mine?.folder;
-    if (!folder || !(from in this.files)) return null;
-    if (from === to) return null;
+    if (!folder) return;
+    const inside = (n: string) => n === path || n.startsWith(`${path}/`);
+    const gone = Object.keys(this.files).filter(inside);
+    for (const n of gone) {
+      this.closeFile(n);
+      delete this.files[n];
+      delete this.originalFiles[n];
+    }
+    this.emptyFolders = this.emptyFolders.filter((f) => !inside(f));
+    if (!gone.length) return;
+    this.writeFolder(folder, { files: Object.fromEntries(gone.map((n) => [n, null])) });
+    this.flushFolder();
+  }
+
+  /** Move sources to new paths, on disk too: tabs, the copy to restart from and the editor follow. */
+  private moveFiles(moves: [string, string][]) {
+    const folder = this.mine?.folder;
+    if (!folder || !moves.length) return;
+    const change: Record<string, string | null> = {};
+    for (const [from, to] of moves) {
+      const text = this.files[from]!;
+      delete this.files[from];
+      this.files[to] = text;
+      if (from in this.originalFiles) {
+        this.originalFiles[to] = this.originalFiles[from]!;
+        delete this.originalFiles[from];
+      }
+      const tab = this.openFiles.indexOf(from);
+      if (tab >= 0) this.openFiles[tab] = to;
+      if (this.activeFile === from) this.activeFile = to;
+      change[from] = null;
+      change[to] = text;
+    }
+    this.writeFolder(folder, { files: change });
+    this.flushFolder();
+  }
+
+  /** Rename or move a source of the linked folder (the #include lines that use it stay as they are). */
+  renameFile(from: string, to: string): string | null {
+    if (!(from in this.files) || from === to) return null;
     const bad = this.checkFileName(to, from);
     if (bad) return bad;
-    const text = this.files[from]!;
-    delete this.files[from];
-    this.files[to] = text;
-    if (this.activeFile === from) this.activeFile = to;
-    this.writeFolder(folder, { files: { [from]: null, [to]: text } });
-    this.flushFolder();
+    this.moveFiles([[from, to]]);
+    return null;
+  }
+
+  /** Rename a folder: every source in it moves along. */
+  renameFolder(from: string, to: string): string | null {
+    if (from === to) return null;
+    if (to.startsWith(`${from}/`)) return 'Không chuyển thư mục vào bên trong chính nó.';
+    const bad = this.checkFolderName(to, from);
+    if (bad) return bad;
+    const moves = Object.keys(this.files)
+      .filter((n) => n.startsWith(`${from}/`))
+      .map((n): [string, string] => [n, to + n.slice(from.length)]);
+    if (moves.some(([, n]) => !isSourceName(n))) return BAD_NAME;
+    this.emptyFolders = this.emptyFolders.map((f) => (f === from || f.startsWith(`${from}/`) ? to + f.slice(from.length) : f));
+    this.moveFiles(moves);
     return null;
   }
 
@@ -1214,6 +1338,8 @@ class Lab {
     this.diskFiles = disk ? { ...disk.files } : {};
     this.originalFiles = disk ? { ...disk.files } : {};
     this.activeFile = MAIN_FILE;
+    this.openFiles = [MAIN_FILE];
+    this.emptyFolders = [];
     this.diskCode = disk?.code ?? null;
     this.folderStart = disk ? structuredClone(disk.project) : null;
     const lesson = LESSONS.find((l) => l.id === id);

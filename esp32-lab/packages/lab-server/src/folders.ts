@@ -5,18 +5,39 @@
 // `pio run` in that folder, or the lab's upload, puts on the real board.
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { isAbsolute, join, normalize, relative, sep } from 'node:path';
+import { dirname, isAbsolute, join, normalize, relative, sep } from 'node:path';
 
 /** Marks a folder as linked; holds the lab's title and circuit for it. */
 export const LINK_FILE = 'esp32-lab.json';
 export const SKETCH_FILE = 'main.cpp';
 /** Copied next to main.cpp for a build. */
 const SOURCE = /\.(h|hpp|c|cpp)$/;
-/** A source the lab may create, edit or delete beside main.cpp: a plain name, no folders. */
-const SOURCE_NAME = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}\.(h|hpp|c|cpp)$/;
+/** One folder or file name in a source's path: no dots first, nothing but plain characters. */
+const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$/;
+/** How deep a source may sit below main.cpp: wifi.h, net/wifi.h… up to a/b/c/x.h. */
+const MAX_SOURCE_DEPTH = 4;
 
-/** Can `name` be one of a folder's other sources (not main.cpp, not a path)? */
-export const isSourceName = (name: string) => name !== SKETCH_FILE && SOURCE_NAME.test(name);
+/**
+ * Can `name` be one of a folder's other sources: a path below main.cpp with forward slashes
+ * (net/wifi.cpp), plain names, a C/C++ extension, not main.cpp itself?
+ */
+export function isSourceName(name: string): boolean {
+  const segs = name.split('/');
+  return name !== SKETCH_FILE && segs.length <= MAX_SOURCE_DEPTH && segs.every((s) => SEGMENT.test(s) && !SKIP.has(s)) && SOURCE.test(name);
+}
+
+/** Remove `dir` and its parents while empty, up to (not including) `root`. */
+function pruneEmpty(dir: string, root: string) {
+  while (dir !== root && relative(root, dir) && !relative(root, dir).startsWith('..')) {
+    try {
+      if (readdirSync(dir).length) return;
+      rmSync(dir, { recursive: true });
+    } catch {
+      return;
+    }
+    dir = dirname(dir);
+  }
+}
 /** Not looked into when finding linked folders. */
 const SKIP = new Set(['node_modules', 'target', 'dist', 'build']);
 const MAX_DEPTH = 6;
@@ -148,9 +169,14 @@ export function writeFolder(dir: string, change: { title?: string; project?: unk
   }
   for (const [name, text] of Object.entries(change.files ?? {})) {
     if (!isSourceName(name)) continue;
-    const file = join(dir, name);
-    if (text === null) rmSync(file, { force: true });
-    else if (typeof text === 'string' && (!existsSync(file) || readFileSync(file, 'utf8') !== text)) writeFileSync(file, text);
+    const file = join(dir, ...name.split('/'));
+    if (text === null) {
+      rmSync(file, { force: true });
+      pruneEmpty(dirname(file), dir);
+    } else if (typeof text === 'string' && (!existsSync(file) || readFileSync(file, 'utf8') !== text)) {
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, text);
+    }
   }
   if (change.title !== undefined || change.project !== undefined) {
     const link = readLink(dir);
@@ -161,12 +187,24 @@ export function writeFolder(dir: string, change: { title?: string; project?: unk
   }
 }
 
-/** The folder's sources besides main.cpp (secrets.h…), by name, to build with. */
+/** The folder's sources besides main.cpp (secrets.h…, net/wifi.cpp…), by path, to build with. */
 export function folderSources(dir: string): Record<string, string> {
   const out: Record<string, string> = {};
-  for (const n of readdirSync(dir).sort()) {
-    if (n === SKETCH_FILE || !SOURCE.test(n)) continue;
-    if (statSync(join(dir, n)).isFile()) out[n] = readFileSync(join(dir, n), 'utf8');
-  }
+  const walk = (sub: string[]) => {
+    for (const n of readdirSync(join(dir, ...sub)).sort()) {
+      const rel = [...sub, n];
+      const full = join(dir, ...rel);
+      let st;
+      try {
+        st = statSync(full);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        if (rel.length < MAX_SOURCE_DEPTH && SEGMENT.test(n) && !SKIP.has(n)) walk(rel);
+      } else if (st.isFile() && isSourceName(rel.join('/'))) out[rel.join('/')] = readFileSync(full, 'utf8');
+    }
+  };
+  walk([]);
   return out;
 }

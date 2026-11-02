@@ -30,6 +30,13 @@
     'dock-bottom': '<path d="M2.5 2.5h11v11h-11z"/><path class="af" d="M3.5 9.5h9v3h-9z"/>',
     edit: '<path d="M3 13l.75-3.25 7-7 2.5 2.5-7 7zM9.25 4.25l2.5 2.5"/>',
     trash: '<path d="M2.5 4.5h11M6 4.5V2.5h4v2M4 4.5l.75 9h6.5l.75-9M6.75 7v4M9.25 7v4" stroke-linecap="butt"/>',
+    // The file tree: a folder, open or shut, a sheet with its corner folded in copper, new ones
+    folder: '<path d="M1.5 3.5H6l2 2h6.5v8h-13z"/><path class="a" d="M1.5 7.5h13"/>',
+    'folder-open': '<path d="M1.5 13.5v-10H6l2 2h5v2"/><path class="a" d="M1.5 13.5l2-6h11l-2 6z"/>',
+    file: '<path d="M3.5 1.5h6l3 3v10h-9z"/><path class="a" d="M9.5 1.5v3h3"/>',
+    'file-plus': '<path d="M12.5 8.5v-4l-3-3h-6v13H8"/><path class="a" d="M12 10v5M9.5 12.5h5"/>',
+    'folder-plus': '<path d="M14.5 8.5v-3H8l-2-2H1.5v10H8"/><path class="a" d="M12 10v5M9.5 12.5h5"/>',
+    files: '<path d="M5.5 1.5h5l3 3v8h-8z"/><path d="M3.5 4.5h-1v10h7v-1"/><path class="a" d="M10.5 1.5v3h3"/>',
     // Multimeter probe: the copper tip touches the net
     probe: '<path d="M5 9.5L11 3.5l2 2-6 6z"/><path d="M8.5 6l2 2" stroke-linecap="butt"/><path class="a" d="M5.75 10.25L2.5 13.5"/>',
     search: '<path d="M5 2h3l2.5 2.5v3L8 10H5L2.5 7.5v-3zM10 10l3.5 3.5"/>',

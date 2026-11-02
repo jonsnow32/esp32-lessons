@@ -10,6 +10,8 @@
   import { basicSetup } from 'codemirror';
   import { onDestroy, onMount, tick } from 'svelte';
   import { isSecretFile, lab, MAIN_FILE, type BuildError } from '../lib/lab.svelte';
+  import FileTree from './FileTree.svelte';
+  import Icon from './Icon.svelte';
 
   let host: HTMLDivElement;
   let view = $state.raw<EditorView | null>(null);
@@ -97,7 +99,7 @@
   async function jumpTo(e: BuildError) {
     const file = e.file ?? MAIN_FILE;
     if (lab.fileText(file) === undefined) return;
-    lab.activeFile = file;
+    lab.openFile(file);
     await tick();
     if (!view || e.line > view.state.doc.lines) return;
     const pos = view.state.doc.line(e.line).from;
@@ -106,82 +108,35 @@
   }
 
   let errors = $derived(lab.build.errors.filter((e) => e.severity === 'error'));
-  let tabs = $derived([MAIN_FILE, ...lab.folderFiles]);
   const errorsIn = (name: string) => errors.filter((e) => (e.file ?? MAIN_FILE) === name).length;
+  /** The file tree beside the editor, for a project kept in a folder of the repo. */
+  let showTree = $state(localStorage.getItem('esp32lab.fileTree') !== 'off');
+  $effect(() => localStorage.setItem('esp32lab.fileTree', showTree ? 'on' : 'off'));
 
-  // A new file's name or a new name for one, typed in the tab bar
-  let adding = $state(false);
-  let renaming = $state<string | null>(null);
-  let draft = $state('');
-  let fileError = $state<string | null>(null);
-
-  function startAdd() {
-    [adding, renaming, draft, fileError] = [true, null, '', null];
-  }
-
-  function startRename(name: string) {
-    if (name === MAIN_FILE || !lab.multiFile) return;
-    [adding, renaming, draft, fileError] = [false, name, name, null];
-  }
-
-  function commit() {
-    const name = draft.trim();
-    if (!name || name === renaming) return cancel();
-    fileError = adding ? lab.addFile(name) : renaming ? lab.renameFile(renaming, name) : null;
-    if (!fileError) cancel();
-  }
-
-  function cancel() {
-    [adding, renaming, draft] = [false, null, ''];
-  }
-
-  function onKey(e: KeyboardEvent) {
-    e.stopPropagation();
-    if (e.key === 'Enter') commit();
-    else if (e.key === 'Escape') {
-      cancel();
-      fileError = null;
-    }
-  }
-
-  function remove(name: string) {
-    if (confirm(`Xoá file ${name} khỏi thư mục ${lab.mine?.folder}? Không hoàn tác được trong lab (dùng git để lấy lại).`)) lab.removeFile(name);
-  }
-
-  const focus = (el: HTMLInputElement) => {
-    el.focus();
-    el.select();
-  };
+  const base = (path: string) => path.slice(path.lastIndexOf('/') + 1);
+  const dir = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
 </script>
 
 <section>
   <div class="bar">
+    {#if lab.multiFile}
+      <button class="tree-toggle" class:on={showTree} title={showTree ? 'Ẩn cây thư mục' : 'Hiện cây thư mục'} aria-label="Cây thư mục" aria-pressed={showTree} onclick={() => (showTree = !showTree)}><Icon name="files" size={14} /></button>
+    {/if}
     <div class="tabs" role="tablist">
-      {#each tabs as name (name)}
-        {#if renaming === name}
-          <input class="name" bind:value={draft} onkeydown={onKey} onblur={commit} use:focus spellcheck="false" aria-label="Tên mới của file" />
-        {:else}
+      {#each lab.openFiles as name (name)}
+        <span class="tab" class:on={lab.activeFile === name}>
           <button
-            class="tab"
-            class:on={lab.activeFile === name}
             role="tab"
             aria-selected={lab.activeFile === name}
-            title={name === MAIN_FILE ? name : `${name}: bấm đúp để đổi tên${isSecretFile(name) ? '. Không gửi cho trợ lý AI' : ''}`}
+            title={isSecretFile(name) ? `${name}: không gửi cho trợ lý AI` : name}
             onclick={() => (lab.activeFile = name)}
-            ondblclick={() => startRename(name)}
-          >{#if isSecretFile(name)}🔒 {/if}{name}{#if errorsIn(name)}<span class="badge">{errorsIn(name)}</span>{/if}</button>
-          {#if name !== MAIN_FILE && lab.activeFile === name && lab.multiFile}
-            <button class="x" title="Xoá file {name}" aria-label="Xoá file {name}" onclick={() => remove(name)}>×</button>
+            onauxclick={(e) => e.button === 1 && lab.closeFile(name)}
+          >{#if isSecretFile(name)}🔒 {/if}{base(name)}{#if dir(name)}<span class="dir">{dir(name)}</span>{/if}{#if errorsIn(name)}<span class="badge">{errorsIn(name)}</span>{/if}</button>
+          {#if name !== MAIN_FILE}
+            <button class="x" title="Đóng" aria-label="Đóng {name}" onclick={() => lab.closeFile(name)}>×</button>
           {/if}
-        {/if}
+        </span>
       {/each}
-      {#if lab.multiFile}
-        {#if adding}
-          <input class="name" bind:value={draft} onkeydown={onKey} onblur={commit} use:focus placeholder="vd: wifi.h" spellcheck="false" aria-label="Tên file mới" />
-        {:else}
-          <button class="add" title="Thêm file (.h, .cpp…) vào thư mục {lab.mine?.folder}" aria-label="Thêm file" onclick={startAdd}>+</button>
-        {/if}
-      {/if}
     </div>
     <span class="status {lab.build.status}">
       {#if lab.build.status === 'building'}⏳ PlatformIO đang biên dịch…
@@ -194,10 +149,6 @@
     <button onclick={() => (showLog = !showLog)}>{showLog ? 'Ẩn log' : 'Log build'}</button>
   </div>
 
-  {#if fileError}
-    <div class="file-error">{fileError}</div>
-  {/if}
-
   {#if errors.length}
     <ul class="errors">
       {#each errors as e}
@@ -207,6 +158,7 @@
   {/if}
 
   <div class="body">
+    {#if lab.multiFile && showTree}<FileTree />{/if}
     <div class="editor" bind:this={host}></div>
     {#if showLog}
       <pre class="log" bind:this={logEl}>{lab.build.log || '(chưa build)'}</pre>
@@ -218,15 +170,18 @@
   section { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface); border-top: 1px solid var(--line); }
   .bar { display: flex; gap: 8px; align-items: center; padding: 5px 10px; border-bottom: 1px solid var(--line); background: var(--surface-2); flex-wrap: wrap; }
   .tabs { display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
-  .bar .tab { font: 12px var(--font-mono); padding: 2px 10px; background: transparent; border: 1px solid transparent; color: var(--ink-3); cursor: pointer; }
-  .bar .tab:hover { color: var(--ink); border-color: var(--line); }
-  .bar .tab.on { font-weight: 600; color: var(--ink); background: var(--surface); border-color: var(--line); box-shadow: inset 0 2px 0 var(--accent); }
+  .tab { display: flex; align-items: center; border: 1px solid transparent; }
+  .tab:hover { border-color: var(--line); }
+  .tab.on { background: var(--surface); border-color: var(--line); box-shadow: inset 0 2px 0 var(--accent); }
+  .bar .tab button { font: 12px var(--font-mono); padding: 2px 8px; background: transparent; border: none; color: var(--ink-3); cursor: pointer; }
+  .bar .tab.on button { color: var(--ink); }
+  .bar .tab.on button[role='tab'] { font-weight: 600; }
+  .dir { margin-left: 6px; font-weight: 400; font-size: 11px; color: var(--ink-4); }
   .badge { margin-left: 6px; padding: 0 5px; border-radius: 8px; background: var(--error); color: #fff; font-size: 10.5px; font-weight: 700; }
-  .bar .x, .bar .add { padding: 0 6px; font: 600 13px var(--font-mono); background: transparent; border: 1px solid transparent; color: var(--ink-3); cursor: pointer; }
-  .bar .x:hover { color: var(--error); border-color: var(--error-line); }
-  .bar .add:hover { color: var(--ink); border-color: var(--line); }
-  .name { font: 12px var(--font-mono); padding: 2px 6px; width: 130px; border: 1px solid var(--accent); background: var(--surface); }
-  .file-error { padding: 4px 12px; font-size: 12px; color: var(--error); background: var(--error-soft); border-bottom: 1px solid var(--error-line); }
+  .bar .tab .x { padding: 0 6px 0 0; font-weight: 600; font-size: 13px; color: var(--ink-4); }
+  .bar .tab .x:hover { color: var(--error); }
+  .bar .tree-toggle { display: grid; place-items: center; padding: 3px 5px; border: 1px solid transparent; background: transparent; color: var(--ink-3); cursor: pointer; }
+  .bar .tree-toggle.on { color: var(--ink); background: var(--surface); border-color: var(--line); }
   .status { font-size: 12px; color: var(--ink-3); }
   .status.ok { color: var(--ok); }
   .status.failed { color: var(--error); font-weight: 600; }

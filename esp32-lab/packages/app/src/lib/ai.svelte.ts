@@ -100,7 +100,7 @@ const SYSTEM_CLI = ABOUT.replace('%RULES%', `- Mỗi câu hỏi kèm ảnh chụ
 - Muốn thêm linh kiện hay dây vào mạch thì đặt một khối \`\`\`json circuit … \`\`\` chứa {"summary": "…", "parts": [{"id": "pump1", "type": "water-pump", "props": {}}], "wires": [{"from": "relay1.no", "to": "pump1.pos"}]}. Sửa mạch đã có thì thêm "remove": ["led1"] (gỡ linh kiện kèm dây và điện trở lab đã cắm cho nó) hoặc "disconnect": ["led1.anode", "board:D4"] (ngắt hết dây ở chân đó) rồi nối lại cho đúng, đừng nối thêm dây chồng lên dây cũ; không nối dây giữa hai chỗ đã cùng net. Mã loại và tên chân lấy từ <parts>. Đầu dây là chân linh kiện ("relay1.com", kể cả linh kiện vừa thêm) hoặc chân board ("board:VIN"). Chân nào của linh kiện mới chưa có dây thì lab tự cắm theo cách nối mẫu, nhưng bạn không biết nó chọn chân GPIO nào: chân tín hiệu mà code dùng phải ghi dây rõ tới chân board. Người dùng sẽ tự bấm áp dụng.
 - Bạn tự sửa được mạch đã có, đừng bảo người dùng tự xoá dây hay dời linh kiện: trong khối json circuit, "remove" gỡ linh kiện kèm dây của nó, "disconnect" ngắt hết dây ở một chân linh kiện hay chân board, dây không còn dẫn tới đâu được dọn theo; sau đó nối lại cho đúng. Linh kiện bị nối tắt vì cắm sai chỗ trên breadboard thì gỡ rồi thêm lại (giữ id cũ cũng được) để lab cắm sang chỗ khác. Những gì bạn nói trước đây rằng chỉ thêm được dây không còn đúng nữa.
 - Trước khi đặt khối json circuit, tự rà từng linh kiện: mỗi chân nối đi đâu, nguồn và GND của module, LED có điện trở hạn dòng, đúng chiều cực, chân GPIO làm được việc đó, tải lớn đi qua relay hoặc MOSFET. Lab kiểm tra lại từng linh kiện bằng mô phỏng; nếu có lỗi bạn sẽ nhận <check> với danh sách lỗi: khi đó gửi lại khối json circuit đã sửa đúng các lỗi đó (và khối cpp nếu code phải đổi theo).
-- Muốn đổi code thì đặt toàn bộ nội dung mới của mỗi file cần đổi trong một khối \`\`\`cpp <tên file> … \`\`\` ở cuối câu trả lời, mỗi file một khối (vd \`\`\`cpp main.cpp, \`\`\`cpp wifi.h). File khác main.cpp chỉ dùng được khi dự án nằm trong một thư mục của repo (xem <lab>). Người dùng sẽ tự bấm áp dụng. Ngoài các khối đó không dán cả file code.`);
+- Muốn đổi code thì đặt toàn bộ nội dung mới của mỗi file cần đổi trong một khối \`\`\`cpp <tên file> … \`\`\` ở cuối câu trả lời, mỗi file một khối (vd \`\`\`cpp main.cpp, \`\`\`cpp sensors/soil.h). File khác main.cpp chỉ dùng được khi dự án nằm trong một thư mục của repo (xem <lab>). Người dùng sẽ tự bấm áp dụng. Ngoài các khối đó không dán cả file code.`);
 
 const TOOLS: Beta.BetaTool[] = [
   {
@@ -232,7 +232,7 @@ const TOOLS: Beta.BetaTool[] = [
     input_schema: {
       type: 'object',
       properties: {
-        file: { type: 'string', description: 'Tên file, vd "main.cpp" (mặc định), "wifi.h". Không có thư mục con.' },
+        file: { type: 'string', description: 'Đường dẫn file tính từ thư mục dự án, vd "main.cpp" (mặc định), "mqtt_link.h", "sensors/soil.cpp".' },
         summary: { type: 'string', description: 'Một câu: đổi gì và vì sao.' },
         code: { type: 'string', description: 'Toàn bộ nội dung mới của file đó.' },
       },
@@ -388,7 +388,7 @@ function situation(): string {
         `Dự án nằm trong thư mục ${folder}/ của repo: editor mở các file nguồn thật trong thư mục đó (áp dụng code là ghi vào file), mạch lưu ở ${folder}/esp32-lab.json.`,
         files.length ? `Các file nguồn, build cùng nhau: ${[MAIN_FILE, ...files].join(', ')}.` : 'Hiện chỉ có main.cpp.',
         ...(secret.length ? [`${secret.join(', ')} chứa mật khẩu (Wi-Fi, MQTT…): bạn chỉ biết tên, không thấy nội dung và không đề xuất sửa; giữ nguyên các #include và tên macro code đang dùng từ đó, đừng chép giá trị bí mật vào file khác.`] : []),
-        'Đổi code thì theo cấu trúc sẵn có: đề xuất đúng file chứa phần cần đổi, mỗi file toàn bộ nội dung mới; đừng gộp hết vào main.cpp. Khi main.cpp dài hay có một phần tách bạch (Wi-Fi, MQTT, cảm biến…), có thể tách ra file mới như wifi.h + wifi.cpp rồi #include "wifi.h", nhớ đề xuất cả main.cpp đã bỏ phần đó. Không có thư mục con.',
+        'Đổi code thì theo cấu trúc sẵn có: đề xuất đúng file chứa phần cần đổi, mỗi file toàn bộ nội dung mới; đừng gộp hết vào main.cpp. Khi main.cpp dài hay có một phần tách bạch (Wi-Fi, MQTT, cảm biến…), có thể tách ra file mới như wifi_conn.h + wifi_conn.cpp rồi #include "wifi_conn.h", nhớ đề xuất cả main.cpp đã bỏ phần đó. Có thể dùng thư mục con (vd sensors/soil.cpp; #include tính từ file đang viết, vd trong main.cpp là #include "sensors/soil.h"). File ở ngay cạnh main.cpp không được trùng tên header của Arduino hay thư viện, kể cả khác hoa thường (wifi.h, network.h, wire.h…), vì sẽ che mất header đó.',
         'Code này cũng được nạp vào board ESP32 thật: trình giả lập không có Wi-Fi/Bluetooth, nên phần mạng chỉ chạy trên board thật.',
       );
     }
@@ -624,7 +624,7 @@ class Assistant {
       return;
     }
     if (file === MAIN_FILE) lab.setCode(entry.code);
-    lab.activeFile = file;
+    lab.openFile(file);
     entry.applied = true;
     this.save();
   }
@@ -809,7 +809,7 @@ class Assistant {
     const marks = [...t.matchAll(/<highlight>([^<]*)<\/highlight>/g)].flatMap((m) => m[1]!.split(',').map((x) => x.trim()).filter(Boolean));
     t = t.replace(/\n?<highlight>[^<]*<\/highlight>/g, '');
     if (marks.length) lab.emphasis = emphasis(marks);
-    const blocks = [...t.matchAll(/```cpp ([A-Za-z0-9_][A-Za-z0-9_.-]*\.(?:cpp|c|hpp|h))\n([\s\S]*?)```/g)];
+    const blocks = [...t.matchAll(/```cpp ((?:[A-Za-z0-9_][A-Za-z0-9_.-]*\/)*[A-Za-z0-9_][A-Za-z0-9_.-]*\.(?:cpp|c|hpp|h))\n([\s\S]*?)```/g)];
     for (const b of blocks) t = t.replace(b[0], '');
     const circuit = /```json circuit\n([\s\S]*?)```/.exec(t);
     let fix: string | null = null;
@@ -942,8 +942,9 @@ function proposalFileError(file: string): string | null {
   if (file === MAIN_FILE) return null;
   if (!lab.multiFile) return 'Dự án này chỉ có main.cpp (không lưu trong một thư mục của repo): hãy đề xuất main.cpp.';
   if (isSecretFile(file)) return `${file} chứa mật khẩu: không đề xuất sửa file này.`;
-  if (!isSourceName(file)) return 'Tên file chỉ gồm chữ, số, _ . - và có đuôi .h, .hpp, .c hoặc .cpp, không có thư mục.';
-  return null;
+  if (!isSourceName(file)) return 'Tên file chỉ gồm chữ, số, _ . - và có đuôi .h, .hpp, .c hoặc .cpp; thư mục con ghi bằng / (vd net/wifi.cpp), tối đa 4 cấp.';
+  // A new file: the same checks as the file tree (a name taken, one that hides an Arduino header)
+  return file in lab.files ? null : lab.checkFileName(file);
 }
 
 function recap(entries: Entry[]): string {
