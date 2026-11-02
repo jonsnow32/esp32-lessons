@@ -3,10 +3,12 @@
 #include <PubSubClient.h>
 #include <WiFi.h>
 
+// Only lab boards need it; a board with its own Account builds without it
 #if __has_include("lab_secrets.h")
 #include "lab_secrets.h"
+#define LAB_SECRETS {LAB_WIFI_SSID, LAB_WIFI_PASSWORD, LAB_MQTT_HOST, LAB_MQTT_PORT, LAB_MQTT_USER, LAB_MQTT_PASSWORD}
 #else
-#error "LabHA: copy lib/LabHA/src/lab_secrets.example.h to lab_secrets.h (same folder) and fill it in"
+#define LAB_SECRETS {nullptr, nullptr, nullptr, 0, nullptr, nullptr}
 #endif
 
 // ESP32 Lab's emulator reaches the computer running the lab here (a test broker, e.g. mosquitto)
@@ -18,8 +20,12 @@ static WiFiClient wifi;
 static PubSubClient mqtt(wifi);
 static LabHA *instance = nullptr;  // PubSubClient's callback is a plain function
 
-LabHA::LabHA(const char *name) {
-  // Topics and discovery ids only take letters, digits, - and _
+LabHA::LabHA(const char *name) : account_(LAB_SECRETS), own_(false) { setId(name); }
+
+LabHA::LabHA(const Account &own) : account_(own), own_(true) { setId(own.mqttUser ? own.mqttUser : ""); }
+
+void LabHA::setId(const char *name) {
+  // Topics and discovery ids only take letters, digits, - and _ (room is left for -sim / -lab)
   size_t i = 0;
   for (; name[i] && i < sizeof(id_) - 5; i++) {
     char c = name[i];
@@ -56,24 +62,38 @@ LabHA::Entity *LabHA::find(const char *key) {
   return nullptr;
 }
 
-// home/lab/<id>/<key>/<leaf>
+int LabHA::base(char *out, size_t size) {
+  return snprintf(out, size, own_ ? "home/%s" : "home/lab/%s", id_);
+}
+
+// <base>/<key>/<leaf>
 void LabHA::topic(char *out, size_t size, const char *key, const char *leaf) {
-  snprintf(out, size, "home/lab/%s/%s/%s", id_, key, leaf);
+  int n = base(out, size);
+  if (n >= 0 && (size_t)n < size) snprintf(out + n, size - n, "/%s/%s", key, leaf);
 }
 
 void LabHA::begin() {
   instance = this;
+  if (!account_.wifiSsid || !account_.mqttHost || !id_[0]) {
+    Serial.println(own_ ? "LabHA: the Account lacks Wi-Fi, broker or MQTT user"
+                        : "LabHA: copy lib/LabHA/src/lab_secrets.example.h to lab_secrets.h (same folder) and fill it in");
+    return;
+  }
+  started_ = true;
   bool sim = onEmulator();
-  if (sim) strcat(id_, "-sim");  // its own device: never the real board's topics
-  snprintf(availTopic_, sizeof(availTopic_), "home/lab/%s/availability", id_);
+  // Its own device on the emulator: never the real board's topics. "-lab" for an own account,
+  // as the lab bridge (home-server/mosquitto/lab-bridge.conf.example) expects
+  if (sim) strcat(id_, own_ ? "-lab" : "-sim");
+  int n = base(availTopic_, sizeof(availTopic_));
+  snprintf(availTopic_ + n, sizeof(availTopic_) - n, "/availability");
 
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);  // modem sleep delays MQTT pings until the broker drops us
   WiFi.setAutoReconnect(true);
-  WiFi.begin(LAB_WIFI_SSID, LAB_WIFI_PASSWORD);  // the emulator's virtual access point takes any
-  Serial.printf("LabHA %s: Wi-Fi %s%s\n", id_, LAB_WIFI_SSID, sim ? " (ESP32 Lab, virtual)" : "");
+  WiFi.begin(account_.wifiSsid, account_.wifiPassword);  // the emulator's virtual access point takes any
+  Serial.printf("LabHA %s: Wi-Fi %s%s\n", id_, account_.wifiSsid, sim ? " (ESP32 Lab, virtual)" : "");
 
-  mqtt.setServer(sim ? SIM_MQTT_HOST : LAB_MQTT_HOST, LAB_MQTT_PORT);
+  mqtt.setServer(sim ? SIM_MQTT_HOST : account_.mqttHost, account_.mqttPort);
   mqtt.setCallback(onMessage);
   mqtt.setBufferSize(768);  // discovery configs are bigger than the default 256 bytes
   mqtt.setKeepAlive(60);    // rides out short Wi-Fi hiccups; a power cut still shows offline in ~90 s
@@ -86,14 +106,15 @@ void LabHA::connect() {
   tried_ = true;
   lastTry_ = now;
 
-  // Client id lab-<id>: two boards with the same name would keep kicking each other off
+  // Client id lab-<id> (own account: <id>): two boards with the same name would keep kicking each
+  // other off
   char clientId[48];
-  snprintf(clientId, sizeof(clientId), "lab-%s", id_);
+  snprintf(clientId, sizeof(clientId), own_ ? "%s" : "lab-%s", id_);
   bool sim = onEmulator();
-  Serial.printf("LabHA: MQTT %s... ", sim ? SIM_MQTT_HOST : LAB_MQTT_HOST);
+  Serial.printf("LabHA: MQTT %s... ", sim ? SIM_MQTT_HOST : account_.mqttHost);
   // Last Will: if the board vanishes the broker publishes "offline" for it
-  if (!mqtt.connect(clientId, sim ? nullptr : LAB_MQTT_USER, sim ? nullptr : LAB_MQTT_PASSWORD, availTopic_, 1, true,
-                    "offline")) {
+  if (!mqtt.connect(clientId, sim ? nullptr : account_.mqttUser, sim ? nullptr : account_.mqttPassword, availTopic_, 1,
+                    true, "offline")) {
     Serial.printf("failed (state %d), retrying in 5 s\n", mqtt.state());
     return;
   }
@@ -117,7 +138,7 @@ void LabHA::connect() {
 
 void LabHA::sendDiscovery() {
   const char *model = onEmulator() ? "ESP32 Lab emulator" : "ESP32 Dev Module";
-  char t[128], state[96], cmd[96], extra[192], config[768];
+  char t[128], state[96], cmd[96], extra[192], config[768], uid[96], dev[48];
   for (int i = 0; i < count_; i++) {
     Entity &e = entities_[i];
     topic(state, sizeof(state), e.key, "state");
@@ -130,11 +151,20 @@ void LabHA::sendDiscovery() {
     if (e.unit) n += snprintf(extra + n, sizeof(extra) - n, ",\"unit_of_measurement\":\"%s\",\"state_class\":\"measurement\"", e.unit);
     if (e.deviceClass) n += snprintf(extra + n, sizeof(extra) - n, ",\"device_class\":\"%s\"", e.deviceClass);
 
-    snprintf(t, sizeof(t), "homeassistant/%s/lab/%s_%s/config", e.component, id_, e.key);
+    if (own_) {
+      // The broker lets user <id> write homeassistant/+/<id>/#
+      snprintf(t, sizeof(t), "homeassistant/%s/%s/%s/config", e.component, id_, e.key);
+      snprintf(uid, sizeof(uid), "%s-%s", id_, e.key);
+      snprintf(dev, sizeof(dev), "%s", id_);
+    } else {
+      snprintf(t, sizeof(t), "homeassistant/%s/lab/%s_%s/config", e.component, id_, e.key);
+      snprintf(uid, sizeof(uid), "lab_%s_%s", id_, e.key);
+      snprintf(dev, sizeof(dev), "lab_%s", id_);
+    }
     snprintf(config, sizeof(config),
-             "{\"name\":\"%s\",\"unique_id\":\"lab_%s_%s\",\"state_topic\":\"%s\",\"availability_topic\":\"%s\"%s,"
-             "\"device\":{\"identifiers\":[\"lab_%s\"],\"name\":\"%s\",\"model\":\"%s\"}}",
-             e.label, id_, e.key, state, availTopic_, extra, id_, id_, model);
+             "{\"name\":\"%s\",\"unique_id\":\"%s\",\"state_topic\":\"%s\",\"availability_topic\":\"%s\"%s,"
+             "\"device\":{\"identifiers\":[\"%s\"],\"name\":\"%s\",\"model\":\"%s\"}}",
+             e.label, uid, state, availTopic_, extra, dev, id_, model);
     mqtt.publish(t, config, true);
   }
 }
@@ -165,6 +195,7 @@ void LabHA::handle(char *t, uint8_t *payload, unsigned int length) {
 }
 
 void LabHA::loop() {
+  if (!started_) return;
   connect();
   mqtt.loop();
 }

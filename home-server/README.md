@@ -90,15 +90,19 @@ docker compose restart mosquitto
 
 ## 5. Nạp ESP32 mẫu
 
-Sketch trong `esp32-mqtt/` biến LED trên board (GPIO2) thành một công tắc. Home Assistant tự nhận
-công tắc này qua MQTT discovery, không cần cấu hình gì thêm. Nút BOOT cũng bật tắt LED được, và
-trạng thái trong Home Assistant đổi theo.
+Sketch trong `esp32-mqtt/` biến LED trên board (GPIO2) thành một công tắc và gửi độ ẩm đất từ cảm
+biến điện dung (GPIO34). Home Assistant tự nhận cả hai qua MQTT discovery, không cần cấu hình gì
+thêm. Nút BOOT cũng bật tắt LED được, và trạng thái trong Home Assistant đổi theo.
+
+Wi-Fi, MQTT và discovery do thư viện `lib/LabHA` lo, ở chế độ **tài khoản riêng**
+(`LabHA::Account`): board đăng nhập bằng `MQTT_USER` của nó trong `secrets.h`, không dùng tài khoản
+chung `lab` và không cần `lab_secrets.h`.
 
 1. Chép `esp32-mqtt/secrets.example.h` thành `esp32-mqtt/secrets.h`, rồi điền Wi-Fi, IP của box,
    tài khoản và mật khẩu thiết bị. `secrets.h` không được commit.
 2. Trong PlatformIO chọn môi trường **`mqtt_demo`**, rồi Upload và mở Monitor.
-3. Monitor hiện `MQTT connecting... ok`. Trong Home Assistant sẽ có thiết bị `esp32-den` kèm công
-   tắc **LED**.
+3. Monitor hiện `LabHA: MQTT <ip box>... ok`. Trong Home Assistant sẽ có thiết bị `esp32-den` kèm
+   công tắc **LED** và cảm biến **Độ ẩm đất**.
 
 Hoặc làm trong ESP32 Lab: thư mục này có `esp32-lab.json` nên hiện trong **Dự án của tôi** với tên
 "Công tắc MQTT cho Home Assistant". Lab đọc và ghi thẳng `main.cpp` ở đây (mạch nằm trong
@@ -130,8 +134,10 @@ Topic mà sketch dùng:
 |---|---|---|
 | `home/esp32-den/led/state` | ESP32 (retained) | `ON` / `OFF` |
 | `home/esp32-den/led/set` | Home Assistant | `ON` / `OFF` |
+| `home/esp32-den/moisture/state` | ESP32, mỗi 10 s | độ ẩm đất, `%` |
 | `home/esp32-den/availability` | ESP32, hoặc broker khi ESP32 mất kết nối (Last Will) | `online` / `offline` |
 | `homeassistant/switch/esp32-den/led/config` | ESP32 (retained) | cấu hình discovery |
+| `homeassistant/sensor/esp32-den/moisture/config` | ESP32 (retained) | cấu hình discovery |
 
 Thử bằng dòng lệnh trên box:
 
@@ -150,7 +156,7 @@ docker compose logs --since 24h mosquitto | grep esp32-den
 
 `exceeded timeout` nghĩa là broker không nhận được ping đúng hạn. Sketch đã tắt Wi-Fi modem sleep
 (`WiFi.setSleep(false)`) và tăng keepalive lên 60 s cho trường hợp này. Nếu vẫn bị, xem dòng
-`MQTT connecting... ok (Wi-Fi -xx dBm)` trên Monitor: yếu hơn khoảng -75 dBm thì đặt board gần router hơn.
+`LabHA: MQTT ... ok (Wi-Fi -xx dBm)` trên Monitor: yếu hơn khoảng -75 dBm thì đặt board gần router hơn.
 
 ### Board mới trong lab: dùng chung cấu hình (LabHA)
 
@@ -189,7 +195,14 @@ Home Assistant tự hiện thiết bị `tuoi-cay` cùng các entity. Ví dụ �
 board tự đổi tên thành `tuoi-cay-sim` và nói chuyện với broker thử `10.0.2.2`. Muốn thấy nó trong
 HA, dùng khối `home-server-lab` trong `mosquitto/lab-bridge.conf.example`.
 
-`esp32-mqtt` (board `esp32-den` thật) vẫn giữ tài khoản riêng, không dùng LabHA.
+`esp32-mqtt` (board `esp32-den` thật) cũng dùng LabHA nhưng với tài khoản riêng của nó:
+
+```cpp
+LabHA ha(LabHA::Account{WIFI_SSID, WIFI_PASSWORD, MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASSWORD});
+```
+
+Khi đó topic là `home/<user>/...`, discovery `homeassistant/+/<user>/...` (đúng ACL `home/%u/#`), và
+trên board giả lập board tự đổi tên thành `<user>-lab`, khớp khối `home-server` của bridge.
 
 ## 6. ESPHome (khi cần)
 

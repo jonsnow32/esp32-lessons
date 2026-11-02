@@ -20,6 +20,15 @@
 //
 // On ESP32 Lab's emulator the board is <name>-sim and talks to the test broker on the computer
 // running the lab (10.0.2.2) without a password, never to the home server.
+//
+// A board with its own broker account (not the shared "lab" one, no lab_secrets.h needed):
+//
+//   LabHA ha(LabHA::Account{WIFI_SSID, WIFI_PASSWORD, MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASSWORD});
+//
+// The MQTT user is then the device id, as the broker's ACL wants (home/%u/#): topics
+// home/<user>/<key>/state, home/<user>/<key>/set, home/<user>/availability; discovery
+// homeassistant/<component>/<user>/<key>/config, unique_id <user>-<key>. On the emulator it is
+// <user>-lab.
 #pragma once
 
 #include <Arduino.h>
@@ -28,7 +37,16 @@ class LabHA {
  public:
   using SwitchHandler = void (*)(bool on);
 
-  explicit LabHA(const char *name);
+  // Wi-Fi and broker of a board that has its own account
+  struct Account {
+    const char *wifiSsid, *wifiPassword;
+    const char *mqttHost;
+    uint16_t mqttPort;
+    const char *mqttUser, *mqttPassword;  // the user is also the device id
+  };
+
+  explicit LabHA(const char *name);          // a lab board: shared settings from lab_secrets.h
+  explicit LabHA(const Account &own);        // a board with its own account
 
   // Declare entities before begin(), at most 12
   void addSwitch(const char *key, const char *label, SwitchHandler onChange);
@@ -60,14 +78,19 @@ class LabHA {
 
   Entity entities_[MAX_ENTITIES];
   int count_ = 0;
+  Account account_;
+  bool own_;  // its own account: topics home/<id>/..., not home/lab/<id>/...
   char id_[40];
   char availTopic_[80];
   unsigned long lastTry_ = 0;
   bool tried_ = false;
+  bool started_ = false;  // begin() found its settings
 
+  void setId(const char *name);
   void add(const Entity &e);
   Entity *find(const char *key);
   void topic(char *out, size_t size, const char *key, const char *leaf);
+  int base(char *out, size_t size);  // home/lab/<id> or home/<id>
   void connect();
   void sendDiscovery();
   void handle(char *topic, uint8_t *payload, unsigned int length);

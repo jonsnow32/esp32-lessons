@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 #include "config.h"
-#include "ha_mqtt.h"
+#include "ha.h"
 
 static unsigned long nextSensorTime = 1000;  // first read 1 s after power-up
 
@@ -28,5 +28,5 @@ void updateSoil(unsigned long now) {
   float moisture = (float)(SOIL_DRY_RAW - raw) * 100.0f / (SOIL_DRY_RAW - SOIL_WET_RAW);
   moisture = constrain(moisture, 0.0f, 100.0f);
   Serial.printf("Soil moisture %.0f %% (raw %d)\n", moisture, raw);
-  haPublishSoil(moisture, raw);
+  ha.publish("moisture", moisture, 0);
 }
