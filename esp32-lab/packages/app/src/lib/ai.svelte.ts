@@ -23,7 +23,7 @@ import { keyOf } from '@esp32lab/sim-core';
 import type { CircuitChange } from './autoplug';
 import { BOARDS, PARTS } from './catalog';
 import { benchKnowledge, boardPins, lessonInfo, libraryList, partCatalog, partInfo, pinText, projectCatalog, projectInfo } from './knowledge';
-import { lab } from './lab.svelte';
+import { isSecretFile, isSourceName, lab, MAIN_FILE } from './lab.svelte';
 import { verifyChange, type Finding } from './verify';
 
 export const MODELS = [
@@ -68,7 +68,8 @@ export type Entry =
   | { kind: 'user'; text: string }
   | { kind: 'assistant'; text: string }
   | { kind: 'tool'; text: string }
-  | { kind: 'code'; summary: string; code: string; applied: boolean }
+  /** A whole new text for one source: main.cpp (no `file`, as before) or another file of a linked folder. */
+  | { kind: 'code'; summary: string; code: string; file?: string; applied: boolean }
   /** New parts and wires, planned on the bench as it was (`base`), with what the plan does and what the check found. */
   | { kind: 'circuit'; summary: string; change: CircuitChange; report: string[]; check?: Finding[]; base: string; project: Project; applied: boolean }
   | { kind: 'error'; text: string };
@@ -90,16 +91,16 @@ const SYSTEM = ABOUT.replace('%RULES%', `- Trước khi nói về mạch, code h
 - Muốn thêm linh kiện hay dây vào mạch thì dùng propose_circuit (tra get_part trước để biết tên chân); người dùng sẽ tự bấm áp dụng. Sửa mạch đã có thì gỡ linh kiện (remove) hoặc ngắt dây ở chân sai (disconnect) rồi nối lại cho đúng, đừng nối thêm dây chồng lên dây cũ; không nối dây giữa hai chỗ đã cùng net. Nếu cũng cần đổi code, gọi propose_circuit trước rồi viết code theo đúng các chân board trong kết quả của nó.
 - Bạn tự sửa được mạch đã có, đừng bảo người dùng tự xoá dây hay dời linh kiện: trong propose_circuit, remove gỡ linh kiện kèm dây của nó, disconnect ngắt hết dây ở một chân linh kiện hay chân board, dây không còn dẫn tới đâu được dọn theo; sau đó nối lại cho đúng. Linh kiện bị nối tắt vì cắm sai chỗ trên breadboard thì gỡ rồi thêm lại (giữ id cũ cũng được) để lab cắm sang chỗ khác. Những gì bạn nói trước đây rằng chỉ thêm được dây không còn đúng nữa.
 - Trước khi gọi propose_circuit, tự rà từng linh kiện: mỗi chân nối đi đâu, nguồn và GND của module, LED có điện trở hạn dòng, đúng chiều cực, chân GPIO làm được việc đó (không phải chân chỉ vào hay chân flash), tải lớn như bơm, động cơ đi qua relay hoặc MOSFET. Thay linh kiện thì gỡ hẳn linh kiện cũ và những gì chỉ phục vụ nó, đừng để lại linh kiện thừa. Lab cũng kiểm tra lại từng linh kiện bằng mô phỏng: nếu propose_circuit báo lỗi thì đề xuất chưa hiện cho người dùng, hãy sửa đúng các lỗi đó rồi gọi lại propose_circuit với cả mạch đã sửa. Lưu ý (cảnh báo) thì nhắc người dùng nếu đáng kể.
-- Muốn đổi code thì dùng propose_code với toàn bộ file main.cpp mới; người dùng sẽ tự bấm áp dụng. Không dán cả file code vào câu trả lời.`);
+- Muốn đổi code thì dùng propose_code với toàn bộ nội dung mới của file cần đổi: mặc định main.cpp; dự án có nhiều file thì sửa đúng file chứa phần cần đổi, mỗi file một lần gọi. Người dùng sẽ tự bấm áp dụng. Không dán cả file code vào câu trả lời.`);
 
 /** For Claude Code, which has no tools here: the bench comes with each question, actions go back as tags. */
-const SYSTEM_CLI = ABOUT.replace('%RULES%', `- Mỗi câu hỏi kèm ảnh chụp bàn lúc hỏi: <circuit> (linh kiện, net và điện áp đo được, lưu ý về linh kiện và chân board đang dùng), <lesson> nếu đang làm bài học, <code> (main.cpp có số dòng, kết quả build), <serial>. Chỉ dựa vào ảnh chụp mới nhất. Đừng đoán số đo: chỉ nêu điện áp, dòng điện có trong đó.
+const SYSTEM_CLI = ABOUT.replace('%RULES%', `- Mỗi câu hỏi kèm ảnh chụp bàn lúc hỏi: <circuit> (linh kiện, net và điện áp đo được, lưu ý về linh kiện và chân board đang dùng), <lesson> nếu đang làm bài học, <code> (main.cpp và các file nguồn khác của dự án, có số dòng, kết quả build), <serial>. Chỉ dựa vào ảnh chụp mới nhất. Đừng đoán số đo: chỉ nêu điện áp, dòng điện có trong đó.
 - <libraries> là các thư viện build được; đừng dùng thư viện khác ngoài lõi Arduino ESP32.
 - Khi nói tới linh kiện hay chân cụ thể, thêm một dòng <highlight>led1, led1.anode, board:D2</highlight> (id linh kiện, chân linh kiện hoặc chân board) để chúng được tô sáng trên bàn.
 - Muốn thêm linh kiện hay dây vào mạch thì đặt một khối \`\`\`json circuit … \`\`\` chứa {"summary": "…", "parts": [{"id": "pump1", "type": "water-pump", "props": {}}], "wires": [{"from": "relay1.no", "to": "pump1.pos"}]}. Sửa mạch đã có thì thêm "remove": ["led1"] (gỡ linh kiện kèm dây và điện trở lab đã cắm cho nó) hoặc "disconnect": ["led1.anode", "board:D4"] (ngắt hết dây ở chân đó) rồi nối lại cho đúng, đừng nối thêm dây chồng lên dây cũ; không nối dây giữa hai chỗ đã cùng net. Mã loại và tên chân lấy từ <parts>. Đầu dây là chân linh kiện ("relay1.com", kể cả linh kiện vừa thêm) hoặc chân board ("board:VIN"). Chân nào của linh kiện mới chưa có dây thì lab tự cắm theo cách nối mẫu, nhưng bạn không biết nó chọn chân GPIO nào: chân tín hiệu mà code dùng phải ghi dây rõ tới chân board. Người dùng sẽ tự bấm áp dụng.
 - Bạn tự sửa được mạch đã có, đừng bảo người dùng tự xoá dây hay dời linh kiện: trong khối json circuit, "remove" gỡ linh kiện kèm dây của nó, "disconnect" ngắt hết dây ở một chân linh kiện hay chân board, dây không còn dẫn tới đâu được dọn theo; sau đó nối lại cho đúng. Linh kiện bị nối tắt vì cắm sai chỗ trên breadboard thì gỡ rồi thêm lại (giữ id cũ cũng được) để lab cắm sang chỗ khác. Những gì bạn nói trước đây rằng chỉ thêm được dây không còn đúng nữa.
 - Trước khi đặt khối json circuit, tự rà từng linh kiện: mỗi chân nối đi đâu, nguồn và GND của module, LED có điện trở hạn dòng, đúng chiều cực, chân GPIO làm được việc đó, tải lớn đi qua relay hoặc MOSFET. Lab kiểm tra lại từng linh kiện bằng mô phỏng; nếu có lỗi bạn sẽ nhận <check> với danh sách lỗi: khi đó gửi lại khối json circuit đã sửa đúng các lỗi đó (và khối cpp nếu code phải đổi theo).
-- Muốn đổi code thì đặt toàn bộ main.cpp mới trong đúng một khối \`\`\`cpp main.cpp … \`\`\` ở cuối câu trả lời; người dùng sẽ tự bấm áp dụng. Ngoài khối đó không dán cả file code.`);
+- Muốn đổi code thì đặt toàn bộ nội dung mới của mỗi file cần đổi trong một khối \`\`\`cpp <tên file> … \`\`\` ở cuối câu trả lời, mỗi file một khối (vd \`\`\`cpp main.cpp, \`\`\`cpp wifi.h). File khác main.cpp chỉ dùng được khi dự án nằm trong một thư mục của repo (xem <lab>). Người dùng sẽ tự bấm áp dụng. Ngoài các khối đó không dán cả file code.`);
 
 const TOOLS: Beta.BetaTool[] = [
   {
@@ -110,7 +111,7 @@ const TOOLS: Beta.BetaTool[] = [
   },
   {
     name: 'get_code',
-    description: 'main.cpp trong editor (có đánh số dòng), kết quả build gần nhất kèm lỗi biên dịch, và board đang chạy chương trình nào.',
+    description: 'Code trong editor: main.cpp và các file nguồn khác của dự án (có đánh số dòng; file chứa mật khẩu chỉ có tên), kết quả build gần nhất kèm lỗi biên dịch theo file, và board đang chạy chương trình nào.',
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -225,13 +226,15 @@ const TOOLS: Beta.BetaTool[] = [
   },
   {
     name: 'propose_code',
-    description: 'Đề xuất một main.cpp mới. Người dùng xem và tự bấm áp dụng vào editor; code chưa được build cho tới khi họ bấm Chạy.',
+    description:
+      'Đề xuất toàn bộ nội dung mới của một file nguồn: main.cpp, hoặc một file .h/.hpp/.c/.cpp khác (có sẵn hay mới) khi dự án nằm trong thư mục của repo. Đổi nhiều file thì gọi nhiều lần, mỗi lần một file. Người dùng xem và tự bấm áp dụng vào editor; code chưa được build cho tới khi họ bấm Chạy.',
     eager_input_streaming: true,
     input_schema: {
       type: 'object',
       properties: {
+        file: { type: 'string', description: 'Tên file, vd "main.cpp" (mặc định), "wifi.h". Không có thư mục con.' },
         summary: { type: 'string', description: 'Một câu: đổi gì và vì sao.' },
-        code: { type: 'string', description: 'Toàn bộ nội dung main.cpp mới.' },
+        code: { type: 'string', description: 'Toàn bộ nội dung mới của file đó.' },
       },
       required: ['summary', 'code'],
     },
@@ -323,16 +326,25 @@ function circuit(): string {
   return out.join('\n');
 }
 
+/** A source with line numbers, as Claude reads it. */
+const numbered = (name: string, text: string) => [`${name}:`, ...text.split('\n').map((l, i) => `${String(i + 1).padStart(3)}| ${l}`), ''];
+
 function code(): string {
-  const lines = lab.code.split('\n').map((l, i) => `${String(i + 1).padStart(3)}| ${l}`);
   const b = lab.build;
-  const out = ['main.cpp:', ...lines, ''];
+  const out = numbered(MAIN_FILE, lab.code);
+  // Files with passwords (secrets.h…): their names only, never their text
+  const hidden: string[] = [];
+  for (const n of lab.folderFiles) {
+    if (isSecretFile(n)) hidden.push(n);
+    else out.push(...numbered(n, lab.files[n] ?? ''));
+  }
+  if (hidden.length) out.push(`${hidden.join(', ')}: chứa mật khẩu, không gửi nội dung.`, '');
   if (b.status === 'idle') out.push('Chưa build lần nào.');
   else if (b.status === 'building') out.push('Đang build.');
   else if (b.status === 'ok') out.push(`Build gần nhất thành công (${b.ms} ms).`);
   else {
     out.push('Build gần nhất thất bại.');
-    for (const e of b.errors) out.push(`- dòng ${e.line}:${e.column} [${e.severity}] ${e.message}`);
+    for (const e of b.errors) out.push(`- ${e.file ?? MAIN_FILE} dòng ${e.line}:${e.column} [${e.severity}] ${e.message}`);
     if (!b.errors.length) out.push('Cuối log build:', b.log.slice(-3000));
   }
   const p = lab.program;
@@ -369,13 +381,14 @@ function situation(): string {
     out.push(`Dự án của người dùng: ${lab.mine.title}.`);
     const folder = lab.mine.folder;
     if (folder) {
-      // Names only: secrets.h holds the Wi-Fi and MQTT passwords, never sent to Claude
+      // Names only for secrets.h and the like: the Wi-Fi and MQTT passwords are never sent to Claude
       const files = lab.folderFiles;
+      const secret = files.filter(isSecretFile);
       out.push(
-        `Dự án nằm trong thư mục ${folder}/ của repo: editor là file ${folder}/main.cpp thật (áp dụng code là ghi vào file đó), mạch lưu ở ${folder}/esp32-lab.json.`,
-        files.length
-          ? `Các file khác trong thư mục được build cùng main.cpp: ${files.join(', ')}; bạn không xem được nội dung của chúng (secrets.h chứa mật khẩu Wi-Fi, MQTT), nên giữ nguyên các #include và tên macro code đang dùng từ đó, đừng chép giá trị bí mật vào main.cpp.`
-          : 'Thư mục không có file nguồn nào khác ngoài main.cpp.',
+        `Dự án nằm trong thư mục ${folder}/ của repo: editor mở các file nguồn thật trong thư mục đó (áp dụng code là ghi vào file), mạch lưu ở ${folder}/esp32-lab.json.`,
+        files.length ? `Các file nguồn, build cùng nhau: ${[MAIN_FILE, ...files].join(', ')}.` : 'Hiện chỉ có main.cpp.',
+        ...(secret.length ? [`${secret.join(', ')} chứa mật khẩu (Wi-Fi, MQTT…): bạn chỉ biết tên, không thấy nội dung và không đề xuất sửa; giữ nguyên các #include và tên macro code đang dùng từ đó, đừng chép giá trị bí mật vào file khác.`] : []),
+        'Đổi code thì theo cấu trúc sẵn có: đề xuất đúng file chứa phần cần đổi, mỗi file toàn bộ nội dung mới; đừng gộp hết vào main.cpp. Khi main.cpp dài hay có một phần tách bạch (Wi-Fi, MQTT, cảm biến…), có thể tách ra file mới như wifi.h + wifi.cpp rồi #include "wifi.h", nhớ đề xuất cả main.cpp đã bỏ phần đó. Không có thư mục con.',
         'Code này cũng được nạp vào board ESP32 thật: trình giả lập không có Wi-Fi/Bluetooth, nên phần mạng chỉ chạy trên board thật.',
       );
     }
@@ -604,7 +617,14 @@ class Assistant {
   }
 
   apply(entry: Extract<Entry, { kind: 'code' }>) {
-    lab.setCode(entry.code);
+    const file = entry.file ?? MAIN_FILE;
+    const bad = file === MAIN_FILE ? null : (proposalFileError(file) ?? lab.setFile(file, entry.code));
+    if (bad) {
+      this.entries.push({ kind: 'error', text: `Không áp dụng được vào ${file}: ${bad}` });
+      return;
+    }
+    if (file === MAIN_FILE) lab.setCode(entry.code);
+    lab.activeFile = file;
     entry.applied = true;
     this.save();
   }
@@ -725,7 +745,7 @@ class Assistant {
     const system = fingerprint(SYSTEM_CLI);
     const earlier = this.session && this.sessionSystem !== system ? recap(this.entries) : '';
     if (earlier) this.session = null;
-    if (check) question = `<check>\n${check}\n</check>\nĐề xuất mạch vừa rồi chưa hiện cho người dùng (nên chưa có nút áp dụng) vì lab không ráp được hoặc kiểm tra từng linh kiện thấy các lỗi trên. Gửi lại khối json circuit đã sửa đúng các lỗi đó (và khối cpp main.cpp nếu code phải đổi theo).`;
+    if (check) question = `<check>\n${check}\n</check>\nĐề xuất mạch vừa rồi chưa hiện cho người dùng (nên chưa có nút áp dụng) vì lab không ráp được hoặc kiểm tra từng linh kiện thấy các lỗi trên. Gửi lại khối json circuit đã sửa đúng các lỗi đó (và các khối cpp của file nào phải đổi theo).`;
     else this.entries.push({ kind: 'user', text: question });
     this.busy = true;
     this.waiting = true;
@@ -789,8 +809,8 @@ class Assistant {
     const marks = [...t.matchAll(/<highlight>([^<]*)<\/highlight>/g)].flatMap((m) => m[1]!.split(',').map((x) => x.trim()).filter(Boolean));
     t = t.replace(/\n?<highlight>[^<]*<\/highlight>/g, '');
     if (marks.length) lab.emphasis = emphasis(marks);
-    const block = /```cpp main\.cpp\n([\s\S]*?)```/.exec(t);
-    if (block) t = t.replace(block[0], '');
+    const blocks = [...t.matchAll(/```cpp ([A-Za-z0-9_][A-Za-z0-9_.-]*\.(?:cpp|c|hpp|h))\n([\s\S]*?)```/g)];
+    for (const b of blocks) t = t.replace(b[0], '');
     const circuit = /```json circuit\n([\s\S]*?)```/.exec(t);
     let fix: string | null = null;
     if (circuit) {
@@ -813,7 +833,14 @@ class Assistant {
     }
     entry.text = t.trim();
     // Code written for a circuit sent back comes again with the fixed one
-    if (block?.[1]?.trim() && !fix) this.entries.push({ kind: 'code', summary: 'main.cpp mới do trợ lý đề xuất', code: block[1], applied: false });
+    if (!fix) {
+      for (const [, file, text] of blocks) {
+        if (!text!.trim()) continue;
+        const bad = proposalFileError(file!);
+        if (bad) this.entries.push({ kind: 'error', text: `Không hiện đề xuất cho ${file}: ${bad}` });
+        else this.entries.push({ kind: 'code', summary: `${file} mới do trợ lý đề xuất`, code: text!, ...(file !== MAIN_FILE && { file }), applied: false });
+      }
+    }
     return fix;
   }
 
@@ -860,7 +887,10 @@ class Assistant {
         if (typeof input.code !== 'string' || !input.code.trim() || typeof input.summary !== 'string') {
           return result(JSON.stringify({ INVALID_JSON: JSON.stringify(input) }), true);
         }
-        this.entries.push({ kind: 'code', summary: input.summary, code: input.code, applied: false });
+        const file = typeof input.file === 'string' && input.file.trim() ? input.file.trim() : MAIN_FILE;
+        const bad = proposalFileError(file);
+        if (bad) return result(bad, true);
+        this.entries.push({ kind: 'code', summary: input.summary, code: input.code, ...(file !== MAIN_FILE && { file }), applied: false });
         return result('Đã hiện đề xuất cho người dùng; họ sẽ tự quyết định có áp dụng không.');
       }
       default:
@@ -907,6 +937,15 @@ export function lookup(name: string, input: Record<string, unknown>, board: Boar
 }
 
 /** The conversation so far as text, for a new Claude Code session to go on from. */
+/** Why the assistant may not propose this file, or null if it may. */
+function proposalFileError(file: string): string | null {
+  if (file === MAIN_FILE) return null;
+  if (!lab.multiFile) return 'Dự án này chỉ có main.cpp (không lưu trong một thư mục của repo): hãy đề xuất main.cpp.';
+  if (isSecretFile(file)) return `${file} chứa mật khẩu: không đề xuất sửa file này.`;
+  if (!isSourceName(file)) return 'Tên file chỉ gồm chữ, số, _ . - và có đuôi .h, .hpp, .c hoặc .cpp, không có thư mục.';
+  return null;
+}
+
 function recap(entries: Entry[]): string {
   const said = entries.flatMap((e) => (e.kind === 'user' ? [`Người dùng: ${e.text}`] : e.kind === 'assistant' ? [`Trợ lý: ${e.text}`] : []));
   const lines = said.slice(-8).map((t) => (t.length > 800 ? `${t.slice(0, 800)}…` : t));

@@ -142,14 +142,14 @@
           <div class="tool"><Icon name="probe" size={12} />{e.text}</div>
         {:else if e.kind === 'code'}
           <div class="proposal">
-            <div class="head"><Icon name="edit" size={14} /><span>{e.summary}</span></div>
+            <div class="head"><Icon name="edit" size={14} /><span><code class="file">{e.file ?? 'main.cpp'}</code> {e.summary}</span></div>
             {#if open.includes(i)}<pre>{e.code}</pre>{/if}
             <div class="row">
               <button onclick={() => (open = open.includes(i) ? open.filter((x) => x !== i) : [...open, i])}>{open.includes(i) ? 'Ẩn code' : 'Xem code'}</button>
               {#if e.applied}
-                <span class="done"><Icon name="check" size={14} />Đã đưa vào editor</span>
+                <span class="done"><Icon name="check" size={14} />Đã đưa vào {e.file ?? 'main.cpp'}</span>
               {:else}
-                <button class="primary" onclick={() => { ai.apply(e); layout.reveal('code'); }}>Áp dụng vào editor</button>
+                <button class="primary" onclick={() => { ai.apply(e); layout.reveal('code'); }}>{e.file && lab.fileText(e.file) === undefined ? `Tạo ${e.file}` : `Áp dụng vào ${e.file ?? 'main.cpp'}`}</button>
               {/if}
             </div>
           </div>
@@ -232,6 +232,7 @@
   .proposal { border: 1px solid var(--line); background: var(--surface); box-shadow: inset 3px 0 0 var(--signal); padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-md); }
   .proposal .head { display: flex; gap: 6px; align-items: flex-start; }
   .proposal .head :global(.ico) { margin-top: 2px; color: var(--signal); flex: 0 0 auto; }
+  .proposal .head .file { font: 600 11.5px var(--font-mono); padding: 0 4px; background: var(--surface-2); border: 1px solid var(--line); }
   .proposal pre { max-height: 260px; }
   .proposal ul { margin: 0; padding-left: 18px; font-size: var(--fs-sm); color: var(--ink-2); line-height: 1.45; }
   .proposal .check { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 3px; }

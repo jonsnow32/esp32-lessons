@@ -12,14 +12,15 @@
 //
 // Linked folders (see folders.ts), a sketch kept in its own folder of the course:
 //   GET  /api/folders                     every linked folder: [{ path, title, updated }]
-//   GET  /api/folder?path=…               { title, project, code }
-//   PUT  /api/folder           { path, title?, project?, code? }   write what changed
+//   GET  /api/folder?path=…               { title, project, code, files: { name: text } }
+//   PUT  /api/folder           { path, title?, project?, code?, files? }   write what changed;
+//                                         files: { name: text | null } (null deletes the file)
 //   DELETE /api/folder?path=…             unlink: esp32-lab.json goes, main.cpp and the rest stay
 //   GET  /api/folder/check?path=…         can a new project live there: { ok, path, exists, hasCode } | { ok: false, error }
 //   POST /api/folder/link      { path, title, project, code }   a new project in that folder
 //                                         (its main.cpp kept if there is one): { path, title, project, code, files }
-// /api/build and /api/device/upload take { folder } too: the folder's other sources (secrets.h…)
-// are built next to the code.
+// /api/build and /api/device/upload take { folder, files? } too: the folder's other sources
+// (secrets.h…) are built next to the code, as the editor has them (files) or else as on disk.
 //
 // A real ESP32 on USB (see device.ts):
 //   GET  /api/device/ports                serial ports, likely boards first
@@ -42,7 +43,7 @@ import { homedir } from 'node:os';
 import { join, normalize, relative } from 'node:path';
 import libraries from '../libraries.json';
 import { listPorts, pythonFor, SerialLine } from './device';
-import { checkNewFolder, findFolders, folderPath, folderSources, linkFolder, readFolder, unlinkFolder, writeFolder } from './folders';
+import { checkNewFolder, findFolders, folderPath, folderSources, isSourceName, linkFolder, readFolder, unlinkFolder, writeFolder } from './folders';
 import { PROBE_CPP, PROBE_FILE } from './probe';
 
 export interface LabServerOptions {
@@ -59,6 +60,8 @@ export interface LabServerOptions {
 }
 
 export interface BuildError {
+  /** The source it is in: main.cpp, or another file of a linked folder. */
+  file: string;
   line: number;
   column: number;
   severity: 'error' | 'warning';
@@ -155,13 +158,22 @@ if version:
             subprocess.Popen([env.subst("$PYTHONEXE"), "-c", install, version, part, lib], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 `;
 
-/** GCC diagnostics for src/main.cpp. */
+/** GCC diagnostics for the sources in src/ (main.cpp and a linked folder's others). */
 export function parseErrors(log: string): BuildError[] {
   const out: BuildError[] = [];
-  const re = /(?:^|[\s/\\])src[/\\]main\.cpp:(\d+):(\d+): (fatal error|error|warning): (.*)$/gm;
+  // src/… relative or …/sketch/src/… absolute; not a library's own src/ (.pio/libdeps/sketch/<lib>/src/…)
+  const re = /(?:^|\s)(?:\S*[/\\]sketch[/\\])?src[/\\]([A-Za-z0-9_][A-Za-z0-9_.-]*\.(?:cpp|c|hpp|h)):(\d+):(\d+): (fatal error|error|warning): (.*)$/gm;
   for (let m = re.exec(log); m; m = re.exec(log)) {
-    out.push({ line: Number(m[1]), column: Number(m[2]), severity: m[3] === 'warning' ? 'warning' : 'error', message: m[4]! });
+    out.push({ file: m[1]!, line: Number(m[2]), column: Number(m[3]), severity: m[4] === 'warning' ? 'warning' : 'error', message: m[5]! });
   }
+  return out;
+}
+
+/** The `files` of a request body: name → text, plain source names only; undefined if none sent. */
+function bodyFiles(v: unknown): Record<string, string> | undefined {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const out: Record<string, string> = {};
+  for (const [n, t] of Object.entries(v)) if (isSourceName(n) && typeof t === 'string') out[n] = t;
   return out;
 }
 
@@ -180,7 +192,7 @@ export function labServer(opts: LabServerOptions) {
     if (!existsSync(path) || readFileSync(path, 'utf8') !== text) writeFileSync(path, text);
   }
 
-  function prepare(code: string, folder?: string) {
+  function prepare(code: string, folder?: string, files?: Record<string, string>) {
     const src = join(project, 'src');
     mkdirSync(src, { recursive: true });
     // Every library, whatever the sketch includes: a platformio.ini that changes makes PlatformIO
@@ -205,9 +217,10 @@ export function labServer(opts: LabServerOptions) {
     keep(join(project, 'fast_bin.py'), FAST_BIN);
     mkdirSync(join(project, 'probe'), { recursive: true });
     keep(join(project, 'probe', PROBE_FILE), PROBE_CPP);
-    // A linked folder's other sources next to the code; nothing left from another sketch's
+    // A linked folder's other sources next to the code (as the editor has them, else from disk);
+    // nothing left from another sketch's
     const dir = folder ? folderPath(opts.projectRoot, folder) : null;
-    const extra = dir ? folderSources(dir) : {};
+    const extra = dir ? (files ?? folderSources(dir)) : {};
     for (const n of readdirSync(src)) if (n !== 'main.cpp' && !(n in extra)) rmSync(join(src, n), { recursive: true, force: true });
     for (const [n, text] of Object.entries(extra)) keep(join(src, n), text);
     writeFileSync(join(src, 'main.cpp'), code);
@@ -216,12 +229,12 @@ export function labServer(opts: LabServerOptions) {
   /**
    * Compile a sketch; the pio log goes to `output` as it comes. Null while another build runs.
    * `upload`: then flash it to the board on that port (`live`: with the probe). `folder`: a linked
-   * folder whose other sources it is built with.
+   * folder whose other sources it is built with; `files`: those sources as the editor has them.
    */
-  function build(code: string, output: (text: string) => void, upload?: { port: string; live: boolean }, folder?: string): Promise<BuildResult> | null {
+  function build(code: string, output: (text: string) => void, upload?: { port: string; live: boolean }, folder?: string, files?: Record<string, string>): Promise<BuildResult> | null {
     if (building) return null;
     building = true;
-    prepare(code, folder);
+    prepare(code, folder, files);
     const started = Date.now();
     let log = '';
     const args = upload
@@ -290,17 +303,19 @@ export function labServer(opts: LabServerOptions) {
     req.on('end', () => {
       let code: string;
       let folder: string | undefined;
+      let files: Record<string, string> | undefined;
       try {
         const json = JSON.parse(body);
         code = String(json.code ?? '');
         folder = typeof json.folder === 'string' ? json.folder : undefined;
+        files = bodyFiles(json.files);
       } catch {
         res.statusCode = 400;
         return res.end('bad request');
       }
       res.setHeader('content-type', 'text/plain; charset=utf-8');
       res.setHeader('cache-control', 'no-store');
-      const done = build(code, (text) => res.write(text), undefined, folder);
+      const done = build(code, (text) => res.write(text), undefined, folder, files);
       if (!done) {
         res.statusCode = 409;
         return res.end('Đang build, chờ lần build trước xong.');
@@ -346,7 +361,7 @@ export function labServer(opts: LabServerOptions) {
         res.setHeader('content-type', 'text/plain; charset=utf-8');
         res.setHeader('cache-control', 'no-store');
         const folder = typeof body.folder === 'string' ? body.folder : undefined;
-        const done = build(String(body.code ?? ''), (text) => res.write(text), { port, live: !!body.live }, folder);
+        const done = build(String(body.code ?? ''), (text) => res.write(text), { port, live: !!body.live }, folder, bodyFiles(body.files));
         if (!done) {
           res.statusCode = 409;
           return res.end('Đang build, chờ lần build trước xong.');
@@ -437,6 +452,7 @@ export function labServer(opts: LabServerOptions) {
           title: typeof body.title === 'string' ? body.title : undefined,
           project: body.project ?? undefined,
           code: typeof body.code === 'string' ? body.code : undefined,
+          files: body.files && typeof body.files === 'object' && !Array.isArray(body.files) ? (body.files as Record<string, string | null>) : undefined,
         });
         res.end('ok');
       });

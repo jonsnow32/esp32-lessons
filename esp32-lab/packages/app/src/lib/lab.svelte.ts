@@ -20,10 +20,24 @@ import { arrange } from './arrange';
 import { duplicate, sameItem, shiftGroup, type Item } from './group';
 
 export interface BuildError {
+  /** The source it is in: main.cpp, or another file of a linked folder. */
+  file: string;
   line: number;
   column: number;
   severity: 'error' | 'warning';
   message: string;
+}
+
+/** The editor's main file; a linked folder's other sources are in `lab.files`. */
+export const MAIN_FILE = 'main.cpp';
+/** A name another source beside main.cpp may have: plain, no folders (as lab-server isSourceName). */
+export const isSourceName = (name: string) => name !== MAIN_FILE && /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}\.(h|hpp|c|cpp)$/.test(name);
+/** Holds passwords (secrets.h…): open in the editor, never sent to the assistant. */
+export const isSecretFile = (name: string) => /secret|passw|credential/i.test(name);
+
+/** Starting text of a new source file. */
+function newFileText(name: string): string {
+  return /\.(h|hpp)$/.test(name) ? '#pragma once\n\n#include <Arduino.h>\n\n' : `#include <Arduino.h>\n\n`;
 }
 
 const DEFAULT_SKETCH = `// Viết code Arduino ở đây rồi bấm ▶ Build & Run
@@ -128,6 +142,12 @@ function hashCode(text: string): string {
   return (h >>> 0).toString(36);
 }
 
+/** The fingerprint of main.cpp and the other sources built with it. */
+function hashSources(code: string, files: Record<string, string>): string {
+  const names = Object.keys(files).sort();
+  return hashCode(names.length ? [code, ...names.flatMap((n) => [n, files[n]!])].join('\0') : code);
+}
+
 const wsKey = (id: string) => `esp32lab.ws.${id}`;
 
 /** A linked folder as the server lists it (see lab-server folders.ts). */
@@ -140,8 +160,8 @@ interface LinkedFolder {
 /** The id a linked folder goes by, also in the address bar: home-server/esp32-mqtt → my-dir-home-server-esp32-mqtt. */
 const folderId = (path: string) => `my-dir-${path.replace(/[^A-Za-z0-9_-]+/g, '-')}`;
 
-/** What to write to a linked folder: main.cpp, the circuit, the title. */
-type FolderChange = { title?: string; project?: Project; code?: string };
+/** What to write to a linked folder: main.cpp, other sources (null: delete), the circuit, the title. */
+type FolderChange = { title?: string; project?: Project; code?: string; files?: Record<string, string | null> };
 
 /** How long after the last change a linked folder's files are written. */
 const FOLDER_WRITE_MS = 400;
@@ -287,8 +307,24 @@ class Lab {
   private diskCode: string | null = null;
   /** The linked folder's circuit as opened, for "back to how it was". */
   private folderStart: Project | null = null;
-  /** The linked folder's other sources built with main.cpp (secrets.h…), by name. */
-  folderFiles = $state<string[]>([]);
+  /** The linked folder's other sources as last read or written: name → text. */
+  private diskFiles: Record<string, string> = {};
+  /** The linked folder's other sources as opened, for "back to how it was". */
+  private originalFiles: Record<string, string> = {};
+  /** The linked folder's other sources built with main.cpp (secrets.h…), as in the editor: name → text. */
+  files = $state<Record<string, string>>({});
+  /** The file shown in the editor: main.cpp or one of `files`. */
+  activeFile = $state(MAIN_FILE);
+
+  /** The linked folder's other sources, by name. */
+  get folderFiles(): string[] {
+    return Object.keys(this.files).sort();
+  }
+
+  /** Can this project have files besides main.cpp (a linked folder the server could read)? */
+  get multiFile(): boolean {
+    return !!this.mine?.folder && this.diskCode !== null;
+  }
 
   constructor() {
     this.worker = new Worker(new URL('../sim/worker.ts', import.meta.url), { type: 'module' });
@@ -431,7 +467,17 @@ class Lab {
     const mine = this.mine;
     if (mine) this.updateMyProjects(this.myProjects.map((p) => (p.id === mine.id ? { ...p, updated: Date.now() } : p)));
     // Into the folder only what changed: opening it writes nothing
-    if (mine?.folder && changed) this.writeFolder(mine.folder, { project, code: this.code });
+    if (mine?.folder) {
+      const files = this.changedFiles();
+      if (changed || files) this.writeFolder(mine.folder, { ...(changed && { project, code: this.code }), ...(files && { files }) });
+    }
+  }
+
+  /** The other sources edited in the lab since last read or written, or null. */
+  private changedFiles(): Record<string, string> | null {
+    const out: Record<string, string> = {};
+    for (const [n, t] of Object.entries(this.files)) if (this.diskFiles[n] !== t) out[n] = t;
+    return Object.keys(out).length ? out : null;
   }
 
   // --- Linked folders ----------------------------------------------------------------------
@@ -464,12 +510,12 @@ class Lab {
   }
 
   /** A linked folder's circuit and code from disk, or null if the server cannot give them. */
-  private async readFolder(path: string): Promise<(Workspace & { files: string[] }) | null> {
+  private async readFolder(path: string): Promise<(Workspace & { files: Record<string, string> }) | null> {
     try {
       const r = await fetch(`/api/folder?path=${encodeURIComponent(path)}`, { cache: 'no-store' });
       if (!r.ok) return null;
-      const c = (await r.json()) as { project: Project | null; code: string; files?: string[] };
-      return { project: c.project ?? emptyProject(), code: c.code, passed: [], files: c.files ?? [] };
+      const c = (await r.json()) as { project: Project | null; code: string; files?: Record<string, string> };
+      return { project: c.project ?? emptyProject(), code: c.code, passed: [], files: c.files && !Array.isArray(c.files) ? c.files : {} };
     } catch {
       return null;
     }
@@ -479,8 +525,13 @@ class Lab {
   private writeFolder(path: string, change: FolderChange) {
     const prev = this.folderWrite;
     if (prev) clearTimeout(prev.timer);
-    const merged = { ...prev?.change, ...change };
+    const files = prev?.change.files || change.files ? { ...prev?.change.files, ...change.files } : undefined;
+    const merged = { ...prev?.change, ...change, ...(files && { files }) };
     if (typeof change.code === 'string') this.diskCode = change.code;
+    for (const [n, t] of Object.entries(change.files ?? {})) {
+      if (t === null) delete this.diskFiles[n];
+      else this.diskFiles[n] = t;
+    }
     const send = () => {
       this.folderWrite = null;
       void fetch('/api/folder', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, ...merged }) })
@@ -500,19 +551,104 @@ class Lab {
     w.send();
   }
 
-  /** main.cpp of the linked folder on the bench changed on disk (another editor): take it, unless the lab has edits not yet written. */
+  /**
+   * Sources of the linked folder on the bench changed on disk (another editor): take each one,
+   * files added or deleted there too, unless the lab has edits to it not yet written.
+   */
   async reloadFolderCode() {
     const mine = this.mine;
     if (!mine?.folder || this.folderWrite || this.diskCode === null) return;
     const id = mine.id;
     const disk = await this.readFolder(mine.folder);
-    if (!disk || this.route !== id || this.folderWrite || disk.code === this.diskCode) return;
-    if (this.code !== this.diskCode) return;
-    this.diskCode = disk.code;
-    this.code = disk.code;
-    this.originalCode = disk.code;
+    if (!disk || this.route !== id || this.folderWrite) return;
+    const taken: string[] = [];
+    if (disk.code !== this.diskCode && this.code === this.diskCode) {
+      this.diskCode = disk.code;
+      this.code = disk.code;
+      this.originalCode = disk.code;
+      taken.push(MAIN_FILE);
+    }
+    for (const n of new Set([...Object.keys(disk.files), ...Object.keys(this.diskFiles)])) {
+      const was = this.diskFiles[n];
+      const now = disk.files[n];
+      if (was === now || this.files[n] !== was) continue;
+      if (now === undefined) {
+        delete this.files[n];
+        delete this.diskFiles[n];
+        delete this.originalFiles[n];
+        if (this.activeFile === n) this.activeFile = MAIN_FILE;
+      } else {
+        this.files[n] = now;
+        this.diskFiles[n] = now;
+        this.originalFiles[n] = now;
+      }
+      taken.push(n);
+    }
+    if (!taken.length) return;
     this.save();
-    this.notice = `main.cpp trong ${mine.folder} vừa được sửa ở ngoài lab: mình đã nạp lại code mới.`;
+    this.notice = `${taken.join(', ')} trong ${mine.folder} vừa được sửa ở ngoài lab: mình đã nạp lại.`;
+  }
+
+  /** The text of a source in the editor: main.cpp or another file of the linked folder. */
+  fileText(name: string): string | undefined {
+    return name === MAIN_FILE ? this.code : this.files[name];
+  }
+
+  /** Edit a source: main.cpp, or another file of the linked folder (made if it is not there yet). */
+  setFile(name: string, text: string): string | null {
+    if (name === MAIN_FILE) {
+      this.setCode(text);
+      return null;
+    }
+    if (!(name in this.files)) return this.addFile(name, text);
+    this.files[name] = text;
+    this.save();
+    return null;
+  }
+
+  /** Why a new source cannot have this name, or null if it can. */
+  checkFileName(name: string, except?: string): string | null {
+    if (!this.multiFile) return 'Chỉ dự án lưu trong một thư mục của repo mới có nhiều file.';
+    if (!isSourceName(name)) return 'Tên file chỉ gồm chữ, số, _ . - và có đuôi .h, .hpp, .c hoặc .cpp (không có thư mục).';
+    if (name !== except && (name in this.files || name.toLowerCase() === MAIN_FILE)) return `Đã có file ${name}.`;
+    return null;
+  }
+
+  /** A new source beside main.cpp, opened in the editor. Null, or why it cannot be made. */
+  addFile(name: string, text = newFileText(name)): string | null {
+    const bad = this.checkFileName(name);
+    if (bad) return bad;
+    this.files[name] = text;
+    this.activeFile = name;
+    this.save();
+    return null;
+  }
+
+  /** Delete a source of the linked folder, on disk too. */
+  removeFile(name: string) {
+    const folder = this.mine?.folder;
+    if (!folder || !(name in this.files)) return;
+    delete this.files[name];
+    delete this.originalFiles[name];
+    if (this.activeFile === name) this.activeFile = MAIN_FILE;
+    this.writeFolder(folder, { files: { [name]: null } });
+    this.flushFolder();
+  }
+
+  /** Rename a source of the linked folder, on disk too (the #include lines that use it stay as they are). */
+  renameFile(from: string, to: string): string | null {
+    const folder = this.mine?.folder;
+    if (!folder || !(from in this.files)) return null;
+    if (from === to) return null;
+    const bad = this.checkFileName(to, from);
+    if (bad) return bad;
+    const text = this.files[from]!;
+    delete this.files[from];
+    this.files[to] = text;
+    if (this.activeFile === from) this.activeFile = to;
+    this.writeFolder(folder, { files: { [from]: null, [to]: text } });
+    this.flushFolder();
+    return null;
   }
 
   /** Carry on in a new project of the user's own, with the bench, code and history as they are. */
@@ -1074,7 +1210,10 @@ class Lab {
     const disk = linked ? await this.readFolder(linked) : null;
     if (disk) localStorage.setItem(wsKey(id), JSON.stringify({ project: disk.project, code: disk.code, passed: [] } satisfies Workspace));
     else if (linked) this.notice = `Không đọc được thư mục ${linked} (server của lab có đang chạy?): đang mở bản lưu trong trình duyệt, sửa sẽ không vào thư mục.`;
-    this.folderFiles = disk?.files ?? [];
+    this.files = disk ? { ...disk.files } : {};
+    this.diskFiles = disk ? { ...disk.files } : {};
+    this.originalFiles = disk ? { ...disk.files } : {};
+    this.activeFile = MAIN_FILE;
     this.diskCode = disk?.code ?? null;
     this.folderStart = disk ? structuredClone(disk.project) : null;
     const lesson = LESSONS.find((l) => l.id === id);
@@ -1114,6 +1253,8 @@ class Lab {
     this.stopProgram();
     this.project = structuredClone(lesson?.template ?? this.source?.project ?? this.mine?.start ?? (this.mine?.folder ? this.folderStart : null) ?? emptyProject());
     this.code = this.originalCode ?? DEFAULT_SKETCH;
+    // A linked folder's other sources as opened; files added since stay
+    if (this.mine?.folder) for (const [n, t] of Object.entries(this.originalFiles)) this.files[n] = t;
     this.selection = null;
     this.build = { status: 'idle', log: '', ms: 0, errors: [] };
     this.commit();
@@ -1146,7 +1287,12 @@ class Lab {
   /** The editor's code differs from what the board is running. */
   get codeChanged(): boolean {
     const p = this.program;
-    return p.kind === 'none' || p.codeHash !== hashCode(this.code);
+    return p.kind === 'none' || p.codeHash !== hashSources(this.code, this.buildFiles() ?? {});
+  }
+
+  /** The other sources to build with, as the editor has them: a linked folder's, else none. */
+  private buildFiles(): Record<string, string> | undefined {
+    return this.multiFile ? ($state.snapshot(this.files) as Record<string, string>) : undefined;
   }
 
   setCode(code: string) {
@@ -1179,7 +1325,7 @@ class Lab {
       // The code is the lesson's own sketch: reuse `pio run -e lessonNN`'s output if it's current
       const fresh = await fetch(`/pio/${env}/fresh?src=${encodeURIComponent(lesson.sketch)}`).then((r) => r.json()).catch(() => ({ fresh: false }));
       if (fresh.fresh && (await this.loadFirmwareFrom(`/pio/${env}`, env))) {
-        this.program = { kind: 'prebuilt', env, codeHash: hashCode(this.code), at: Date.now() };
+        this.program = { kind: 'prebuilt', env, codeHash: hashSources(this.code, {}), at: Date.now() };
         return;
       }
     }
@@ -1212,9 +1358,10 @@ class Lab {
   /** Compile the editor's code with PlatformIO, then boot it if it built. */
   private async buildAndRun() {
     const code = this.code;
+    const files = this.buildFiles();
     this.build = { status: 'building', log: '', ms: 0, errors: [] };
     try {
-      const r = await fetch('/api/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, folder: this.mine?.folder }) });
+      const r = await fetch('/api/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, folder: this.mine?.folder, files }) });
       if (!r.ok || !r.body) throw new Error(await r.text());
       const reader = r.body.getReader();
       const decoder = new TextDecoder();
@@ -1229,7 +1376,7 @@ class Lab {
       const result = m ? (JSON.parse(m[1]!) as { ok: boolean; ms: number; errors: BuildError[] }) : { ok: false, ms: 0, errors: [] };
       this.build = { status: result.ok ? 'ok' : 'failed', log: this.build.log, ms: result.ms, errors: result.errors };
       if (result.ok && (await this.loadFirmwareFrom('/api/build/out', 'sketch'))) {
-        this.program = { kind: 'sketch', codeHash: hashCode(code), at: Date.now(), ms: result.ms };
+        this.program = { kind: 'sketch', codeHash: hashSources(code, files ?? {}), at: Date.now(), ms: result.ms };
       }
     } catch (e) {
       this.build = { status: 'failed', log: `${this.build.log}\n${e instanceof Error ? e.message : String(e)}`, ms: 0, errors: [] };
@@ -1305,7 +1452,7 @@ class Lab {
       const r = await fetch('/api/device/upload', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ code: this.code, port: d.port, live, folder: this.mine?.folder }),
+        body: JSON.stringify({ code: this.code, port: d.port, live, folder: this.mine?.folder, files: this.buildFiles() }),
       });
       if (!r.ok || !r.body) throw new Error(await r.text());
       const reader = r.body.getReader();
