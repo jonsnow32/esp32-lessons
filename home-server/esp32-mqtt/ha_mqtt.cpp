@@ -58,14 +58,17 @@ static void onMessage(char *topic, byte *payload, unsigned int length) {
 }
 
 static void connectMqtt(unsigned long now) {
-  if (!hasRadio() || mqtt.connected() || WiFi.status() != WL_CONNECTED) return;
+  if (mqtt.connected() || WiFi.status() != WL_CONNECTED) return;
   // Not time yet? Return right away – never block the loop
   if (now - lastRetryTime < RETRY_INTERVAL && lastRetryTime != 0) return;
   lastRetryTime = now;
 
   Serial.print("MQTT connecting... ");
   // Last Will: if we vanish (power cut, Wi-Fi lost) the broker publishes "offline" for us
-  if (mqtt.connect(MQTT_USER, MQTT_USER, MQTT_PASSWORD, AVAIL_TOPIC, 1, true, "offline")) {
+  // On the emulator: its own client id (the real board keeps its session) and no password
+  bool lab = onEmulator();
+  if (mqtt.connect(lab ? MQTT_USER "-lab" : MQTT_USER, lab ? nullptr : MQTT_USER, lab ? nullptr : MQTT_PASSWORD,
+                   AVAIL_TOPIC, 1, true, "offline")) {
     // Below about -75 dBm the link drops often: move the board or the router closer
     Serial.printf("ok (Wi-Fi %d dBm)\n", WiFi.RSSI());
     mqtt.publish(AVAIL_TOPIC, "online", true);
@@ -79,7 +82,7 @@ static void connectMqtt(unsigned long now) {
 }
 
 void haBegin() {
-  mqtt.setServer(MQTT_HOST, MQTT_PORT);
+  mqtt.setServer(onEmulator() ? LAB_MQTT_HOST : MQTT_HOST, MQTT_PORT);
   mqtt.setCallback(onMessage);
   mqtt.setBufferSize(512);  // the discovery configs are bigger than the default 256 bytes
   // Default 15 s: the broker gives up after 22 s without a ping. 60 s rides out short Wi-Fi hiccups;
@@ -89,15 +92,15 @@ void haBegin() {
 
 void haLoop(unsigned long now) {
   connectMqtt(now);
-  if (hasRadio()) mqtt.loop();
+  mqtt.loop();
 }
 
 void haPublishLed(bool on) {
-  if (hasRadio()) mqtt.publish(STATE_TOPIC, on ? "ON" : "OFF", true);
+  mqtt.publish(STATE_TOPIC, on ? "ON" : "OFF", true);
 }
 
 void haPublishSoil(float moisture, int raw) {
-  if (!hasRadio() || !mqtt.connected()) return;
+  if (!mqtt.connected()) return;
   char payload[64];
   snprintf(payload, sizeof(payload), "{\"moisture\":%.0f,\"raw\":%d}", moisture, raw);
   mqtt.publish(SOIL_TOPIC, payload);

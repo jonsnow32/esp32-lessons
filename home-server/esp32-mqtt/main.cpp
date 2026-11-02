@@ -5,8 +5,9 @@
 //   led.*         the LED, its state kept in flash
 //   button.*      BOOT button toggles the LED
 //   soil.*        soil moisture readings
-//   wifi_conn.*   Wi-Fi (none on ESP32 Lab's emulator)
-//   ha_mqtt.*     MQTT + Home Assistant discovery
+//   wifi_conn.*   Wi-Fi
+//   ha_mqtt.*     MQTT + Home Assistant discovery (on ESP32 Lab's emulator: a test broker
+//                 on the computer instead, so the real board and Home Assistant are left alone)
 #include <Arduino.h>
 
 #include "button.h"
@@ -20,7 +21,7 @@ void setup() {
   ledBegin();
   buttonBegin();
   soilBegin();
-  if (!wifiBegin()) return;  // the emulator: LED, BOOT and soil sensor only
+  wifiBegin();
   haBegin();
 }
 

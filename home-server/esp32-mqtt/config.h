@@ -11,6 +11,10 @@ constexpr int SOIL_PIN = 34;   // soil sensor AOUT – must be ADC1 (GPIO32–39
 constexpr int SOIL_DRY_RAW = 2800;  // raw value when dry  -> 0 %
 constexpr int SOIL_WET_RAW = 1200;  // raw value in water  -> 100 %
 
+// ESP32 Lab's emulator talks to a test broker on the computer running the lab (10.0.2.2 there),
+// e.g. mosquitto, as MQTT_USER "-lab" without a password – never to the home server
+#define LAB_MQTT_HOST "10.0.2.2"
+
 constexpr unsigned long RETRY_INTERVAL = 5000;    // try the broker again every 5 s
 constexpr unsigned long DEBOUNCE_MS = 50;
 constexpr unsigned long SENSOR_INTERVAL = 10000;  // soil moisture changes slowly: every 10 s is plenty

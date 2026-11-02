@@ -1,5 +1,5 @@
-// Wi-Fi, or none on ESP32 Lab's emulator (it has no radio)
+// Wi-Fi, on the home router or on ESP32 Lab's virtual network (the emulator)
 #pragma once
 
-bool wifiBegin();  // start Wi-Fi; false on the emulator
-bool hasRadio();      // false on the emulator: only the LED, BOOT and soil sensor run there
+void wifiBegin();   // start Wi-Fi; it connects and reconnects by itself
+bool onEmulator();  // running in ESP32 Lab's emulator, not on the real board
