@@ -32,7 +32,10 @@ const TICK = 100 * MS;
  */
 function create(props: SoilMoistureProps, env: PartEnv): PartBehavior {
   let moisture = props.moisture;
-  let stamped = moisture;
+  // The moisture the circuit was last asked to solve with. Not set in stamp(): stamp also runs
+  // outside a solve (the bench's current flow re-stamps every part), and a value set there would
+  // swallow the change without the chip's ADC ever seeing it
+  let applied = moisture;
   let ticking = false;
   let volts = 0;
 
@@ -46,7 +49,6 @@ function create(props: SoilMoistureProps, env: PartEnv): PartBehavior {
     damaged: false,
     stamp(ctx) {
       const k = outputRatio(moisture);
-      stamped = moisture;
       ctx.conductance('vcc', 'aout', 1 / (R_OUT * (1 - k) + R_END));
       ctx.conductance('aout', 'gnd', 1 / (R_OUT * k + R_END));
     },
@@ -59,14 +61,17 @@ function create(props: SoilMoistureProps, env: PartEnv): PartBehavior {
     onEvent(ev) {
       if (ev.kind !== 'timer' || ev.tag !== 'tick') return;
       ticking = false;
-      if (Math.abs(moisture - stamped) > 0.01) env.invalidate();
+      if (Math.abs(moisture - applied) > 0.01) {
+        applied = moisture;
+        env.invalidate();
+      }
       if (props.dryRate > 0 || env.world.get(WATER_FLOW) > 0) tick();
     },
     // A rebuild keeps how wet the pot got, unless the rebuild is the user dragging the prop
     persist: () => ({ moisture, prop: props.moisture }),
     restore(state) {
       const s = state as { moisture: number; prop: number };
-      if (s.prop === props.moisture) moisture = stamped = s.moisture;
+      if (s.prop === props.moisture) moisture = applied = s.moisture;
     },
     observables: () => ({ moisture, volts }),
   };

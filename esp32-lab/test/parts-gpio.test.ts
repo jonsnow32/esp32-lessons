@@ -159,6 +159,22 @@ describe('water pump and soil moisture', () => {
     expect(volts(k, 'c22')).toBeLessThan(before - 0.1);
   });
 
+  it('the circuit follows the drying soil even when the bench reads its currents in between', () => {
+    // The app's worker calls flows() between steps, which stamps every part again outside a solve
+    // The probe alone on the board: nothing else re-solves the circuit
+    const { k } = kernel(project([part('s', 'soil-moisture', 'a20', { moisture: 100, dryRate: 1 })], [wire('w7', hole('e20'), pin('GND.L')), wire('w8', pin('3V3'), hole('e21'))]), () => {});
+    k.solve();
+    const wet = volts(k, 'c22');
+    // Every few ms, as the worker does: each re-stamp alone moves the moisture by less than 0.01 %
+    for (let t = 5; t <= 3000; t += 5) {
+      k.advanceTo(t * MS);
+      k.flows();
+    }
+    expect(Number(k.observables('s').moisture)).toBeCloseTo(97, 0);
+    // 3 % drier: AOUT up by about 3.3 V × 0.46 × 0.03 ≈ 46 mV
+    expect(volts(k, 'c22') - wet).toBeGreaterThan(0.03);
+  });
+
   it('dries out by dryRate, and stays put without it', () => {
     const dry = bench({ moisture: 50, dryRate: 2 }, 'low');
     dry.advanceTo(2000 * MS);
