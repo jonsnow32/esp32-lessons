@@ -11,9 +11,9 @@
 </script>
 
 <section>
-  <h2>Serial Monitor <span>115200 baud · UART0</span></h2>
+  <h2>Serial Monitor <span>115200 baud · UART0{#if lab.device.status === 'live'} · board thật {lab.device.port}{/if}</span></h2>
   <pre bind:this={pre}>{lab.serial || '(chưa có dữ liệu)'}</pre>
-  <form onsubmit={(e) => { e.preventDefault(); lab.send({ type: 'serial-in', text: line + '\n' }); line = ''; }}>
+  <form onsubmit={(e) => { e.preventDefault(); lab.serialIn(line + '\n'); line = ''; }}>
     <input bind:value={line} placeholder="Gửi tới board…" />
   </form>
 </section>

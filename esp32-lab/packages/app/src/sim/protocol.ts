@@ -4,7 +4,7 @@ import type { Note } from '@esp32lab/explain';
 import type { CheckResult } from '@esp32lab/lesson-engine';
 import type { Observable } from '@esp32lab/part-sdk';
 import type { Project } from '@esp32lab/project-model';
-import type { Diagnostic, EdgeKind } from '@esp32lab/sim-core';
+import type { Diagnostic, EdgeKind, PadDrive } from '@esp32lab/sim-core';
 
 /** Current along one physical connection: positive = from `a` to `b` (netlist keys). */
 export interface FlowView {
@@ -34,7 +34,10 @@ export type ToWorker =
   | { type: 'speed'; speed: number }
   | { type: 'press'; part: string; key?: string }
   | { type: 'release'; part: string; key?: string }
-  | { type: 'serial-in'; text: string };
+  | { type: 'serial-in'; text: string }
+  /** Live mode on a real board: its pins drive the circuit instead of the emulator (see live.ts). */
+  | { type: 'live'; on: boolean }
+  | { type: 'live-pins'; pins: Record<string, { drive: PadDrive; level: 0 | 1 }> };
 
 export interface StepResult {
   id: string;

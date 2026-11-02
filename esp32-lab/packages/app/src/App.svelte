@@ -13,6 +13,7 @@
   import SerialMonitor from './components/SerialMonitor.svelte';
   import Workbench from './components/Workbench.svelte';
   import Dock from './components/Dock.svelte';
+  import DevicePanel from './components/DevicePanel.svelte';
   import Icon, { type IconName } from './components/Icon.svelte';
   import TitleInput from './components/TitleInput.svelte';
   import { FREE, lab } from './lib/lab.svelte';
@@ -35,6 +36,8 @@
   let programText = $derived.by(() => {
     const p = lab.program;
     if (lab.build.status === 'building') return { tone: 'busy', text: 'Đang build code của bạn…' };
+    if (lab.device.status === 'uploading') return { tone: 'busy', text: `Đang nạp code vào board thật (${lab.device.port})…` };
+    if (lab.device.status === 'live') return { tone: 'run', text: `Board thật trên ${lab.device.port}: bàn mạch chạy theo chip thật` };
     if (p.kind === 'none') return { tone: 'idle', text: 'Board chưa chạy chương trình nào' };
     const what = p.kind === 'sketch' ? `main.cpp của bạn (build ${time(p.at)})` : p.codeHash ? `code gốc của bài (bản build sẵn ${p.env})` : `bản build sẵn .pio/build/${p.env}`;
     if (lab.codeChanged) return { tone: 'stale', text: `Đang chạy ${what}. Code trong editor đã sửa, chưa build lại` };
@@ -42,7 +45,9 @@
   });
 
   let run = $derived<[IconName, string]>(
-    lab.build.status === 'building'
+    lab.device.status === 'live'
+      ? ['pause', 'Dừng board thật']
+      : lab.build.status === 'building'
       ? ['build', 'Đang build…']
       : lab.codeChanged
         ? ['play', lab.program.kind === 'none' ? 'Chạy' : 'Chạy code mới']
@@ -128,7 +133,8 @@
     </div>
     <div class="transport">
       <button class="primary" disabled={lab.build.status === 'building'} onclick={() => lab.runOrPause()}><Icon name={run[0]} size={14} />{run[1]}</button>
-      <button class="icon-btn" onclick={() => lab.reset()} disabled={lab.program.kind === 'none'} title="Reset: khởi động lại chương trình, như nhấn nút EN" aria-label="Reset"><Icon name="reset" /></button>
+      <button class="icon-btn" onclick={() => lab.reset()} disabled={lab.program.kind === 'none' && lab.device.status !== 'live'} title="Reset: khởi động lại chương trình, như nhấn nút EN" aria-label="Reset"><Icon name="reset" /></button>
+      <DevicePanel />
     </div>
     <div class="tools">
       <div class="docks" role="group" aria-label="Khung">

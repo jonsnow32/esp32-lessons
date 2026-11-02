@@ -45,6 +45,8 @@
     warn: `<path d="M8 2l6.5 11.5h-13z" stroke-linejoin="bevel"/><path d="M8 6.25v3.5"/><circle class="f" cx="8" cy="11.75" r="1"/>`,
     ok: '<path d="M9.5 1.5L4 9h4l-1.5 5.5L12 7H8z"/>',
     info: `<path d="M2.5 2.5h11v11h-11z"/><path d="M8 7v4.5"/><circle class="f" cx="8" cy="4.75" r="1"/>`,
+    // A USB plug with a copper tip: the real board on a cable
+    usb: `<path d="M5.5 6.5h5v4l-1.5 2h-2l-1.5-2z"/><path d="M8 12.5v2"/><path class="a" d="M6.5 6.5v-4h3v4"/>`,
   } as const;
   export type IconName = keyof typeof ICONS;
 </script>

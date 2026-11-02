@@ -14,6 +14,7 @@ import { boardBox, breadboard, breadboardBox, type Box } from './geometry';
 import { loadSettings, saveSettings } from './settings';
 import { TIDY_MODES, tidyWires } from './tidy';
 import { unplugBreadboard } from './wiring';
+import { LiveDecoder } from './live';
 import { applyChange, autoPlug, type CircuitChange } from './autoplug';
 import { arrange } from './arrange';
 import { duplicate, sameItem, shiftGroup, type Item } from './group';
@@ -62,6 +63,22 @@ type Selection = Item | { kind: 'group'; items: Item[] } | null;
 const WIRE_COLORS = ['#e5484d', '#3e63dd', '#30a46c', '#f5d90a', '#f76b15', '#8e4ec6', '#1c2024'];
 
 /** What the emulated board is running, so the UI can always say it plainly. */
+/** A real ESP32 on a USB port (see lab-server/src/device.ts and live.ts). */
+export interface DeviceState {
+  /** The lab's server can reach USB ports (the desktop app, the dev server; not a static web build). */
+  available: boolean;
+  ports: { port: string; description: string; likely: boolean }[];
+  port: string;
+  /** uploading: build and flash; live: the bench follows the real board. */
+  status: 'idle' | 'uploading' | 'connecting' | 'live';
+  /** What the last upload was for. */
+  live: boolean;
+  log: string;
+  /** The probe on the board said hello: it runs a live build. */
+  probe: boolean;
+  error: string | null;
+}
+
 export type Program =
   | { kind: 'none' }
   | { kind: 'sketch'; codeHash: string; at: number; ms: number }
@@ -220,6 +237,9 @@ class Lab {
   steps = $state<StepResult[]>([]);
   halted = $state<string | null>(null);
   serial = $state('');
+  device = $state<DeviceState>({ available: false, ports: [], port: '', status: 'idle', live: false, log: '', probe: false, error: null });
+  /** Ends the live serial line. */
+  private liveAbort: AbortController | null = null;
   error = $state<string | null>(null);
   flows = $state<FlowView[]>([]);
   terminalCurrents = $state<Record<string, Record<string, number>>>({});
@@ -247,8 +267,9 @@ class Lab {
     this.myProjects = loadMyProjects();
     // Keep the user's settings in the browser as they change
     $effect.root(() => {
-      $effect(() => saveSettings({ tidyMode: this.tidyMode, overlay: this.overlay, lockWhileRunning: this.lockWhileRunning }));
+      $effect(() => saveSettings({ wireMode: TIDY_MODES[this.tidyMode]?.id ?? null, overlay: this.overlay, lockWhileRunning: this.lockWhileRunning }));
     });
+    void this.refreshPorts();
     fetch('/pio/envs')
       .then((r) => r.json())
       .then((envs: string[]) => (this.envs = envs))
@@ -725,7 +746,7 @@ class Lab {
   }
 
   /** The tidy mode last applied (an index into TIDY_MODES), -1 before the first. */
-  tidyMode = $state(this.settings.tidyMode < TIDY_MODES.length ? this.settings.tidyMode : -1);
+  tidyMode = $state(TIDY_MODES.findIndex((m) => m.id === this.settings.wireMode));
 
   /** Re-route every wire in the next tidy mode, round and round (see tidy.ts). One undo step. */
   tidyWires() {
@@ -970,6 +991,7 @@ class Lab {
   /** The one Run button: new code always gets built and run; otherwise pause / resume. */
   async runOrPause() {
     if (this.build.status === 'building') return;
+    if (this.device.status === 'live') return this.stopLive();
     if (this.codeChanged) return this.runCode();
     if (this.running) return this.pause();
     this.run();
@@ -1051,6 +1073,11 @@ class Lab {
   }
 
   reset() {
+    if (this.device.status === 'live') {
+      this.serial = '';
+      void fetch('/api/device/serial/reset', { method: 'POST' });
+      return;
+    }
     this.serial = '';
     this.send({ type: 'reset' });
     if (this.running) this.send({ type: 'run' });
@@ -1067,6 +1094,143 @@ class Lab {
 
   release(part: string, key?: string) {
     this.send({ type: 'release', part, key });
+  }
+
+  // --- A real board on USB -------------------------------------------------------------------
+
+  /** The USB serial ports, a likely board picked if none is yet. */
+  async refreshPorts() {
+    try {
+      const r = await fetch('/api/device/ports', { cache: 'no-store' });
+      if (!r.ok || !r.headers.get('content-type')?.includes('json')) throw new Error();
+      const ports = (await r.json()) as DeviceState['ports'];
+      this.device.available = true;
+      this.device.ports = ports;
+      if (!ports.some((p) => p.port === this.device.port)) this.device.port = ports.find((p) => p.likely)?.port ?? ports[0]?.port ?? '';
+    } catch {
+      this.device.available = false;
+    }
+  }
+
+  /**
+   * Build the editor's code and flash it to the board on the chosen port. `live`: with the probe,
+   * then follow the board on the bench. Did it flash?
+   */
+  async uploadToBoard(live: boolean): Promise<boolean> {
+    const d = this.device;
+    // Plugged in after the list was read: look again
+    if (!d.port) await this.refreshPorts();
+    if (!d.port) {
+      d.error = 'Chưa thấy board nào: cắm ESP32 vào cổng USB (cáp có truyền dữ liệu) rồi bấm làm mới.';
+      return false;
+    }
+    if (d.status === 'uploading' || this.build.status === 'building') return false;
+    this.stopLive();
+    Object.assign(d, { status: 'uploading', live, log: '', error: null, probe: false });
+    try {
+      const r = await fetch('/api/device/upload', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ code: this.code, port: d.port, live }),
+      });
+      if (!r.ok || !r.body) throw new Error(await r.text());
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let log = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        log += decoder.decode(value, { stream: true });
+        d.log = log.replace(/\n@@RESULT .*\n?$/, '');
+      }
+      const m = /@@RESULT (.*)/.exec(log);
+      const result = m ? (JSON.parse(m[1]!) as { ok: boolean; errors: BuildError[] }) : { ok: false, errors: [] };
+      d.status = 'idle';
+      if (!result.ok) {
+        d.error = result.errors.some((e) => e.severity === 'error')
+          ? 'Code có lỗi biên dịch: xem log bên dưới.'
+          : /Failed to connect|Wrong boot mode|No serial data|could not open port|Permission denied|Resource busy/i.test(log)
+            ? 'Không nạp được vào board: kiểm tra cáp USB (loại có truyền dữ liệu), đúng cổng, và đóng các chương trình đang mở cổng (Serial Monitor khác). Nếu vẫn lỗi: giữ nút BOOT trong lúc nạp.'
+            : 'Không nạp được vào board: xem log bên dưới.';
+        return false;
+      }
+      if (live) await this.startLive();
+      else this.notice = `Đã nạp code vào board thật (${d.port}).`;
+      return true;
+    } catch (e) {
+      d.status = 'idle';
+      d.error = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  }
+
+  /**
+   * Follow the real board: open its serial line, show its output in the Serial Monitor and drive
+   * the bench from its pins. The board must run a live build (uploadToBoard(true)).
+   */
+  async startLive() {
+    const d = this.device;
+    if (!d.port) return;
+    this.stopLive();
+    // The emulator steps aside: the real chip runs the code now
+    this.send({ type: 'pause' });
+    this.send({ type: 'firmware', firmware: null });
+    this.program = { kind: 'none' };
+    this.serial = '';
+    Object.assign(d, { status: 'connecting', error: null, probe: false });
+    const abort = new AbortController();
+    this.liveAbort = abort;
+    const port = d.port;
+    // From the start, so the Serial Monitor shows the boot too (and a quiet board speaks up)
+    setTimeout(() => this.liveAbort === abort && void fetch('/api/device/serial/reset', { method: 'POST' }), 300);
+    try {
+      const r = await fetch(`/api/device/serial?port=${encodeURIComponent(port)}&baud=115200`, { signal: abort.signal, cache: 'no-store' });
+      if (!r.ok || !r.body) throw new Error(await r.text());
+      this.send({ type: 'live', on: true });
+      this.running = true;
+      d.status = 'live';
+      const decoder = new LiveDecoder();
+      const reader = r.body.getReader();
+      // Hello never came: the board runs something else than a live build
+      const check = setTimeout(() => {
+        if (this.liveAbort === abort && !d.probe) d.error = 'Board không gửi trạng thái chân: hãy bấm "Nạp & theo dõi" để nạp bản có probe.';
+      }, 3000);
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const c = decoder.push(value);
+        if (c.text) this.serial = (this.serial + c.text).slice(-20000);
+        if (c.hello || Object.keys(c.pins).length) {
+          if (!d.probe) d.error = null;
+          d.probe = true;
+        }
+        if (Object.keys(c.pins).length) this.send({ type: 'live-pins', pins: c.pins });
+        if (c.error) d.error = `Mất kết nối với board: ${c.error}`;
+      }
+      clearTimeout(check);
+    } catch (e) {
+      if (!abort.signal.aborted) d.error = `Không mở được cổng ${port}: ${e instanceof Error ? e.message : String(e)}`;
+    }
+    if (this.liveAbort === abort) this.stopLive();
+  }
+
+  /** Stop following the real board; the bench goes back to the emulator. */
+  stopLive() {
+    const abort = this.liveAbort;
+    if (!abort) return;
+    this.liveAbort = null;
+    abort.abort();
+    this.device.status = 'idle';
+    this.device.probe = false;
+    this.send({ type: 'live', on: false });
+    this.running = false;
+  }
+
+  /** Text typed in the Serial Monitor: to the real board while live, else to the emulator. */
+  serialIn(text: string) {
+    if (this.device.status === 'live') {
+      void fetch('/api/device/serial/write', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+    } else this.send({ type: 'serial-in', text });
   }
 
   // --- Netlist queries for highlighting -------------------------------------------------------

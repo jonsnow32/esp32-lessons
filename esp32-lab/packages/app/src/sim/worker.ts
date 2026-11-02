@@ -9,6 +9,7 @@ import type { Project } from '@esp32lab/project-model';
 import { ScriptedMcu, SimKernel, type McuModel } from '@esp32lab/sim-core';
 import { ESP32_PAD_NAMES, ESP32_PADS } from '@esp32lab/mcu-esp32';
 import { BOARDS, BREADBOARDS, LESSONS, PARTS } from '../lib/catalog';
+import { LiveMcu } from './live-mcu';
 import type { FirmwareFiles, FlowView, FromWorker, StepResult, ToWorker } from './protocol';
 
 const MANIFESTS = Object.fromEntries(Object.entries(PARTS).map(([k, m]) => [k, m.manifest]));
@@ -24,10 +25,13 @@ let kernel: SimKernel | null = null;
 let running = false;
 let speed = 1;
 let serial = '';
+/** Live mode: a real board's pins drive the circuit (see live-mcu.ts). */
+let live = false;
 /** Controls held down, as part id → keys held (undefined for a one-button part); replayed on rebuild. */
 const held = new Map<string, Set<string | undefined>>();
 
 function newMcu(): McuModel {
+  if (live) return new LiveMcu(ESP32_PAD_NAMES);
   if (wasm && firmware) {
     const m = wasm.boot(firmware);
     m.onSerial((_p, bytes) => {
@@ -196,6 +200,17 @@ self.onmessage = async (ev: MessageEvent<ToWorker>) => {
         if (held.get(m.part)?.size === 0) held.delete(m.part);
         kernel?.release(m.part, m.key);
         publish(0);
+        break;
+      case 'live':
+        live = m.on;
+        running = m.on;
+        lastWall = performance.now();
+        simTarget = 0;
+        reset();
+        rateWindow = { wall: performance.now(), sim: 0 };
+        break;
+      case 'live-pins':
+        if (mcu instanceof LiveMcu) mcu.update(m.pins);
         break;
       case 'serial-in':
         if (mcu instanceof Esp32Mcu) mcu.serialWrite(new TextEncoder().encode(m.text));

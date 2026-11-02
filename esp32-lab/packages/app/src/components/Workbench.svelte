@@ -446,8 +446,8 @@
   /** Tidy the wires in the next mode and say which one, for a moment. */
   let tidyNote = $state<string | null>(null);
   let tidyTimer: ReturnType<typeof setTimeout> | undefined;
-  /** A wire for each tidy mode on the button: between the pins, over one, straight over all. */
-  const TIDY_ICONS = ['M4 4V7H16V16', 'M4 4V10H16V16', 'M4 4V16H16', 'M4 4H7V10H13V16H16', 'M4 4L13 7L16 16'];
+  /** A wire for each tidy mode on the button: square between the pins, straight past them. */
+  const TIDY_ICONS = ['M4 4V7H13V16H16', 'M4 4L13 7L16 16'];
   /** The mode the tidy button applies next. */
   let next = $derived(TIDY_MODES[(lab.tidyMode + 1) % TIDY_MODES.length]!);
   function tidy() {
