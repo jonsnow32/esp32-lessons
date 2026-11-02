@@ -1,0 +1,48 @@
+# Test broker for ESP32 Lab on the computer running the lab (the emulator reaches it as 10.0.2.2),
+# bridged to the home server so the emulated board shows up in Home Assistant as esp32-den-lab.
+#
+# Copy to /opt/homebrew/etc/mosquitto/mosquitto.conf (not in git: it holds a password), fill in
+# remote_password, then:  brew services restart mosquitto
+# The box needs the user once:  docker compose exec mosquitto mosquitto_passwd /mosquitto/config/passwd esp32-den-lab
+#
+# Only esp32-den-lab's topics cross the bridge (and the box's ACL allows nothing else for that user),
+# so the emulator can never touch the real board's esp32-den topics.
+
+# Local only: the lab and the emulator connect from this machine, without a password
+listener 1883 127.0.0.1
+allow_anonymous true
+
+connection home-server
+address 192.168.1.251:1883
+remote_clientid esp32-den-lab-bridge
+remote_username esp32-den-lab
+remote_password FILL-IN
+cleansession true
+# The box's ACL doesn't let this user write $SYS/broker/connection/...
+notifications false
+restart_timeout 10 60
+
+# Emulator -> Home Assistant: state, soil, availability and discovery
+topic home/esp32-den-lab/# out 1
+topic homeassistant/+/esp32-den-lab/# out 1
+# Home Assistant -> emulator: switching the LED, and "online" when HA restarts
+topic home/esp32-den-lab/led/set in 1
+topic homeassistant/status in 1
+
+# Every LabHA board on the emulator (lib/LabHA: home/lab/<name>-sim/...) through the shared "lab"
+# account, the same one the real lab boards use. The box's ACL keeps it under home/lab/# and
+# homeassistant/+/lab/#.
+connection home-server-lab
+address 192.168.1.251:1883
+remote_clientid lab-bridge
+remote_username lab
+remote_password FILL-IN
+cleansession true
+notifications false
+restart_timeout 10 60
+
+topic home/lab/+/availability out 1
+topic home/lab/+/+/state out 1
+topic homeassistant/+/lab/# out 1
+topic home/lab/+/+/set in 1
+topic homeassistant/status in 1

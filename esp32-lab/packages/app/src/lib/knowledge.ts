@@ -141,9 +141,29 @@ export function libraryList(): string {
   return [
     'Thư viện ngoài lõi Arduino ESP32 mà build tự thêm khi code #include header tương ứng:',
     ...Object.entries(libraries as Record<string, string>).map(([h, lib]) => `- #include <${h}>  (${lib})`),
+    '',
+    ...LABHA,
+    '',
     'Header khác không có trong lõi Arduino ESP32 sẽ không build được.',
   ].join('\n');
 }
+
+/** The course's own lib/LabHA (on the build's lib_extra_dirs): Wi-Fi + Home Assistant for any board. */
+const LABHA = [
+  'Thư viện riêng của khoá học, build được ở mọi dự án: #include <LabHA.h> (đúng hoa thường; lib/LabHA của repo).',
+  'Dùng khi board cần Wi-Fi, MQTT hay hiện lên Home Assistant. Wi-Fi, broker và mật khẩu nằm sẵn trong cấu hình lab (lib/LabHA/src/lab_secrets.h, sửa ở menu ⋯ → Cấu hình lab), nên code KHÔNG ghi SSID, mật khẩu, địa chỉ broker, và không #include <WiFi.h>/<PubSubClient.h> hay tự viết MQTT discovery.',
+  'API:',
+  '- LabHA ha("ten-board");  // biến toàn cục; tên mỗi board một khác: chữ, số, - và _ (thành thiết bị "ten-board" trong HA)',
+  '- ha.addSwitch(key, label, [](bool on) { ... });  // công tắc HA điều khiển; gọi trước begin()',
+  '- ha.addSensor(key, label, unit = nullptr, deviceClass = nullptr);  // vd ("moisture", "Độ ẩm đất", "%", "moisture"), ("temp", "Nhiệt độ", "°C", "temperature")',
+  '- ha.addBinarySensor(key, label, deviceClass = nullptr);  // vd ("motion", "Chuyển động", "motion")',
+  '- ha.begin();  // trong setup(), sau các add…: kết nối Wi-Fi và broker, tự kết nối lại',
+  '- ha.loop();  // đầu loop(), không chặn; loop() không được dùng delay() dài',
+  '- ha.publish(key, float value, int decimals = 1) / ha.publish(key, const char* text);  // giá trị cảm biến',
+  '- ha.setBinary(key, bool on); ha.setSwitch(key, bool on);  // báo trạng thái (vd khi bấm nút tay)',
+  '- ha.connected(), ha.onEmulator(), ha.deviceId()',
+  'Tối đa 12 entity. Key là chữ thường không dấu. Trên trình giả lập board tự đổi tên thành "<ten-board>-sim" và nói chuyện với broker thử 10.0.2.2 trên máy tính, không cần sửa code.',
+];
 
 /** What matters about the bench beyond its wiring: the tips of each part type on it, the board pins in use. */
 export function benchKnowledge(project: Project, board: BoardDef | undefined, pinsInUse: string[]): string[] {

@@ -268,7 +268,15 @@ class Lab {
   myProjects = $state<MyProject[]>(loadMyProjects());
   /** One-off message for the user (e.g. "a copy was made"), dismissed by them. */
   notice = $state<string | null>(null);
-  /** Detail page open over everything else: a part type, `board:<type>`, `bb:<type>` or 'inventory'. */
+  /**
+   * The lab was opened (or a board started) in another tab: this one has paused its board. Two
+   * tabs would run two chips with the same Wi-Fi and MQTT identity, kicking each other off the
+   * broker and halving the speed of both.
+   */
+  elsewhere = $state(false);
+  private readonly tabId = Math.random().toString(36).slice(2);
+  private readonly tabs = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('esp32lab.tabs');
+  /** Detail page open over everything else: a part type, `board:<type>`, `bb:<type>`, 'inventory' or 'network' (Wi-Fi & Home Assistant). */
   docPage = $state<string | null>(null);
   /** Undo/redo: earlier and undone versions of the bench, as JSON. */
   private past = $state<string[]>([]);
@@ -353,9 +361,32 @@ class Lab {
     return !!this.mine?.folder && this.diskCode !== null;
   }
 
+  /** Stop the simulation for good: its worker, and with it the chip's network connections. */
+  dispose() {
+    this.worker.terminate();
+    this.tabs?.close();
+  }
+
+  /** Use this tab: any other tab of the lab pauses its board. */
+  claimTab() {
+    this.elsewhere = false;
+    this.tabs?.postMessage({ t: 'claim', id: this.tabId });
+  }
+
+  /** Another tab opened the lab or started its board: stand down. */
+  private otherTab(id: string) {
+    if (id === this.tabId) return;
+    if (this.device.status === 'live') void this.stopLive();
+    else if (this.running) this.pause();
+    this.elsewhere = true;
+  }
+
   constructor() {
     this.worker = new Worker(new URL('../sim/worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (ev: MessageEvent<FromWorker>) => this.receive(ev.data);
+    // One tab at a time: opening the lab here pauses it everywhere else
+    if (this.tabs) this.tabs.onmessage = (ev: MessageEvent<{ t: string; id: string }>) => this.otherTab(ev.data.id);
+    this.claimTab();
     this.send({ type: 'init', wasmUrl });
     migrateOldStorage();
     this.myProjects = loadMyProjects();
@@ -1510,6 +1541,7 @@ class Lab {
   }
 
   run() {
+    if (this.elsewhere) this.claimTab();
     this.send({ type: 'run' });
     this.running = true;
   }
@@ -1749,6 +1781,11 @@ function migrateOldStorage() {
 }
 
 export const lab = new Lab();
+
+// A hot update in development makes a new Lab and a new worker; the old worker must go with the
+// old Lab, or its chip keeps running unseen: still on the virtual network (holding the board's
+// MQTT client id), still printing to Serial, and with a circuit that no longer gets the edits
+if (import.meta.hot) import.meta.hot.dispose(() => lab.dispose());
 
 /** Middle of a part's legs relative to its first leg, in pitches, after turning it by `rot`. */
 function centreOffset(manifest: PartManifest, rot: Rotation): [number, number] {

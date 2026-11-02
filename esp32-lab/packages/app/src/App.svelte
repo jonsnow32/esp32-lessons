@@ -8,6 +8,7 @@
   import BoardPage from './components/BoardPage.svelte';
   import BreadboardPage from './components/BreadboardPage.svelte';
   import InventoryPage from './components/InventoryPage.svelte';
+  import LabNetworkPage from './components/LabNetworkPage.svelte';
   import PartPage from './components/PartPage.svelte';
   import Library from './components/Library.svelte';
   import SerialMonitor from './components/SerialMonitor.svelte';
@@ -106,9 +107,20 @@
 
 <svelte:window onpointerup={() => setTimeout(() => (dragType = null))} onkeydown={(e) => e.key === 'Escape' && (menuOpen = false)} />
 
+{#if lab.elsewhere}
+  <div class="elsewhere" role="alertdialog" aria-modal="true" aria-labelledby="elsewhere-title">
+    <div class="elsewhere-card">
+      <h2 id="elsewhere-title">ESP32 Lab đang mở ở tab khác</h2>
+      <p>Tab này đã tạm dừng board. Hai tab chạy cùng lúc sẽ là hai board cùng tên Wi-Fi và MQTT: chúng đá nhau khỏi broker và cùng chạy chậm đi.</p>
+      <button class="primary" onclick={() => lab.claimTab()}>Dùng tab này</button>
+      <p class="hint">Tab kia sẽ tạm dừng board của nó.</p>
+    </div>
+  </div>
+{/if}
+
 {#if lab.docPage}
   {#key lab.docPage}
-    {#if lab.docPage === 'inventory'}<InventoryPage />{:else if lab.docPage.startsWith('board:')}<BoardPage />{:else if lab.docPage.startsWith('bb:')}<BreadboardPage />{:else}<PartPage />{/if}
+    {#if lab.docPage === 'inventory'}<InventoryPage />{:else if lab.docPage === 'network'}<LabNetworkPage />{:else if lab.docPage.startsWith('board:')}<BoardPage />{:else if lab.docPage.startsWith('bb:')}<BreadboardPage />{:else}<PartPage />{/if}
   {/key}
 {/if}
 
@@ -148,21 +160,45 @@
         <button onclick={() => (menuOpen = !menuOpen)} aria-haspopup="menu" aria-expanded={menuOpen} title="Thêm" aria-label="Thêm"><Icon name="more" /></button>
         {#if menuOpen}
           <div class="menu" role="menu">
+            <div class="group">
+              <div class="menu-head">Bố cục</div>
+              <button role="menuitem" onclick={() => menu(() => (visible('code') ? layout.toggle(layout.dockOf('code')) : layout.reveal('code')))}>
+                <Icon name="file" /><span class="label">{visible('code') ? 'Ẩn' : 'Hiện'} trình soạn code</span>
+              </button>
+              <button role="menuitem" onclick={() => menu(() => layout.reset())}>
+                <Icon name="layout" /><span class="label">Đặt lại bố cục các khung</span>
+              </button>
+            </div>
+
+            <div class="group">
+              <div class="menu-head">Mạch & chương trình</div>
+              <label class="menu-check" title="Bật: muốn di chuyển hay sửa mạch phải tạm dừng chương trình trước">
+                <span class="label">Khoá mạch khi đang chạy<small>Tạm dừng mới sửa được mạch</small></span>
+                <input class="switch" type="checkbox" role="switch" bind:checked={lab.lockWhileRunning} />
+              </label>
+              {#if lab.envs.length}
+                <div class="sub-head label">Chạy bản build sẵn<small>Từ .pio/build, bỏ qua code trong editor</small></div>
+                <div class="envs">
+                  {#each lab.envs as env}
+                    <button role="menuitem" class="env" title={`Chạy .pio/build/${env}`} onclick={() => menu(() => lab.runPrebuilt(env))}><Icon name="play" size={10} />{env}</button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+
+            <div class="group">
+              <div class="menu-head">Cấu hình lab</div>
+              <button role="menuitem" onclick={() => menu(() => (lab.docPage = 'network'))}>
+                <Icon name="wifi" /><span class="label">Wi-Fi & Home Assistant<small>Dùng chung cho mọi board (LabHA)</small></span>
+              </button>
+            </div>
+
             {#if !lab.featured}
-            <button role="menuitem" onclick={() => menu(() => confirm(linked ? 'Đưa mạch và code về như lúc mở dự án? Phần sửa từ lúc đó sẽ mất (cả trong file).' : setUp ? 'Đưa bàn về như lúc mới tạo và code về mặc định? Phần bạn đã sửa sẽ mất.' : blank ? 'Xoá hết mạch và code trên bàn này?' : (lab.mine ? 'Đưa mạch và code của bản sao về như dự án gốc? Phần bạn đã sửa sẽ mất.' : 'Đưa mạch và code về như lúc mới mở bài? Phần bạn đã sửa sẽ mất.')) && lab.restart())}>
-              <Icon name="reset" />{linked ? 'Bỏ các thay đổi từ lúc mở' : setUp ? 'Đưa bàn về như lúc mới tạo' : blank ? 'Xoá bàn và code' : lab.mine ? 'Đưa bản sao về như bản gốc' : 'Làm lại bài từ đầu'}
-            </button>
-            {/if}
-            <button role="menuitem" onclick={() => menu(() => (visible('code') ? layout.toggle(layout.dockOf('code')) : layout.reveal('code')))}>{visible('code') ? 'Ẩn' : 'Hiện'} trình soạn code</button>
-            <label class="menu-check" title="Bật: muốn di chuyển hay sửa mạch phải tạm dừng chương trình trước">
-              <input type="checkbox" bind:checked={lab.lockWhileRunning} />Khoá mạch khi chương trình đang chạy
-            </label>
-            <button role="menuitem" onclick={() => menu(() => layout.reset())}><Icon name="layout" />Đặt lại bố cục các khung</button>
-            {#if lab.envs.length}
-              <div class="menu-head">Chạy bản build sẵn (.pio/build), bỏ qua editor</div>
-              {#each lab.envs as env}
-                <button role="menuitem" onclick={() => menu(() => lab.runPrebuilt(env))}>{env}</button>
-              {/each}
+              <div class="group danger-zone">
+                <button role="menuitem" class="danger" onclick={() => menu(() => confirm(linked ? 'Đưa mạch và code về như lúc mở dự án? Phần sửa từ lúc đó sẽ mất (cả trong file).' : setUp ? 'Đưa bàn về như lúc mới tạo và code về mặc định? Phần bạn đã sửa sẽ mất.' : blank ? 'Xoá hết mạch và code trên bàn này?' : (lab.mine ? 'Đưa mạch và code của bản sao về như dự án gốc? Phần bạn đã sửa sẽ mất.' : 'Đưa mạch và code về như lúc mới mở bài? Phần bạn đã sửa sẽ mất.')) && lab.restart())}>
+                  <Icon name="reset" /><span class="label">{linked ? 'Bỏ các thay đổi từ lúc mở' : setUp ? 'Đưa bàn về như lúc mới tạo' : blank ? 'Xoá bàn và code' : lab.mine ? 'Đưa bản sao về như bản gốc' : 'Làm lại bài từ đầu'}<small>Không hoàn tác được</small></span>
+                </button>
+              </div>
             {/if}
           </div>
         {/if}
@@ -269,12 +305,31 @@
   .original { font: 11px var(--font-mono); color: #f3c46b; }
   .spacer { flex: 1; }
   .more { position: relative; }
-  .menu { position: absolute; right: 0; top: calc(100% + 4px); background: var(--surface); color: var(--ink); color-scheme: light; border: 1px solid var(--line-strong); border-top: 2px solid var(--accent); border-radius: 0; box-shadow: var(--shadow-float); padding: 4px; min-width: 260px; display: flex; flex-direction: column; }
-  .menu button { display: flex; align-items: center; gap: 8px; border: none; text-align: left; border-radius: 0; }
-  .menu button :global(.ico) { color: var(--ink-3); }
-  .menu-check { display: flex; gap: 8px; align-items: center; padding: 6px 10px; font: 13px var(--font-ui); text-transform: none; letter-spacing: 0; color: var(--ink); cursor: pointer; }
-  .menu-check:hover { background: var(--surface-3); }
-  .menu-head { font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); padding: 8px 10px 3px; border-top: 1px solid var(--line-soft); margin-top: 4px; }
+  /* The ⋯ menu: groups by what they act on, each under a small heading; the one that throws work away last, apart */
+  .menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 40; background: var(--surface); color: var(--ink); color-scheme: light; border: 1px solid var(--line-strong); border-top: 2px solid var(--accent); border-radius: 0; box-shadow: var(--shadow-float); width: 290px; max-height: calc(100vh - 60px); overflow: auto; display: flex; flex-direction: column; }
+  .group { display: flex; flex-direction: column; padding: 4px; }
+  .group + .group { border-top: 1px solid var(--line-soft); }
+  .menu-head { font: 600 var(--fs-label) var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-4, var(--ink-3)); padding: 6px 8px 4px; }
+  .menu button, .menu-check { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: none; background: transparent; text-align: left; border-radius: 0; font: 13px var(--font-ui); color: var(--ink); cursor: pointer; text-transform: none; letter-spacing: 0; }
+  .menu button:hover, .menu-check:hover { background: var(--surface-3); }
+  .menu button > :global(.ico) { color: var(--ink-3); flex: 0 0 auto; }
+  .label { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+  .label small { font-size: 11.5px; color: var(--ink-3); }
+  .menu-check { padding-left: 34px; }
+  /* A checkbox drawn as a switch */
+  .switch { appearance: none; flex: 0 0 auto; width: 28px; height: 16px; margin: 0; border: 1px solid var(--line-strong); background: var(--surface-3); position: relative; cursor: pointer; transition: background .15s; }
+  .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; background: var(--ink-3); transition: transform .15s, background .15s; }
+  .switch:checked { background: var(--accent); border-color: var(--accent); }
+  .switch:checked::after { transform: translateX(12px); background: #fff; }
+  .switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .sub-head { font: 13px var(--font-ui); color: var(--ink); padding: 6px 8px 6px 34px; }
+  .envs { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 8px 4px 34px; }
+  .menu .env { gap: 5px; padding: 2px 8px; font: 11.5px var(--font-mono); border: 1px solid var(--line); background: var(--surface-2); }
+  .menu .env:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .menu .env :global(.ico) { color: var(--accent); }
+  .danger-zone { background: var(--surface-2); }
+  .menu .danger:hover { background: var(--error-soft); color: var(--error); }
+  .menu .danger:hover > :global(.ico) { color: var(--error); }
   .banners { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 10; width: max-content; max-width: min(620px, calc(100% - 24px)); display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
   .banner { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 7px 8px 7px 12px; background: var(--error-soft); color: var(--error); font-size: 13px; line-height: 1.4; border: 1px solid var(--error-line); box-shadow: inset 3px 0 0 currentColor, var(--shadow-float); }
   .banner span { flex: 1; }
@@ -315,4 +370,10 @@
     .docks { display: none; }
     .program .text { white-space: normal; }
   }
+  .elsewhere { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; background: #0e1114cc; backdrop-filter: blur(2px); }
+  .elsewhere-card { max-width: 440px; background: var(--surface); border: 1px solid var(--line-strong); border-top: 3px solid var(--accent); box-shadow: var(--shadow-float); padding: 20px 22px; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+  .elsewhere-card h2 { margin: 0; font-size: 17px; }
+  .elsewhere-card p { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 1.55; }
+  .elsewhere-card .hint { color: var(--ink-3); font-size: 12px; }
+  .elsewhere-card .primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; padding: 6px 16px; }
 </style>

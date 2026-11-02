@@ -29,14 +29,14 @@ function parse(hash: string): Place {
 const routeExists = (id: string) => id === FREE || LESSONS.some((l) => l.id === id) || FEATURED.some((f) => f.id === id) || lab.myProjects.some((p) => p.id === id);
 
 function docExists(page: string) {
-  if (page === 'inventory') return true;
+  if (page === 'inventory' || page === 'network') return true;
   if (page.startsWith('board:')) return page.slice('board:'.length) in BOARDS;
   if (page.startsWith('bb:')) return page.slice('bb:'.length) in BREADBOARDS;
   return page in PARTS;
 }
 
 /** What kind of detail page: stepping between pages of one kind is one history entry. */
-const docKind = (page: string) => (page.includes(':') ? page.slice(0, page.indexOf(':')) : page === 'inventory' ? page : 'part');
+const docKind = (page: string) => (page.includes(':') ? page.slice(0, page.indexOf(':')) : page === 'inventory' || page === 'network' ? page : 'part');
 
 /** How many entries the app has pushed onto the history before the current one. */
 const depth = () => (history.state as { depth?: number } | null)?.depth ?? 0;

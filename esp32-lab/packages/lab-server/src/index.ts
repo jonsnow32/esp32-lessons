@@ -37,6 +37,9 @@
 //   GET  /api/net/events?s=…              the session's events, streamed
 //   POST /api/net/ops?s=…      { ops }    connect / send / close / resolve
 //
+// Wi-Fi and broker shared by every lab board (lib/LabHA's lab_secrets.h, see labconfig.ts):
+//   GET / PUT /api/lab-config, POST /api/lab-config/test, POST /api/lab-config/setup (labsetup.ts)
+//
 // The sketch lives in its own PlatformIO project (<workDir>/sketch) whose [env] copies
 // platform / board / framework from the course's platformio.ini, so it builds against exactly
 // the same core as `pio run -e lessonNN`. The course's platformio.ini is never touched.
@@ -50,6 +53,8 @@ import libraries from '../libraries.json';
 import { listPorts, pythonFor, SerialLine } from './device';
 import { netRelay } from './net';
 import { checkNewFolder, findFolders, folderPath, folderSources, isSourceName, linkFolder, readFolder, unlinkFolder, writeFolder } from './folders';
+import { labConfigStore, testBroker } from './labconfig';
+import { setupLab } from './labsetup';
 import { PROBE_CPP, PROBE_FILE } from './probe';
 
 export interface LabServerOptions {
@@ -239,8 +244,12 @@ export function labServer(opts: LabServerOptions) {
     // Every library, whatever the sketch includes: a platformio.ini that changes makes PlatformIO
     // rebuild the whole Arduino core (some 12 s). Built once, the unused ones cost nothing more,
     // and the linker leaves them out of the firmware.
+    // The course's own libraries (lib/LabHA: Wi-Fi + Home Assistant from one lab_secrets.h) too,
+    // as for `pio run -e …` in the course
+    const courseLib = join(opts.projectRoot, 'lib');
     const shared = [
       ...withLibraries(sharedEnv(join(opts.projectRoot, 'platformio.ini')), [...new Set(Object.values(LIBRARIES))]),
+      ...(existsSync(courseLib) ? [`lib_extra_dirs = ${courseLib}`] : []),
       'extra_scripts = post:fast_bin.py',
     ];
     const ini = [
@@ -506,6 +515,23 @@ export function labServer(opts: LabServerOptions) {
   }
 
   const net = netRelay();
+  const labConfig = labConfigStore(opts.projectRoot);
+
+  /** The settings every LabHA board shares (see labconfig.ts). */
+  function labSettings(req: IncomingMessage, path: string, res: ServerResponse, next: Next) {
+    if (path === '/' && req.method === 'GET') return send(res, 'application/json', JSON.stringify(labConfig.view()));
+    if (path === '/' && req.method === 'PUT')
+      return readJson(req, res, (body) => {
+        const error = labConfig.save(body);
+        if (error) res.statusCode = 400;
+        send(res, 'application/json', JSON.stringify(error ? { error } : labConfig.view()));
+      });
+    if (path === '/setup' && req.method === 'POST')
+      return readJson(req, res, (body) => void setupLab(labConfig, body).then((r) => send(res, 'application/json', JSON.stringify(r))));
+    if (path === '/test' && req.method === 'POST')
+      return readJson(req, res, (body) => void testBroker(labConfig.forTest(body)).then((r) => send(res, 'application/json', JSON.stringify(r))));
+    next();
+  }
 
   /** Connect-style handler: answers the lab's endpoints, passes anything else to `next`. */
   function handle(req: IncomingMessage, res: ServerResponse, next: Next) {
@@ -531,6 +557,8 @@ export function labServer(opts: LabServerOptions) {
     if (path === '/api/folders' || under('/api/folder') !== null) return folders(req, path, url.searchParams, res, next);
     const devicePath = under('/api/device');
     if (devicePath !== null) return device(req, devicePath, url.searchParams, res, next);
+    const configPath = under('/api/lab-config');
+    if (configPath !== null) return labSettings(req, configPath, res, next);
     const netPath = under('/api/net');
     if (netPath !== null) return net.handle(req, res, netPath, url.searchParams, next);
     next();

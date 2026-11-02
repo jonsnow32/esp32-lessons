@@ -103,8 +103,26 @@ trạng thái trong Home Assistant đổi theo.
 Hoặc làm trong ESP32 Lab: thư mục này có `esp32-lab.json` nên hiện trong **Dự án của tôi** với tên
 "Công tắc MQTT cho Home Assistant". Lab đọc và ghi thẳng `main.cpp` ở đây (mạch nằm trong
 `esp32-lab.json`), build kèm `secrets.h`, chạy thử trên board giả lập rồi nạp vào board thật bằng
-nút nạp của lab. Trên board giả lập không có Wi-Fi: sketch nhận ra qua địa chỉ MAC cố định của nó
-và bỏ qua phần mạng, chỉ còn LED và nút BOOT.
+nút nạp của lab. Board giả lập có Wi-Fi ảo; sketch nhận ra nó qua địa chỉ MAC cố định và khi đó:
+
+- kết nối broker thử trên chính máy chạy lab (`10.0.2.2`, ví dụ mosquitto cài bằng Homebrew),
+  không mật khẩu, không bao giờ tới broker trên box;
+- dùng mã thiết bị riêng `esp32-den-lab`: topic `home/esp32-den-lab/...` và discovery
+  `homeassistant/+/esp32-den-lab/...`, nên không bao giờ đè lên trạng thái của board thật.
+
+Xem tin của bản giả lập: `mosquitto_sub -h 127.0.0.1 -t 'home/#' -t 'homeassistant/#' -v` trên máy
+chạy lab.
+
+Muốn thấy bản giả lập trong Home Assistant (thiết bị `esp32-den-lab`): bridge broker thử lên box,
+chỉ cho các topic của `esp32-den-lab` đi qua. Làm một lần:
+
+1. Trên box tạo user: `docker compose exec mosquitto mosquitto_passwd /mosquitto/config/passwd esp32-den-lab`
+   rồi `docker compose restart mosquitto` (ACL sẵn có đã đủ).
+2. Trên Mac: chép `mosquitto/lab-bridge.conf.example` thành `/opt/homebrew/etc/mosquitto/mosquitto.conf`,
+   điền `remote_password`, rồi `brew services restart mosquitto`.
+
+Ngắt hẳn: `brew services stop mosquitto`. Nên dừng bản giả lập trước, để Last Will `offline` kịp
+qua bridge. Nếu không, HA vẫn hiện trạng thái cuối cùng.
 
 Topic mà sketch dùng:
 
@@ -133,6 +151,45 @@ docker compose logs --since 24h mosquitto | grep esp32-den
 `exceeded timeout` nghĩa là broker không nhận được ping đúng hạn. Sketch đã tắt Wi-Fi modem sleep
 (`WiFi.setSleep(false)`) và tăng keepalive lên 60 s cho trường hợp này. Nếu vẫn bị, xem dòng
 `MQTT connecting... ok (Wi-Fi -xx dBm)` trên Monitor: yếu hơn khoảng -75 dBm thì đặt board gần router hơn.
+
+### Board mới trong lab: dùng chung cấu hình (LabHA)
+
+Mọi board thử nghiệm dùng chung thư viện `lib/LabHA` của khoá học: Wi-Fi, broker và mật khẩu chỉ
+nằm ở một file `lib/LabHA/src/lab_secrets.h` (không vào git, mẫu là `lab_secrets.example.h`), và
+mọi board đăng nhập broker bằng một tài khoản chung `lab`. ACL sẵn có (`home/%u/#`) đã giới hạn
+tài khoản này trong `home/lab/#` và `homeassistant/+/lab/#`, nên board thử không đụng được
+`esp32-den`. Làm một lần trên box:
+
+```sh
+docker compose exec mosquitto mosquitto_passwd /mosquitto/config/passwd lab
+docker compose restart mosquitto
+```
+
+rồi điền mật khẩu đó vào `LAB_MQTT_PASSWORD` trong `lab_secrets.h`.
+
+Sau đó một dự án mới (trong ESP32 Lab hay một env PlatformIO) chỉ cần đặt tên cho board:
+
+```cpp
+#include <LabHA.h>
+LabHA ha("tuoi-cay");  // mỗi board một tên: chữ, số, - và _
+
+void setup() {
+  ha.addSwitch("led", "Đèn", [](bool on) { digitalWrite(2, on); });
+  ha.addSensor("moisture", "Độ ẩm đất", "%", "moisture");
+  ha.begin();
+}
+void loop() {
+  ha.loop();
+  ha.publish("moisture", 42);
+}
+```
+
+Home Assistant tự hiện thiết bị `tuoi-cay` cùng các entity. Ví dụ đầy đủ:
+`lib/LabHA/examples/basic/main.cpp` (`pio run -e labha_example`). Trên board giả lập của ESP32 Lab,
+board tự đổi tên thành `tuoi-cay-sim` và nói chuyện với broker thử `10.0.2.2`. Muốn thấy nó trong
+HA, dùng khối `home-server-lab` trong `mosquitto/lab-bridge.conf.example`.
+
+`esp32-mqtt` (board `esp32-den` thật) vẫn giữ tài khoản riêng, không dùng LabHA.
 
 ## 6. ESPHome (khi cần)
 

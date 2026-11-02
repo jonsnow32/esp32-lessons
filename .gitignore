@@ -12,3 +12,6 @@
 
 # Screen recordings for the Shorts – not stored in git
 lession/*/recordings/
+
+# LabHA: Wi-Fi and broker password shared by every lab board
+lib/LabHA/src/lab_secrets.h

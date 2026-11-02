@@ -1,0 +1,10 @@
+{
+  "name": "LabHA",
+  "version": "1.0.0",
+  "description": "Wi-Fi + MQTT + Home Assistant discovery shared by every lab board, settings in lab_secrets.h",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "dependencies": {
+    "knolleary/PubSubClient": "^2.8"
+  }
+}

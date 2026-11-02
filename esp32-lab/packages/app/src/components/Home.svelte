@@ -93,6 +93,7 @@
       <button onclick={() => doc('inventory')} title={stocked.length ? `Lắp được ngay ${[...inventory.featured.values()].filter((c) => c.complete).length}/${FEATURED.length} dự án mẫu` : 'Ghi lại linh kiện bạn có ngoài đời'}>
         Kho {#if stocked.length}<span class="meta">{stocked.length} loại · {stocked.reduce((n, i) => n + i.qty, 0)} món</span>{/if}
       </button>
+      <button onclick={() => doc('network')} title="Wi-Fi và broker Home Assistant dùng chung cho mọi board (thư viện LabHA)">Wi-Fi & HA</button>
       <div class="drop">
         <button onclick={() => toggle('library')} aria-haspopup="menu" aria-expanded={menu === 'library'}>Thư viện <Icon name="chevron-down" size={12} /></button>
         {#if menu === 'library'}
