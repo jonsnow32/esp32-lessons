@@ -102,6 +102,11 @@ export interface MyProject {
   from?: string;
   /** The bench as the new-bench steps set it up (board, breadboard, parts), to go back to. */
   start?: Project;
+  /**
+   * A linked folder of the course (e.g. home-server/esp32-mqtt): its main.cpp and esp32-lab.json
+   * on disk are the project; what is in the browser is only a copy for the cards.
+   */
+  folder?: string;
   created: number;
   updated: number;
 }
@@ -124,6 +129,22 @@ function hashCode(text: string): string {
 }
 
 const wsKey = (id: string) => `esp32lab.ws.${id}`;
+
+/** A linked folder as the server lists it (see lab-server folders.ts). */
+interface LinkedFolder {
+  path: string;
+  title: string;
+  updated: number;
+}
+
+/** The id a linked folder goes by, also in the address bar: home-server/esp32-mqtt → my-dir-home-server-esp32-mqtt. */
+const folderId = (path: string) => `my-dir-${path.replace(/[^A-Za-z0-9_-]+/g, '-')}`;
+
+/** What to write to a linked folder: main.cpp, the circuit, the title. */
+type FolderChange = { title?: string; project?: Project; code?: string };
+
+/** How long after the last change a linked folder's files are written. */
+const FOLDER_WRITE_MS = 400;
 
 /** Featured projects stay as published: does this bench and code still match the original? */
 function isOriginal(f: FeaturedProject, project: Project, code: string): boolean {
@@ -165,6 +186,8 @@ export interface BenchSetup {
   parts: string[];
   /** Plug each part in the way its manifest says (see autoplug.ts). */
   plug: boolean;
+  /** A folder of the course to keep the project in (see MyProject.folder); none: in the browser. */
+  folder?: string;
 }
 
 /**
@@ -258,6 +281,14 @@ class Lab {
 
   private worker: Worker;
   private nextWire = 0;
+  /** A linked folder's write waiting for the edits to settle. */
+  private folderWrite: { timer: ReturnType<typeof setTimeout>; change: FolderChange; send: () => void } | null = null;
+  /** The linked folder's main.cpp as last read or written, to notice an edit made outside the lab. */
+  private diskCode: string | null = null;
+  /** The linked folder's circuit as opened, for "back to how it was". */
+  private folderStart: Project | null = null;
+  /** The linked folder's other sources built with main.cpp (secrets.h…), by name. */
+  folderFiles = $state<string[]>([]);
 
   constructor() {
     this.worker = new Worker(new URL('../sim/worker.ts', import.meta.url), { type: 'module' });
@@ -270,6 +301,9 @@ class Lab {
       $effect(() => saveSettings({ wireMode: TIDY_MODES[this.tidyMode]?.id ?? null, overlay: this.overlay, lockWhileRunning: this.lockWhileRunning }));
     });
     void this.refreshPorts();
+    void this.syncFolders();
+    // Back from the editor: main.cpp may have changed there
+    window.addEventListener('focus', () => void this.reloadFolderCode());
     fetch('/pio/envs')
       .then((r) => r.json())
       .then((envs: string[]) => (this.envs = envs))
@@ -391,9 +425,94 @@ class Lab {
       this.copyFeatured(featured);
     }
     const ws: Workspace = { project, code: this.code, passed: this.passed };
-    localStorage.setItem(wsKey(this.route), JSON.stringify(ws));
+    const json = JSON.stringify(ws);
+    const changed = localStorage.getItem(wsKey(this.route)) !== json;
+    localStorage.setItem(wsKey(this.route), json);
     const mine = this.mine;
     if (mine) this.updateMyProjects(this.myProjects.map((p) => (p.id === mine.id ? { ...p, updated: Date.now() } : p)));
+    // Into the folder only what changed: opening it writes nothing
+    if (mine?.folder && changed) this.writeFolder(mine.folder, { project, code: this.code });
+  }
+
+  // --- Linked folders ----------------------------------------------------------------------
+
+  /** The linked folders on disk as projects of the user's own: new ones added, gone ones dropped. */
+  async syncFolders() {
+    let found: LinkedFolder[];
+    try {
+      const r = await fetch('/api/folders', { cache: 'no-store' });
+      if (!r.ok) return;
+      found = await r.json();
+    } catch {
+      return;
+    }
+    const byId = new Map(found.map((f) => [folderId(f.path), f]));
+    const kept = this.myProjects.filter((p) => !p.folder || byId.has(p.id));
+    for (const p of this.myProjects) if (!kept.includes(p)) localStorage.removeItem(wsKey(p.id));
+    const list = kept.map((p) => {
+      const f = p.folder ? byId.get(p.id) : undefined;
+      return f ? { ...p, title: f.title, folder: f.path, updated: Math.max(p.updated, f.updated) } : p;
+    });
+    for (const [id, f] of byId) {
+      if (!list.some((p) => p.id === id)) list.push({ id, title: f.title, folder: f.path, created: f.updated, updated: f.updated });
+    }
+    this.updateMyProjects(list);
+    // Thumbnails on the cards come from the copy in the browser: read the folders not yet copied
+    for (const p of list) {
+      if (p.folder && !loadWorkspace(p.id)) void this.readFolder(p.folder).then((c) => c && localStorage.setItem(wsKey(p.id), JSON.stringify({ project: c.project, code: c.code, passed: [] } satisfies Workspace)));
+    }
+  }
+
+  /** A linked folder's circuit and code from disk, or null if the server cannot give them. */
+  private async readFolder(path: string): Promise<(Workspace & { files: string[] }) | null> {
+    try {
+      const r = await fetch(`/api/folder?path=${encodeURIComponent(path)}`, { cache: 'no-store' });
+      if (!r.ok) return null;
+      const c = (await r.json()) as { project: Project | null; code: string; files?: string[] };
+      return { project: c.project ?? emptyProject(), code: c.code, passed: [], files: c.files ?? [] };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Write to a linked folder once the edits settle; a later change for it replaces this one. */
+  private writeFolder(path: string, change: FolderChange) {
+    const prev = this.folderWrite;
+    if (prev) clearTimeout(prev.timer);
+    const merged = { ...prev?.change, ...change };
+    if (typeof change.code === 'string') this.diskCode = change.code;
+    const send = () => {
+      this.folderWrite = null;
+      void fetch('/api/folder', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path, ...merged }) })
+        .then(async (r) => {
+          if (!r.ok) throw new Error(await r.text());
+        })
+        .catch((e) => (this.error = `Không ghi được vào thư mục ${path}: ${e instanceof Error ? e.message : String(e)}`));
+    };
+    this.folderWrite = { timer: setTimeout(send, FOLDER_WRITE_MS), change: merged, send };
+  }
+
+  /** Write a waiting change to the linked folder now. */
+  private flushFolder() {
+    const w = this.folderWrite;
+    if (!w) return;
+    clearTimeout(w.timer);
+    w.send();
+  }
+
+  /** main.cpp of the linked folder on the bench changed on disk (another editor): take it, unless the lab has edits not yet written. */
+  async reloadFolderCode() {
+    const mine = this.mine;
+    if (!mine?.folder || this.folderWrite || this.diskCode === null) return;
+    const id = mine.id;
+    const disk = await this.readFolder(mine.folder);
+    if (!disk || this.route !== id || this.folderWrite || disk.code === this.diskCode) return;
+    if (this.code !== this.diskCode) return;
+    this.diskCode = disk.code;
+    this.code = disk.code;
+    this.originalCode = disk.code;
+    this.save();
+    this.notice = `main.cpp trong ${mine.folder} vừa được sửa ở ngoài lab: mình đã nạp lại code mới.`;
   }
 
   /** Carry on in a new project of the user's own, with the bench, code and history as they are. */
@@ -433,17 +552,49 @@ class Lab {
         } else left.push(`${id} (${r.reason})`);
       }
     }
-    await this.createMyProject(setup.title, project);
+    if (!(await this.createMyProject(setup.title, project, DEFAULT_SKETCH, setup.folder))) return;
     if (left.length) this.notice = `Đã cắm ${plugged.length}/${plugged.length + left.length} linh kiện. Chưa cắm được: ${left.join('; ')}. Các linh kiện này nằm trên bàn, bạn tự nối dây nhé.`;
   }
 
   /** A project of the user's own on this bench and code, opened. */
-  async createMyProject(title: string, project: Project, code = DEFAULT_SKETCH) {
+  /**
+   * A project of the user's own on this bench and code, opened; with `folder`, kept in that folder
+   * of the course (created if need be; a main.cpp already there is kept as the code). False if the
+   * folder could not be set up, with `error` saying why.
+   */
+  async createMyProject(title: string, project: Project, code = DEFAULT_SKETCH, folder?: string): Promise<boolean> {
     const now = Date.now();
-    const p: MyProject = { id: `my-${now.toString(36)}`, title: title.trim() || newTitle(this.myProjects), created: now, updated: now, start: project };
+    const name = title.trim() || newTitle(this.myProjects);
+    let p: MyProject = { id: `my-${now.toString(36)}`, title: name, created: now, updated: now, start: project };
+    if (folder?.trim()) {
+      let linked: { path: string; code: string };
+      try {
+        const r = await fetch('/api/folder/link', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: folder, title: name, project, code }) });
+        if (!r.ok) throw new Error(await r.text());
+        linked = await r.json();
+      } catch (e) {
+        this.error = `Không tạo được dự án trong thư mục ${folder}: ${e instanceof Error ? e.message : String(e)}`;
+        return false;
+      }
+      p = { ...p, id: folderId(linked.path), folder: linked.path };
+      if (linked.code !== code) this.notice = `Thư mục ${linked.path} đã có main.cpp: dự án dùng code đó, không thay bằng code mới.`;
+      code = linked.code;
+    }
     localStorage.setItem(wsKey(p.id), JSON.stringify({ project, code, passed: [] } satisfies Workspace));
-    this.updateMyProjects([p, ...this.myProjects]);
+    this.updateMyProjects([p, ...this.myProjects.filter((x) => x.id !== p.id)]);
     await this.open(p.id);
+    return true;
+  }
+
+  /** Can a new project live in this folder (see lab-server checkNewFolder)? */
+  async checkFolder(path: string): Promise<{ ok: true; path: string; exists: boolean; hasCode: boolean } | { ok: false; error: string }> {
+    try {
+      const r = await fetch(`/api/folder/check?path=${encodeURIComponent(path)}`, { cache: 'no-store' });
+      if (!r.ok) throw new Error();
+      return await r.json();
+    } catch {
+      return { ok: false, error: 'Không hỏi được server của lab (lưu vào thư mục chỉ có khi chạy lab trên máy này).' };
+    }
   }
 
   /** A new bench with this board and breadboard, `change` made on it (see applyChange); nothing is saved. */
@@ -453,10 +604,23 @@ class Lab {
 
   renameMyProject(id: string, title: string) {
     const t = title.trim();
-    if (t) this.updateMyProjects(this.myProjects.map((p) => (p.id === id ? { ...p, title: t } : p)));
+    if (!t) return;
+    this.updateMyProjects(this.myProjects.map((p) => (p.id === id ? { ...p, title: t } : p)));
+    const folder = this.myProjects.find((p) => p.id === id)?.folder;
+    if (folder) void fetch('/api/folder', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ path: folder, title: t }) });
   }
 
-  deleteMyProject(id: string) {
+  /** Gone from the lab. A linked folder loses esp32-lab.json (the circuit); main.cpp and the rest stay. */
+  async deleteMyProject(id: string) {
+    const folder = this.myProjects.find((p) => p.id === id)?.folder;
+    if (folder) {
+      if (this.route === id) this.flushFolder();
+      const r = await fetch(`/api/folder?path=${encodeURIComponent(folder)}`, { method: 'DELETE' }).catch(() => null);
+      if (!r?.ok) {
+        this.error = `Không xoá được esp32-lab.json trong ${folder}${r ? `: ${await r.text()}` : ' (server của lab có đang chạy?)'}.`;
+        return;
+      }
+    }
     this.updateMyProjects(this.myProjects.filter((p) => p.id !== id));
     localStorage.removeItem(wsKey(id));
   }
@@ -903,12 +1067,21 @@ class Lab {
    */
   async open(id: string) {
     this.save();
+    this.flushFolder();
     this.stopProgram();
+    const linked = this.myProjects.find((p) => p.id === id)?.folder;
+    // A linked folder opens as it is on disk; the copy in the browser only if the server is not there
+    const disk = linked ? await this.readFolder(linked) : null;
+    if (disk) localStorage.setItem(wsKey(id), JSON.stringify({ project: disk.project, code: disk.code, passed: [] } satisfies Workspace));
+    else if (linked) this.notice = `Không đọc được thư mục ${linked} (server của lab có đang chạy?): đang mở bản lưu trong trình duyệt, sửa sẽ không vào thư mục.`;
+    this.folderFiles = disk?.files ?? [];
+    this.diskCode = disk?.code ?? null;
+    this.folderStart = disk ? structuredClone(disk.project) : null;
     const lesson = LESSONS.find((l) => l.id === id);
     const featured = FEATURED.find((f) => f.id === id);
     const source = featured ?? FEATURED.find((f) => f.id === this.myProjects.find((p) => p.id === id)?.from);
     // Fetch before switching, so nothing saves the old bench under the new id meanwhile
-    const original = lesson?.sketch ? await this.fetchSketch(lesson.sketch) : (source?.code ?? null);
+    const original = lesson?.sketch ? await this.fetchSketch(lesson.sketch) : (source?.code ?? disk?.code ?? null);
     this.lessonId = lesson?.id ?? null;
     this.route = id;
     this.docPage = null;
@@ -930,6 +1103,7 @@ class Lab {
 
   goHome() {
     this.save();
+    this.flushFolder();
     this.stopProgram();
     this.route = 'home';
   }
@@ -938,7 +1112,7 @@ class Lab {
   restart() {
     const lesson = this.lesson;
     this.stopProgram();
-    this.project = structuredClone(lesson?.template ?? this.source?.project ?? this.mine?.start ?? emptyProject());
+    this.project = structuredClone(lesson?.template ?? this.source?.project ?? this.mine?.start ?? (this.mine?.folder ? this.folderStart : null) ?? emptyProject());
     this.code = this.originalCode ?? DEFAULT_SKETCH;
     this.selection = null;
     this.build = { status: 'idle', log: '', ms: 0, errors: [] };
@@ -1040,7 +1214,7 @@ class Lab {
     const code = this.code;
     this.build = { status: 'building', log: '', ms: 0, errors: [] };
     try {
-      const r = await fetch('/api/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code }) });
+      const r = await fetch('/api/build', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, folder: this.mine?.folder }) });
       if (!r.ok || !r.body) throw new Error(await r.text());
       const reader = r.body.getReader();
       const decoder = new TextDecoder();
@@ -1131,7 +1305,7 @@ class Lab {
       const r = await fetch('/api/device/upload', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ code: this.code, port: d.port, live }),
+        body: JSON.stringify({ code: this.code, port: d.port, live, folder: this.mine?.folder }),
       });
       if (!r.ok || !r.body) throw new Error(await r.text());
       const reader = r.body.getReader();

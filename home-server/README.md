@@ -100,6 +100,12 @@ trạng thái trong Home Assistant đổi theo.
 3. Monitor hiện `MQTT connecting... ok`. Trong Home Assistant sẽ có thiết bị `esp32-den` kèm công
    tắc **LED**.
 
+Hoặc làm trong ESP32 Lab: thư mục này có `esp32-lab.json` nên hiện trong **Dự án của tôi** với tên
+"Công tắc MQTT cho Home Assistant". Lab đọc và ghi thẳng `main.cpp` ở đây (mạch nằm trong
+`esp32-lab.json`), build kèm `secrets.h`, chạy thử trên board giả lập rồi nạp vào board thật bằng
+nút nạp của lab. Trên board giả lập không có Wi-Fi: sketch nhận ra qua địa chỉ MAC cố định của nó
+và bỏ qua phần mạng, chỉ còn LED và nút BOOT.
+
 Topic mà sketch dùng:
 
 | Topic | Ai gửi | Nội dung |
@@ -117,6 +123,16 @@ docker compose exec mosquitto mosquitto_sub -u ha -P '<mật khẩu ha>' -t 'hom
 # Bật LED
 docker compose exec mosquitto mosquitto_pub -u ha -P '<mật khẩu ha>' -t home/esp32-den/led/set -m ON
 ```
+
+**ESP32 hay bị offline trong Home Assistant:** xem broker ngắt nó vì lý do gì:
+
+```sh
+docker compose logs --since 24h mosquitto | grep esp32-den
+```
+
+`exceeded timeout` nghĩa là broker không nhận được ping đúng hạn. Sketch đã tắt Wi-Fi modem sleep
+(`WiFi.setSleep(false)`) và tăng keepalive lên 60 s cho trường hợp này. Nếu vẫn bị, xem dòng
+`MQTT connecting... ok (Wi-Fi -xx dBm)` trên Monitor: yếu hơn khoảng -75 dBm thì đặt board gần router hơn.
 
 ## 6. ESPHome (khi cần)
 
@@ -181,6 +197,22 @@ quit
 Thử tiếng: `pactl get-default-sink` phải ra `bluez_output...`, và
 `paplay /usr/share/sounds/alsa/Front_Center.wav` phải làm loa kêu.
 
+**Loa kêu quá nhỏ:** WirePlumber đặt mọi loa mới ở mức 40% (khoảng -24 dB). Nâng lên 100% rồi chỉnh
+to nhỏ bằng núm trên loa:
+
+```sh
+wpctl set-volume @DEFAULT_AUDIO_SINK@ 1.0
+```
+
+Để loa ghép đôi sau này cũng mặc định 100%, tạo file
+`~/.config/wireplumber/wireplumber.conf.d/82-default-volume.conf`:
+
+```
+wireplumber.settings = {
+  device.routes.default-sink-volume = 1.0
+}
+```
+
 **3. MPD chạy dưới user của bạn.** Bản MPD chạy toàn hệ thống không phát qua PipeWire được, nên tắt
 nó đi:
 
@@ -203,6 +235,7 @@ port               "6600"
 audio_output {
   type "pulse"
   name "Loa Bluetooth"
+  mixer_type "software"   # để Home Assistant chỉnh được âm lượng cả khi không phát gì
 }
 ```
 
@@ -230,6 +263,17 @@ target:
 data:
   media_player_entity_id: media_player.music_player_daemon
   message: "Xin chào"
+```
+
+Chỉnh âm lượng: kéo thanh âm lượng của thẻ **Music Player Daemon**, hoặc dùng action
+`media_player.volume_set` (giá trị từ 0 đến 1), ví dụ đặt trước câu `tts.speak` trong automation:
+
+```yaml
+action: media_player.volume_set
+target:
+  entity_id: media_player.music_player_daemon
+data:
+  volume_level: 0.6
 ```
 
 Dấu tích xanh chỉ có nghĩa là Home Assistant đã nhận lệnh. Nếu loa im, xem

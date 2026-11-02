@@ -9,7 +9,7 @@
 // GND and 3V3 / 5V are symbols, never wires; a net that neither reaches the ESP32 nor a supply
 // but joins several things gets a label (N1, N2…) at each end.
 
-import { sch } from '@esp32lab/part-sdk';
+import { parseCapacitance, sch } from '@esp32lab/part-sdk';
 import { GROUND_KEY, keyOf, type SimKernel } from '@esp32lab/sim-core';
 import type { PartInstance, Project } from '@esp32lab/project-model';
 import { PARTS } from './catalog';
@@ -19,6 +19,8 @@ type P = [number, number];
 /** Two-leg parts drawn as a symbol in a row: which legs, the symbol, the designator letter. */
 const TWO_LEG: Record<string, { legs: [string, string]; ref: string; draw: (a: P, b: P, part: PartInstance, label: string) => string }> = {
   resistor: { legs: ['a', 'b'], ref: 'R', draw: (a, b, p, l) => sch.resistor(a, b, l, sch.ohm(Number(prop(p, 'resistance')))) },
+  capacitor: { legs: ['a', 'b'], ref: 'C', draw: (a, b, p, l) => sch.capacitor(a, b, l, sch.farad(parseCapacitance(String(prop(p, 'capacitance'))))) },
+  'electrolytic-capacitor': { legs: ['plus', 'minus'], ref: 'C', draw: (a, b, p, l) => sch.capacitor(a, b, l, sch.farad(parseCapacitance(String(prop(p, 'capacitance')))), true) },
   // The designator goes under an LED, clear of its light arrows
   led: { legs: ['anode', 'cathode'], ref: 'LED', draw: (a, b, p, l) => sch.diode(a, b, { led: true, color: LED_COLORS[String(prop(p, 'color'))] }) + sch.text((a[0] + b[0]) / 2, a[1] + 22, l) },
   diode: { legs: ['anode', 'cathode'], ref: 'D', draw: (a, b, p, l) => sch.diode(a, b, { label: l, sub: String(prop(p, 'model')) }) },
@@ -30,7 +32,9 @@ const TWO_LEG: Record<string, { legs: [string, string]; ref: string; draw: (a: P
 };
 
 /** Designator letters for the parts drawn as boxes. */
-const BOX_REF: Record<string, string> = { potentiometer: 'RV', 'slide-switch': 'SW', 'rgb-led': 'LED', relay: 'K' };
+/** Three-leg variable resistors, drawn as a resistor with a wiper arrow. */
+const POT_TYPES = new Set(['potentiometer', 'trimpot-3296']);
+const BOX_REF: Record<string, string> = { potentiometer: 'RV', 'trimpot-3296': 'RV', 'slide-switch': 'SW', 'rgb-led': 'LED', relay: 'K' };
 
 const LED_COLORS: Record<string, string> = { red: '#e5484d', yellow: '#f5d90a', green: '#46a758', blue: '#3e63dd', white: '#f0f0f3' };
 
@@ -209,7 +213,7 @@ export function buildSchematic(project: Project, kernel: SimKernel, voltages: Re
 
   // --- Potentiometers: a resistor standing between its ends, the wiper pointing at it ----------
   for (const part of parts) {
-    if (part.type !== 'potentiometer') continue;
+    if (!POT_TYPES.has(part.type)) continue;
     const [a, wiper, b] = ['a', 'wiper', 'b'].map((t) => net(part.id, t));
     const H = 96;
     const margin = wiper?.pad ? 40 : 70;
@@ -236,7 +240,7 @@ export function buildSchematic(project: Project, kernel: SimKernel, voltages: Re
 
   // --- Boxes: everything with more legs -------------------------------------------------------
   for (const part of parts) {
-    if (TWO_LEG[part.type] || part.type === 'potentiometer') continue;
+    if (TWO_LEG[part.type] || POT_TYPES.has(part.type)) continue;
     const m = PARTS[part.type]!.manifest;
     // Pushbutton-style legs that are the same pin inside the part are drawn once
     const shorted = new Set((m.internalShorts ?? []).map(([, b]) => b));

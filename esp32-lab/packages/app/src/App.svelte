@@ -29,6 +29,7 @@
   let blank = $derived(lab.route === FREE || (!!lab.mine && !lab.mine.from));
   /** A project of the user's own set up with the new-bench steps: restarting goes back to that bench. */
   let setUp = $derived(!!lab.mine?.start);
+  let linked = $derived(!!lab.mine?.folder);
 
   const time = (at: number) => new Date(at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
@@ -118,7 +119,7 @@
   <header>
     <div class="where">
       <button class="back" onclick={() => lab.goHome()} title="Trang chủ: bài học và dự án mẫu" aria-label="Trang chủ"><Icon name="back" /></button>
-      <span class="kind">{lab.mine ? 'Dự án của tôi' : lab.route === FREE ? 'Tự do' : lab.featured ? 'Dự án mẫu' : 'Bài học'}</span>
+      <span class="kind" title={lab.mine?.folder ? 'Code và mạch nằm trong thư mục này: sửa ở đây là sửa file trên đĩa' : undefined}>{lab.mine?.folder ? `Thư mục ${lab.mine.folder}` : lab.mine ? 'Dự án của tôi' : lab.route === FREE ? 'Tự do' : lab.featured ? 'Dự án mẫu' : 'Bài học'}</span>
       {#if lab.mine}
         {@const mine = lab.mine}
         {#if renaming}
@@ -148,8 +149,8 @@
         {#if menuOpen}
           <div class="menu" role="menu">
             {#if !lab.featured}
-            <button role="menuitem" onclick={() => menu(() => confirm(setUp ? 'Đưa bàn về như lúc mới tạo và code về mặc định? Phần bạn đã sửa sẽ mất.' : blank ? 'Xoá hết mạch và code trên bàn này?' : (lab.mine ? 'Đưa mạch và code của bản sao về như dự án gốc? Phần bạn đã sửa sẽ mất.' : 'Đưa mạch và code về như lúc mới mở bài? Phần bạn đã sửa sẽ mất.')) && lab.restart())}>
-              <Icon name="reset" />{setUp ? 'Đưa bàn về như lúc mới tạo' : blank ? 'Xoá bàn và code' : lab.mine ? 'Đưa bản sao về như bản gốc' : 'Làm lại bài từ đầu'}
+            <button role="menuitem" onclick={() => menu(() => confirm(linked ? 'Đưa mạch và code về như lúc mở dự án? Phần sửa từ lúc đó sẽ mất (cả trong file).' : setUp ? 'Đưa bàn về như lúc mới tạo và code về mặc định? Phần bạn đã sửa sẽ mất.' : blank ? 'Xoá hết mạch và code trên bàn này?' : (lab.mine ? 'Đưa mạch và code của bản sao về như dự án gốc? Phần bạn đã sửa sẽ mất.' : 'Đưa mạch và code về như lúc mới mở bài? Phần bạn đã sửa sẽ mất.')) && lab.restart())}>
+              <Icon name="reset" />{linked ? 'Bỏ các thay đổi từ lúc mở' : setUp ? 'Đưa bàn về như lúc mới tạo' : blank ? 'Xoá bàn và code' : lab.mine ? 'Đưa bản sao về như bản gốc' : 'Làm lại bài từ đầu'}
             </button>
             {/if}
             <button role="menuitem" onclick={() => menu(() => (visible('code') ? layout.toggle(layout.dockOf('code')) : layout.reveal('code')))}>{visible('code') ? 'Ẩn' : 'Hiện'} trình soạn code</button>

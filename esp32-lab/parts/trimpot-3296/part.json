@@ -1,0 +1,86 @@
+{
+  "id": "trimpot-3296",
+  "version": "0.1.0",
+  "name": "Biến trở tinh chỉnh 3296 (25 vòng)",
+  "category": "input",
+  "stock": [
+    "resistance"
+  ],
+  "tags": [
+    "through-hole",
+    "analog",
+    "potentiometer",
+    "trimmer",
+    "baoter",
+    "bourns"
+  ],
+  "terminals": [
+    {
+      "name": "a",
+      "dx": 0,
+      "dy": 0,
+      "label": "Chân 1"
+    },
+    {
+      "name": "wiper",
+      "dx": 1,
+      "dy": 1,
+      "label": "Chân 2 (con chạy)"
+    },
+    {
+      "name": "b",
+      "dx": 2,
+      "dy": 0,
+      "label": "Chân 3"
+    }
+  ],
+  "props": {
+    "resistance": {
+      "type": "number",
+      "default": 10000,
+      "unit": "Ω",
+      "options": [
+        100,
+        200,
+        500,
+        1000,
+        2000,
+        5000,
+        10000,
+        20000,
+        50000,
+        100000,
+        200000,
+        500000,
+        1000000
+      ]
+    },
+    "position": {
+      "type": "number",
+      "default": 50,
+      "unit": "%",
+      "min": 0,
+      "max": 100
+    }
+  },
+  "ratings": {
+    "powerMax": 0.5,
+    "overstressTime": 2000000000
+  },
+  "plug": {"pins": {"a": "gnd", "wiper": "adc", "b": "3v3"}},
+  "learn": {
+    "summary": "Biến trở tinh chỉnh 3296 (Baoter, Bourns hay hàng tương đương) là biến trở nhỏ hình hộp xanh, chỉnh bằng vít đồng. Vít phải vặn khoảng 25 vòng mới chạy hết dải, nên chỉnh được rất mịn. Hay dùng để đặt một giá trị rồi để yên: độ tương phản LCD, ngưỡng so sánh, hiệu chỉnh cảm biến.",
+    "howToPlug": [
+      "Đọc giá trị trên thân: 103 là 10 × 10³ = 10 kΩ, 502 là 5 kΩ, 104 là 100 kΩ.",
+      "Loại 3296W có ba chân xếp hình tam giác: chân 1 và chân 3 cách nhau 2 lỗ, chân 2 (con chạy) ở giữa, lệch sang hàng bên cạnh. Cả ba chân rơi vào ba cột khác nhau của breadboard.",
+      "Chân 1 nối GND, chân 3 nối 3,3 V, chân 2 vào một chân ADC1 (ví dụ GPIO34) để đọc bằng analogRead().",
+      "Chọn biến trở rồi kéo thanh trượt \"position\" để vặn vít."
+    ],
+    "tips": [
+      "Vặn vít theo chiều kim đồng hồ thì con chạy tiến về phía chân 3 (với đa số hãng). Hết dải thì vít vẫn quay được nhưng bị trượt (có tiếng tách nhẹ), không hỏng.",
+      "Một vòng vít chỉ đổi khoảng 4 % dải: muốn đi từ đầu tới cuối phải vặn khoảng 25 vòng.",
+      "Chịu được 0,5 W, nhưng đừng nối chân 2 thẳng vào nguồn hay GND khi hai chân ngoài đang có điện: vặn hết cỡ là ngắn mạch qua một đoạn điện trở rất nhỏ.",
+      "Dùng ADC1 (GPIO32–39) vì ADC2 không dùng được khi bật WiFi."
+    ]
+  }
+}

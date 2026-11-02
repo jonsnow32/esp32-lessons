@@ -7,6 +7,7 @@
   import { designer } from '../lib/design.svelte';
   import { inventory, itemName } from '../lib/inventory.svelte';
   import CircuitThumb from './CircuitThumb.svelte';
+  import FolderField from './FolderField.svelte';
   import Icon from './Icon.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
@@ -18,6 +19,8 @@
   let key = $state('');
   let title = $state('');
   let creating = $state(false);
+  let folder = $state<string | undefined>();
+  let folderOk = $state(true);
   /** Another way in or model, for this and the assistant alike; the API key stays as it is. */
   function use(source: Source, model: ModelId = ai.model) {
     if (designer.busy) return;
@@ -49,10 +52,10 @@
   }
 
   async function create() {
-    if (creating) return;
+    if (creating || !folderOk) return;
     creating = true;
     onclose();
-    await designer.create(title);
+    await designer.create(title, folder);
   }
 
   const name = (type: string, list: Record<string, { name: string }>) => list[type]?.name.replace(/ \(.*/, '') ?? type;
@@ -147,6 +150,7 @@
       <button onclick={revise} disabled={!change.trim()}>Sửa</button>
     </div>
     <label class="title">Tên dự án <input bind:value={title} maxlength="80" onkeydown={(e) => e.stopPropagation()} /></label>
+    <FolderField bind:folder bind:valid={folderOk} />
   {/if}
 </div>
 
@@ -169,7 +173,7 @@
     <button onclick={() => designer.stop()}>Dừng</button>
   {:else if plan}
     <button onclick={() => designer.reset()}><Icon name="chevron-left" size={12} />Tả lại</button>
-    <button class="primary" disabled={creating} title={errors.length ? 'Mạch còn lỗi, bạn có thể sửa sau trên bàn' : ''} onclick={create}>Tạo bàn{missing.length ? ` (thiếu ${missing.length} món)` : ''}</button>
+    <button class="primary" disabled={creating || !folderOk} title={errors.length ? 'Mạch còn lỗi, bạn có thể sửa sau trên bàn' : ''} onclick={create}>Tạo bàn{missing.length ? ` (thiếu ${missing.length} món)` : ''}</button>
   {:else if ai.ready}
     <button class="primary" disabled={!text.trim()} onclick={start}>Thiết kế<Icon name="chevron-right" size={12} /></button>
   {/if}

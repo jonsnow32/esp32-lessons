@@ -74,6 +74,10 @@ Rules:
 
 - **Diodes and LEDs** use `Junction` from the SDK (`Junction.fit(vf, i, n)` from a datasheet
   point, then `junction.stamp(ctx, anode, cathode)`): it does the companion model and `pnjlim`.
+- **Capacitors** use `Capacitor` from the SDK: `cap.stamp(ctx, a, b)`, `cap.solved(v)` from
+  `onSolved` (with `op.avg` so a PWM pin is averaged), `cap.step()` on its `'cap'` timer, and
+  `persist`/`restore` of `cap.v0` so rewiring does not discharge it. It steps itself with timers,
+  since the kernel only re-solves when something happens. See `parts/capacitor/index.ts`.
 - **Transistors** stamp how the channel follows the gate with
   `ctx.transconductance(d, s, g, s, gm)`: gm·(v(g) − v(s)) amperes from d to s. See
   `parts/mosfet/index.ts`.

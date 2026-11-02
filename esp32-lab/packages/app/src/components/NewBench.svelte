@@ -8,6 +8,7 @@
   import AiBench from './AiBench.svelte';
   import BoardView from './BoardView.svelte';
   import BreadboardView from './BreadboardView.svelte';
+  import FolderField from './FolderField.svelte';
   import Icon from './Icon.svelte';
 
   let { onclose }: { onclose: () => void } = $props();
@@ -24,6 +25,8 @@
   let plug = $state(true);
   let title = $state(lab.nextTitle);
   let creating = $state(false);
+  let folder = $state<string | undefined>();
+  let folderOk = $state(true);
 
   const ENTRIES = Object.entries(PARTS);
   const order = Object.keys(CATEGORY);
@@ -49,11 +52,11 @@
   }
 
   async function create() {
-    if (creating) return;
+    if (creating || !folderOk) return;
     creating = true;
     const parts = chosen.flatMap(([type, n]) => Array<string>(n).fill(type));
     onclose();
-    await lab.newMyProject({ title, board, breadboard: bb, parts, plug });
+    await lab.newMyProject({ title, board, breadboard: bb, parts, plug, folder });
   }
 </script>
 
@@ -150,6 +153,7 @@
         </div>
         <div class="finish">
           <label class="title">Tên dự án <input bind:value={title} maxlength="80" onkeydown={(e) => { e.stopPropagation(); if (e.key === 'Enter') create(); }} /></label>
+          <FolderField bind:folder bind:valid={folderOk} />
           {#if total}
             <label class="check"><input type="checkbox" bind:checked={plug} /> Tự cắm và nối dây các linh kiện theo cách cắm mẫu</label>
           {/if}
@@ -167,7 +171,7 @@
       {#if step < STEPS.length - 1}
         <button class="primary" onclick={() => step++}>{step === 1 && !total ? 'Bỏ qua' : 'Tiếp'}<Icon name="chevron-right" size={12} /></button>
       {:else}
-        <button class="primary" disabled={creating} onclick={create}>Tạo bàn</button>
+        <button class="primary" disabled={creating || !folderOk} onclick={create}>Tạo bàn</button>
       {/if}
     </footer>
     {/if}

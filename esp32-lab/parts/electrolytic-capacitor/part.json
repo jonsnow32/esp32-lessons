@@ -1,0 +1,76 @@
+{
+  "id": "electrolytic-capacitor",
+  "version": "0.1.0",
+  "name": "Tụ hoá (tụ phân cực)",
+  "category": "passive",
+  "stock": [
+    "capacitance",
+    "voltage"
+  ],
+  "tags": [
+    "through-hole",
+    "capacitor",
+    "electrolytic",
+    "polarized"
+  ],
+  "terminals": [
+    {
+      "name": "plus",
+      "dx": 0,
+      "dy": 0,
+      "label": "+ (chân dài)"
+    },
+    {
+      "name": "minus",
+      "dx": 1,
+      "dy": 0,
+      "label": "− (chân ngắn, phía vạch trắng)"
+    }
+  ],
+  "props": {
+    "capacitance": {
+      "type": "enum",
+      "default": "100µF",
+      "options": [
+        "1µF",
+        "4.7µF",
+        "10µF",
+        "22µF",
+        "47µF",
+        "100µF",
+        "220µF",
+        "470µF",
+        "1000µF"
+      ]
+    },
+    "voltage": {
+      "type": "enum",
+      "default": "16V",
+      "options": [
+        "10V",
+        "16V",
+        "25V",
+        "35V",
+        "50V"
+      ]
+    }
+  },
+  "ratings": {
+    "reverseVoltageMax": 1,
+    "overstressTime": 1000000000
+  },
+  "plug": {"pins": {"plus": "3v3", "minus": "gnd"}},
+  "learn": {
+    "summary": "Tụ hoá chứa được nhiều điện tích hơn tụ gốm (từ vài µF tới hàng nghìn µF) nhưng có chiều: chân + phải luôn ở điện áp cao hơn chân −. Hay dùng để giữ nguồn ổn định khi tải hút dòng mạnh (servo, relay, LED dây) và để tạo trễ thời gian dài với điện trở.",
+    "howToPlug": [
+      "Chân dài là +, chân ngắn là −. Trên vỏ có một vạch trắng in dấu −, nằm ở phía chân −.",
+      "Lọc nguồn: chân + vào 5 V hoặc 3,3 V, chân − vào GND, cắm sát chỗ tải hút điện (servo, relay).",
+      "Chọn tụ có điện áp ghi trên vỏ cao hơn điện áp mạch, ví dụ mạch 5 V dùng tụ 10 V hoặc 16 V."
+    ],
+    "tips": [
+      "Cắm ngược hoặc quá điện áp ghi trên vỏ thì tụ nóng lên, phồng đỉnh và hỏng; tụ lớn có thể nổ. Trong mô phỏng tụ hỏng sẽ rò điện như một điện trở nhỏ.",
+      "τ = R × C: 10 kΩ × 100 µF = 1 s. Sau 5τ tụ coi như nạp đầy hoặc xả hết.",
+      "Tụ đã nạp vẫn giữ điện sau khi rút nguồn. Tụ lớn ở điện áp cao nên xả qua điện trở trước khi chạm vào."
+    ]
+  }
+}

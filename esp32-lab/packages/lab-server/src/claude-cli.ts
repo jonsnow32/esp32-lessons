@@ -124,7 +124,7 @@ export function claudeCli(opts: ClaudeCliOptions) {
 
   /** Connect-style handler for /api/ai/claude; passes anything else to `next`. */
   function handle(req: IncomingMessage, res: ServerResponse, next: Next) {
-    if (new URL(req.url ?? '/', 'http://lab').pathname !== '/api/ai/claude') return next();
+    if ((req.url ?? '/').split('?')[0] !== '/api/ai/claude') return next();
     if (req.method === 'GET') {
       res.setHeader('content-type', 'application/json');
       return res.end(JSON.stringify({ available: isAvailable() }));

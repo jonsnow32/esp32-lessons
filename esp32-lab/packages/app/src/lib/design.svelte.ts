@@ -205,11 +205,12 @@ class Designer {
   }
 
   /** Create the project from the design shown and open it. */
-  async create(title: string) {
+  async create(title: string, folder?: string) {
     const plan = this.plan;
     if (!plan || this.busy) return;
-    await lab.createMyProject(title || plan.design.title, $state.snapshot(plan.project) as Project, plan.design.code ?? undefined);
-    lab.notice = `Đã tạo bàn theo mô tả: ${plan.design.summary}`;
+    if (!(await lab.createMyProject(title || plan.design.title, $state.snapshot(plan.project) as Project, plan.design.code ?? undefined, folder))) return;
+    // A main.cpp already in the folder was kept: that notice goes first
+    lab.notice = [lab.notice, `Đã tạo bàn theo mô tả: ${plan.design.summary}`].filter(Boolean).join(' ');
     this.reset();
   }
 

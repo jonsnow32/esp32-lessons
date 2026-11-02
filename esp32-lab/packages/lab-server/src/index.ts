@@ -10,6 +10,17 @@
 //   GET  /api/build/out/<file>            the sketch build's firmware files
 //   GET  /api/sketch?path=lession/…       a lesson's main.cpp, as starting code
 //
+// Linked folders (see folders.ts), a sketch kept in its own folder of the course:
+//   GET  /api/folders                     every linked folder: [{ path, title, updated }]
+//   GET  /api/folder?path=…               { title, project, code }
+//   PUT  /api/folder           { path, title?, project?, code? }   write what changed
+//   DELETE /api/folder?path=…             unlink: esp32-lab.json goes, main.cpp and the rest stay
+//   GET  /api/folder/check?path=…         can a new project live there: { ok, path, exists, hasCode } | { ok: false, error }
+//   POST /api/folder/link      { path, title, project, code }   a new project in that folder
+//                                         (its main.cpp kept if there is one): { path, title, project, code, files }
+// /api/build and /api/device/upload take { folder } too: the folder's other sources (secrets.h…)
+// are built next to the code.
+//
 // A real ESP32 on USB (see device.ts):
 //   GET  /api/device/ports                serial ports, likely boards first
 //   POST /api/device/upload    { code, port, live }
@@ -25,12 +36,13 @@
 // the same core as `pio run -e lessonNN`. The course's platformio.ini is never touched.
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { homedir } from 'node:os';
 import { join, normalize, relative } from 'node:path';
 import libraries from '../libraries.json';
 import { listPorts, pythonFor, SerialLine } from './device';
+import { checkNewFolder, findFolders, folderPath, folderSources, linkFolder, readFolder, unlinkFolder, writeFolder } from './folders';
 import { PROBE_CPP, PROBE_FILE } from './probe';
 
 export interface LabServerOptions {
@@ -168,8 +180,9 @@ export function labServer(opts: LabServerOptions) {
     if (!existsSync(path) || readFileSync(path, 'utf8') !== text) writeFileSync(path, text);
   }
 
-  function prepare(code: string) {
-    mkdirSync(join(project, 'src'), { recursive: true });
+  function prepare(code: string, folder?: string) {
+    const src = join(project, 'src');
+    mkdirSync(src, { recursive: true });
     // Every library, whatever the sketch includes: a platformio.ini that changes makes PlatformIO
     // rebuild the whole Arduino core (some 12 s). Built once, the unused ones cost nothing more,
     // and the linker leaves them out of the firmware.
@@ -192,17 +205,23 @@ export function labServer(opts: LabServerOptions) {
     keep(join(project, 'fast_bin.py'), FAST_BIN);
     mkdirSync(join(project, 'probe'), { recursive: true });
     keep(join(project, 'probe', PROBE_FILE), PROBE_CPP);
-    writeFileSync(join(project, 'src', 'main.cpp'), code);
+    // A linked folder's other sources next to the code; nothing left from another sketch's
+    const dir = folder ? folderPath(opts.projectRoot, folder) : null;
+    const extra = dir ? folderSources(dir) : {};
+    for (const n of readdirSync(src)) if (n !== 'main.cpp' && !(n in extra)) rmSync(join(src, n), { recursive: true, force: true });
+    for (const [n, text] of Object.entries(extra)) keep(join(src, n), text);
+    writeFileSync(join(src, 'main.cpp'), code);
   }
 
   /**
    * Compile a sketch; the pio log goes to `output` as it comes. Null while another build runs.
-   * `upload`: then flash it to the board on that port (`live`: with the probe).
+   * `upload`: then flash it to the board on that port (`live`: with the probe). `folder`: a linked
+   * folder whose other sources it is built with.
    */
-  function build(code: string, output: (text: string) => void, upload?: { port: string; live: boolean }): Promise<BuildResult> | null {
+  function build(code: string, output: (text: string) => void, upload?: { port: string; live: boolean }, folder?: string): Promise<BuildResult> | null {
     if (building) return null;
     building = true;
-    prepare(code);
+    prepare(code, folder);
     const started = Date.now();
     let log = '';
     const args = upload
@@ -270,15 +289,18 @@ export function labServer(opts: LabServerOptions) {
     req.on('data', (c) => (body += c));
     req.on('end', () => {
       let code: string;
+      let folder: string | undefined;
       try {
-        code = String(JSON.parse(body).code ?? '');
+        const json = JSON.parse(body);
+        code = String(json.code ?? '');
+        folder = typeof json.folder === 'string' ? json.folder : undefined;
       } catch {
         res.statusCode = 400;
         return res.end('bad request');
       }
       res.setHeader('content-type', 'text/plain; charset=utf-8');
       res.setHeader('cache-control', 'no-store');
-      const done = build(code, (text) => res.write(text));
+      const done = build(code, (text) => res.write(text), undefined, folder);
       if (!done) {
         res.statusCode = 409;
         return res.end('Đang build, chờ lần build trước xong.');
@@ -323,7 +345,8 @@ export function labServer(opts: LabServerOptions) {
         if (line.port === port) await line.close();
         res.setHeader('content-type', 'text/plain; charset=utf-8');
         res.setHeader('cache-control', 'no-store');
-        const done = build(String(body.code ?? ''), (text) => res.write(text), { port, live: !!body.live });
+        const folder = typeof body.folder === 'string' ? body.folder : undefined;
+        const done = build(String(body.code ?? ''), (text) => res.write(text), { port, live: !!body.live }, folder);
         if (!done) {
           res.statusCode = 409;
           return res.end('Đang build, chờ lần build trước xong.');
@@ -378,16 +401,67 @@ export function labServer(opts: LabServerOptions) {
     send(res, 'text/plain; charset=utf-8', readFileSync(full, 'utf8'));
   }
 
+  /** Linked folders: list, read, write. */
+  function folders(req: IncomingMessage, path: string, query: URLSearchParams, res: ServerResponse, next: Next) {
+    if (req.method === 'GET' && path === '/api/folders') return send(res, 'application/json', JSON.stringify(findFolders(opts.projectRoot)));
+    if (req.method === 'GET' && path === '/api/folder/check') return send(res, 'application/json', JSON.stringify(checkNewFolder(opts.projectRoot, query.get('path') ?? '')));
+    if (req.method === 'POST' && path === '/api/folder/link') {
+      return readJson(req, res, (body) => {
+        const r = linkFolder(opts.projectRoot, String(body.path ?? ''), { title: String(body.title ?? ''), project: body.project ?? null, code: String(body.code ?? '') });
+        if (typeof r === 'string') {
+          res.statusCode = 400;
+          return res.end(r);
+        }
+        send(res, 'application/json', JSON.stringify(r));
+      });
+    }
+    if (path !== '/api/folder') return next();
+    if (req.method === 'DELETE') {
+      const dir = folderPath(opts.projectRoot, query.get('path') ?? '');
+      if (!dir) return next();
+      unlinkFolder(dir);
+      return res.end('ok');
+    }
+    if (req.method === 'GET') {
+      const dir = folderPath(opts.projectRoot, query.get('path') ?? '');
+      return dir ? send(res, 'application/json', JSON.stringify(readFolder(dir))) : next();
+    }
+    if (req.method === 'PUT') {
+      return readJson(req, res, (body) => {
+        const dir = folderPath(opts.projectRoot, String(body.path ?? ''));
+        if (!dir) {
+          res.statusCode = 404;
+          return res.end('Không có thư mục liên kết này.');
+        }
+        writeFolder(dir, {
+          title: typeof body.title === 'string' ? body.title : undefined,
+          project: body.project ?? undefined,
+          code: typeof body.code === 'string' ? body.code : undefined,
+        });
+        res.end('ok');
+      });
+    }
+    next();
+  }
+
   /** Connect-style handler: answers the lab's endpoints, passes anything else to `next`. */
   function handle(req: IncomingMessage, res: ServerResponse, next: Next) {
-    const url = new URL(req.url ?? '/', 'http://lab');
-    const path = decodeURIComponent(url.pathname);
+    // Joined, not resolved: a path like "//" would be read as a host and throw
+    let url: URL;
+    let path: string;
+    try {
+      url = new URL(`http://lab${req.url ?? '/'}`);
+      path = decodeURIComponent(url.pathname);
+    } catch {
+      return next();
+    }
     const under = (prefix: string) => (path === prefix || path.startsWith(prefix + '/') ? path.slice(prefix.length) || '/' : null);
     const pioPath = under('/pio');
     if (pioPath !== null && req.method === 'GET') return pioBuilds(pioPath, url.searchParams, res, next);
     const buildPath = under('/api/build');
     if (buildPath !== null) return sketchBuild(req, buildPath, res, next);
     if (path === '/api/sketch') return lessonSketch(url.searchParams, res, next);
+    if (path === '/api/folders' || under('/api/folder') !== null) return folders(req, path, url.searchParams, res, next);
     const devicePath = under('/api/device');
     if (devicePath !== null) return device(req, devicePath, url.searchParams, res, next);
     next();

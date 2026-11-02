@@ -99,6 +99,8 @@ export function explain(ctx: ExplainContext): Note[] {
   // --- Damaged parts --------------------------------------------------------------------
   for (const d of kernel.diagnostics.filter((x) => x.code === 'damaged' && x.part)) {
     const id = d.part!;
+    // Explained with its cause (reversed, over-voltage) under part status below
+    if (parts.get(id)?.type === 'electrolytic-capacitor') continue;
     const what = id.startsWith('mcu.') ? `Chân ${id.slice(4)} của ESP32` : id;
     notes.push({ level: 'error', text: `${what} đã hỏng vì dòng quá lớn trong thời gian dài. Kiểm tra điện trở hạn dòng.`, highlight: [id] });
   }
@@ -180,7 +182,8 @@ export function explain(ctx: ExplainContext): Note[] {
       return `${id} (LED ${LED_COLOR[String(p.color)] ?? ''}, ${volts(drop)}, sáng ${b}%)`;
     }
     if (type === 'pushbutton') return `${id} (đang nhấn)`;
-    if (type === 'potentiometer') return `${id} (biến trở ${ohms(Number(p.resistance))}, núm ${p.position} %, sụt ${volts(drop)})`;
+    if (type === 'capacitor' || type === 'electrolytic-capacitor') return `${id} (tụ ${p.capacitance}, đang ${volts(drop)})`;
+    if (type === 'potentiometer' || type === 'trimpot-3296') return `${id} (biến trở ${ohms(Number(p.resistance))}, núm ${p.position} %, sụt ${volts(drop)})`;
     if (type === 'photoresistor') return `${id} (quang trở ${ohms(Math.round(Number(kernel.observables(id).resistance)))}, sụt ${volts(drop)})`;
     if (type === 'diode') return `${id} (diode ${p.model}, sụt ${volts(drop)})`;
     if (type === 'rgb-led') return `${id} (LED RGB, ${volts(drop)})`;
@@ -246,8 +249,16 @@ export function explain(ctx: ExplainContext): Note[] {
           : `${p.id} đang nhả: cặp chân trái và cặp chân phải không thông nhau (các chân cùng phía luôn thông).`,
         highlight: [p.id],
       });
-    } else if (p.type === 'potentiometer') {
+    } else if (p.type === 'potentiometer' || p.type === 'trimpot-3296') {
       if (!loose.includes('wiper')) notes.push({ level: 'info', text: `${p.id}: núm ở ${p.props?.position ?? 50} %, chân giữa đang có ${volts(v(keys.wiper!))}. Kéo thanh "position" để xoay núm.`, highlight: [p.id] });
+    } else if (p.type === 'electrolytic-capacitor' && (obs.reversed || obs.damaged)) {
+      notes.push({
+        level: 'warn',
+        text: obs.damaged
+          ? `${p.id} đã hỏng (phồng đỉnh, rò điện như một điện trở nhỏ) vì bị cắm ngược hoặc quá điện áp ${p.props?.voltage ?? '16V'}. Xoá đi và cắm tụ mới.`
+          : `${p.id} đang cắm ngược: chân − cao hơn chân + ${volts(-Number(obs.voltage))}. Chân + (chân dài) phải ở phía điện áp cao, vạch trắng ở phía GND. Chọn tụ rồi nhấn R hai lần để xoay 180°.`,
+        highlight: [p.id],
+      });
     } else if (p.type === 'photoresistor') {
       notes.push({ level: 'info', text: `${p.id}: ở ${p.props?.light ?? 300} lux quang trở có ${ohms(Math.round(Number(obs.resistance)))}. Tối hơn thì lớn hơn, sáng hơn thì nhỏ hơn.`, highlight: [p.id] });
     } else if (p.type === 'buzzer' && !obs.damaged && !obs.sounding) {

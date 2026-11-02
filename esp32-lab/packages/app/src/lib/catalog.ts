@@ -5,7 +5,9 @@ import type { Lesson } from '@esp32lab/lesson-engine';
 import type { PartModule } from '@esp32lab/part-sdk';
 import type { BoardDef, BreadboardDef, Project } from '@esp32lab/project-model';
 import buzzer from '@esp32lab-parts/buzzer';
+import capacitor from '@esp32lab-parts/capacitor';
 import dht from '@esp32lab-parts/dht';
+import electrolyticCapacitor from '@esp32lab-parts/electrolytic-capacitor';
 import diode from '@esp32lab-parts/diode';
 import led from '@esp32lab-parts/led';
 import photoresistor from '@esp32lab-parts/photoresistor';
@@ -16,6 +18,7 @@ import resistor from '@esp32lab-parts/resistor';
 import rgbLed from '@esp32lab-parts/rgb-led';
 import slideSwitch from '@esp32lab-parts/slide-switch';
 import thermistor from '@esp32lab-parts/thermistor';
+import trimpot3296 from '@esp32lab-parts/trimpot-3296';
 import tiltSwitch from '@esp32lab-parts/tilt-switch';
 import ultrasonic from '@esp32lab-parts/ultrasonic';
 import ds18b20 from '@esp32lab-parts/ds18b20';
@@ -46,7 +49,10 @@ export const PARTS: Record<string, PartModule<any>> = {
   led,
   'rgb-led': rgbLed,
   resistor,
+  capacitor,
+  'electrolytic-capacitor': electrolyticCapacitor,
   potentiometer,
+  'trimpot-3296': trimpot3296,
   photoresistor,
   diode,
   pushbutton,

@@ -79,11 +79,15 @@ importers:
 
   parts/buzzer: {}
 
+  parts/capacitor: {}
+
   parts/dht: {}
 
   parts/diode: {}
 
   parts/ds18b20: {}
+
+  parts/electrolytic-capacitor: {}
 
   parts/gas-sensor: {}
 
@@ -130,6 +134,8 @@ importers:
   parts/thermistor: {}
 
   parts/tilt-switch: {}
+
+  parts/trimpot-3296: {}
 
   parts/ultrasonic: {}
 

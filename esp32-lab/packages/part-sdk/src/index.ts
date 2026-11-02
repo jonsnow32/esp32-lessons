@@ -151,6 +151,11 @@ export interface OperatingPoint {
   t: SimTime;
   /** The PWM waveform on the terminal's net, if an MCU pad drives one there directly. */
   pwm?(terminal: string): PwmSignal | undefined;
+  /**
+   * The terminal's voltage averaged over the PWM period: what a part slower than the PWM (a
+   * capacitor behind a resistor) responds to. Same as `v` when nothing on the bench is PWM.
+   */
+  avg?(terminal: string): number;
 }
 
 export type PartEvent =
@@ -401,6 +406,93 @@ export class Overstress {
   update(over: boolean, dt: SimTime): boolean {
     this.accumulated = over ? this.accumulated + dt : Math.max(0, this.accumulated - dt);
     return this.accumulated > this.limit;
+  }
+}
+
+/** A capacitance prop such as "100nF", "4.7µF" or "22pF", in farads. */
+export function parseCapacitance(s: string): number {
+  const m = /^([\d.]+)\s*([pnuµm]?)F?$/.exec(s.trim());
+  if (!m) return NaN;
+  const scale: Record<string, number> = { p: 1e-12, n: 1e-9, u: 1e-6, µ: 1e-6, m: 1e-3, '': 1 };
+  return Number(m[1]) * scale[m[2]!]!;
+}
+
+/** Shortest and longest step a capacitor takes between solves (ns). */
+const CAP_H_MIN = 1_000;
+const CAP_H_MAX = 1_000_000_000;
+/** Voltage change per step: below SETTLED with the longest step the capacitor stops stepping. */
+const CAP_SETTLED = 0.001;
+const CAP_GROW = 0.02;
+const CAP_SHRINK = 0.2;
+
+/**
+ * Capacitance between two terminals. The kernel only re-solves when something happens, so the
+ * capacitor drives its own time: each step is backward Euler, i = C/h·(v − v0), stamped as a
+ * conductance C/h with a current source; it is stable for any step h. Steps start at 1 µs after
+ * a change, double while the voltage barely moves and halve when it jumps, and stop once the
+ * capacitor has settled, until a later solve finds its voltage pulled away again.
+ */
+export class Capacitor {
+  /** Voltage across the plates (a − b) at the start of the current step. */
+  v0 = 0;
+  /** Current from a to b through the capacitor in the latest solve. */
+  i = 0;
+  private h = CAP_H_MAX;
+  private vSolved = 0;
+  private idle = true;
+  private pending = false;
+
+  constructor(
+    /** Farads. */
+    readonly c: number,
+    private readonly env: PartEnv,
+    private readonly tag = 'cap',
+  ) {}
+
+  private get g(): number {
+    return this.c / (this.h * 1e-9);
+  }
+
+  stamp(ctx: StampContext, a: string, b: string): void {
+    ctx.conductance(a, b, this.g);
+    ctx.current(a, b, -this.g * this.v0);
+  }
+
+  /** Call from onSolved with the voltage across the plates (use `op.avg` so PWM is averaged). */
+  solved(v: number): void {
+    this.vSolved = v;
+    this.i = this.g * (v - this.v0);
+    if (this.pending) return;
+    if (this.idle) {
+      if (Math.abs(v - this.v0) < CAP_SETTLED) return;
+      // Pulled away while resting on the long step: solve again with a short one
+      this.idle = false;
+      this.h = CAP_H_MIN;
+      this.env.invalidate();
+      return;
+    }
+    if (Math.abs(v - this.v0) < CAP_SETTLED && this.h >= CAP_H_MAX) {
+      this.idle = true;
+      return;
+    }
+    this.pending = true;
+    this.env.schedule(this.env.now() + this.h, this.tag);
+  }
+
+  /** Call from onEvent for a timer with this capacitor's tag: the step is over. */
+  step(): void {
+    this.pending = false;
+    const dv = Math.abs(this.vSolved - this.v0);
+    this.v0 = this.vSolved;
+    if (dv < CAP_GROW) this.h = Math.min(this.h * 2, CAP_H_MAX);
+    else if (dv > CAP_SHRINK) this.h = Math.max(this.h / 2, CAP_H_MIN);
+    this.env.invalidate();
+  }
+
+  /** Charge kept across a circuit rebuild (rewiring does not discharge a capacitor). */
+  restore(v0: number): void {
+    this.v0 = v0;
+    this.vSolved = v0;
   }
 }
 

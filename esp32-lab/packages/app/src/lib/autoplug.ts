@@ -576,6 +576,33 @@ export interface CircuitChange {
  * The project with `change` made: each new part onto a breadboard where it fits (on the bench
  * otherwise), the wires run, then the rest of each new part plugged in. A line per thing done.
  */
+/**
+ * The board pins a name from Claude (or a person) means: the silkscreen label as is, else what it
+ * is usually called – "GND" for GND.L / GND.R, "GPIO4" or "4" for D4, "3.3V" for 3V3, "5V" for VIN.
+ * Empty when the board has no such pin.
+ */
+export function boardPinsNamed(def: BoardDef, name: string): BoardPin[] {
+  const exact = def.pins.filter((p) => p.name === name);
+  if (exact.length) return exact;
+  const want = name.trim().toUpperCase().replace(/\s+/g, '');
+  const same = def.pins.filter((p) => p.name.toUpperCase() === want);
+  if (same.length) return same;
+  // GND.L, GND.R, GND.1…: the same pin on either side
+  const sides = def.pins.filter((p) => p.name.toUpperCase().replace(/\.[^.]*$/, '') === want);
+  if (sides.length) return sides;
+  const gpio = /^(?:GPIO|IO|G|D)?(\d+)$/.exec(want);
+  if (gpio) {
+    const pad = def.pins.filter((p) => 'pad' in p.connect && p.connect.pad === `GPIO${Number(gpio[1])}`);
+    if (pad.length) return pad;
+  }
+  const alias: Record<string, string[]> = { '3.3V': ['3V3', '3.3V'], '3V': ['3V3'], VCC: ['3V3'], '5V': ['VIN', '5V'], VBUS: ['VIN', '5V'], GROUND: ['GND'] };
+  for (const other of alias[want] ?? []) {
+    const found = boardPinsNamed(def, other);
+    if (found.length) return found;
+  }
+  return [];
+}
+
 export function applyChange(project: Project, change: CircuitChange, netlist: (p: Project) => SimKernel | null, bodies?: Bodies): PlugResult {
   let out = structuredClone(project);
   const def = board(out);
@@ -617,7 +644,7 @@ export function applyChange(project: Project, change: CircuitChange, netlist: (p
   const taken = takenHoles(out);
   const resolve = (ref: string): { end?: Endpoint; at?: Pt; reason?: string } => {
     if (ref.startsWith('board:')) {
-      const pin = def.pins.find((p) => p.name === ref.slice(6));
+      const pin = boardPinsNamed(def, ref.slice(6))[0];
       if (!pin) return { reason: `${def.name} không có chân "${ref.slice(6)}". Các chân: ${def.pins.map((p) => p.name).join(', ')}.` };
       return { end: { kind: 'board', pin: pin.name }, at: pinPos(out, pin.name) };
     }
@@ -753,9 +780,9 @@ function unwire(project: Project, remove: string[], disconnect: string[], keep: 
   for (const ref of disconnect) {
     let n: number;
     if (ref.startsWith('board:')) {
-      const pin = ref.slice(6);
-      if (!def.pins.some((p) => p.name === pin)) return `${def.name} không có chân "${pin}".`;
-      n = cut((w) => [w.a, w.b].some((e) => e.kind === 'board' && e.pin === pin));
+      const pins = new Set(boardPinsNamed(def, ref.slice(6)).map((p) => p.name));
+      if (!pins.size) return `${def.name} không có chân "${ref.slice(6)}". Các chân: ${def.pins.map((p) => p.name).join(', ')}.`;
+      n = cut((w) => [w.a, w.b].some((e) => e.kind === 'board' && pins.has(e.pin)));
     } else {
       const [id, terminal] = [ref.slice(0, ref.indexOf('.')), ref.slice(ref.indexOf('.') + 1)];
       const part = project.parts.find((p) => p.id === id);

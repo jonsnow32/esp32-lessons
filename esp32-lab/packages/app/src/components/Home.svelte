@@ -145,10 +145,10 @@
         {:else}
           <span class="title">{p.title}</span>
         {/if}
-        <span class="summary">{from ? `Từ "${from.title}". ` : ''}Sửa lần cuối {when(p.updated)}.</span>
+        <span class="summary">{p.folder ? `Thư mục ${p.folder}. ` : from ? `Từ "${from.title}". ` : ''}Sửa lần cuối {when(p.updated)}.</span>
         <span class="actions">
           <button title="Đổi tên" onclick={(e) => { e.stopPropagation(); renaming = p.id; }} ><Icon name="edit" size={14} />Đổi tên</button>
-          <button title="Xoá dự án" onclick={(e) => { e.stopPropagation(); if (confirm(`Xoá "${p.title}"? Mạch và code của dự án này sẽ mất.`)) lab.deleteMyProject(p.id); }} class="danger"><Icon name="trash" size={14} />Xoá</button>
+          <button title="Xoá dự án" onclick={(e) => { e.stopPropagation(); if (confirm(p.folder ? `Xoá "${p.title}" khỏi lab? Mạch của dự án (${p.folder}/esp32-lab.json) sẽ mất; main.cpp và các file khác trong thư mục vẫn giữ nguyên.` : `Xoá "${p.title}"? Mạch và code của dự án này sẽ mất.`)) void lab.deleteMyProject(p.id); }} class="danger"><Icon name="trash" size={14} />Xoá</button>
         </span>
       </div>
     {/each}

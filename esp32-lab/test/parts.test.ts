@@ -32,6 +32,66 @@ describe('potentiometer', () => {
   });
 });
 
+describe('trimpot-3296', () => {
+  // Pins 1 (a5) and 3 (a7) in one row, the wiper a row below between them (b6)
+  const divider = (position: number, resistance = 10_000) =>
+    project(
+      [part('rv1', 'trimpot-3296', 'a5', { position, resistance })],
+      [wire('w1', pin('GND.R'), hole('e5')), wire('w2', hole('e7'), pin('3V3'))],
+    );
+
+  it.each([0, 25, 50, 100])('wiper follows the screw at %i %%', (position) => {
+    const { k } = kernel(divider(position));
+    k.solve();
+    const v3 = volts(k, 'c7');
+    expect(volts(k, 'e6')).toBeCloseTo((v3 * position) / 100, 1);
+  });
+
+  it('burns out above 0.5 W', () => {
+    // 3.3 V across 10 Ω is about 1 W
+    const { k } = kernel(divider(50, 10));
+    k.advanceTo(3000 * MS);
+    expect(k.observables('rv1').damaged).toBe(true);
+  });
+});
+
+describe('capacitors', () => {
+  // 3V3 → 10 kΩ (col 5–9) → capacitor (col 9–10 or 9–11) → GND
+  const rc = (type: string, props: PartInstance['props'], span = 1) =>
+    project(
+      [part('r1', 'resistor', 'a5', { resistance: 10_000 }), part('c1', type, 'b9', props)],
+      [wire('w1', pin('3V3'), hole('e5')), wire('w2', hole(`e${9 + span}`), pin('GND.R'))],
+    );
+  const charged = (frac: number) => 3.3 * (1 - Math.exp(-frac));
+
+  it.each([
+    ['capacitor', { capacitance: '100nF' }, 2, 1e-3],
+    ['electrolytic-capacitor', { capacitance: '100µF' }, 1, 1],
+  ] as const)('%s charges through 10 kΩ with τ = RC', (type, props, span, tau) => {
+    const { k } = kernel(rc(type, props, span));
+    k.advanceTo(0);
+    expect(volts(k, 'c9')).toBeLessThan(0.05);
+    k.advanceTo(Math.round(tau * 1e9));
+    expect(volts(k, 'c9')).toBeCloseTo(charged(1), 1);
+    k.advanceTo(Math.round(5 * tau * 1e9));
+    expect(volts(k, 'c9')).toBeCloseTo(charged(5), 1);
+    // Settled: the capacitor stops stepping and blocks DC
+    k.advanceTo(Math.round(20 * tau * 1e9));
+    expect(Math.abs(k.observables('c1').current as number)).toBeLessThan(1e-6);
+  });
+
+  it('an electrolytic plugged in backwards fails', () => {
+    const { k } = kernel(
+      project([part('c1', 'electrolytic-capacitor', 'b9', { capacitance: '10µF' })], [wire('w1', pin('3V3'), hole('e10')), wire('w2', hole('e9'), pin('GND.R'))]),
+    );
+    k.advanceTo(500 * MS);
+    expect(k.observables('c1').reversed).toBe(true);
+    expect(k.observables('c1').damaged).toBe(false);
+    k.advanceTo(2000 * MS);
+    expect(k.observables('c1').damaged).toBe(true);
+  });
+});
+
 describe('photoresistor', () => {
   it('follows the GL5528 curve', () => {
     expect(ldrResistance(10)).toBe(15_000);

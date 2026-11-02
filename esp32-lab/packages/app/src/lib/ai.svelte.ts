@@ -246,6 +246,8 @@ function circuit(): string {
   const kernel = lab.netKernel;
   const board = BOARDS[project.board.type];
   const out: string[] = [`Board: ${board?.name ?? project.board.type}`];
+  // The exact labels, for board:… in a circuit block (GND here is GND.L / GND.R)
+  if (board) out.push(`Chân board (dùng đúng tên này, vd "board:${board.pins.find((p) => p.name.startsWith('GND'))?.name ?? 'GND'}"): ${board.pins.map((p) => p.name).join(', ')}`);
   const pinsInUse: string[] = [];
 
   out.push('', 'Linh kiện:');
@@ -363,7 +365,21 @@ function situation(): string {
     const todo = lab.steps.filter((s) => !s.pass);
     if (todo.length) out.push(`Bước chưa đạt: ${todo.map((s) => s.title).join('; ')}.`);
   } else if (lab.featured) out.push(`Đang xem dự án mẫu: ${lab.featured.title}.`);
-  else if (lab.mine) out.push(`Dự án của người dùng: ${lab.mine.title}.`);
+  else if (lab.mine) {
+    out.push(`Dự án của người dùng: ${lab.mine.title}.`);
+    const folder = lab.mine.folder;
+    if (folder) {
+      // Names only: secrets.h holds the Wi-Fi and MQTT passwords, never sent to Claude
+      const files = lab.folderFiles;
+      out.push(
+        `Dự án nằm trong thư mục ${folder}/ của repo: editor là file ${folder}/main.cpp thật (áp dụng code là ghi vào file đó), mạch lưu ở ${folder}/esp32-lab.json.`,
+        files.length
+          ? `Các file khác trong thư mục được build cùng main.cpp: ${files.join(', ')}; bạn không xem được nội dung của chúng (secrets.h chứa mật khẩu Wi-Fi, MQTT), nên giữ nguyên các #include và tên macro code đang dùng từ đó, đừng chép giá trị bí mật vào main.cpp.`
+          : 'Thư mục không có file nguồn nào khác ngoài main.cpp.',
+        'Code này cũng được nạp vào board ESP32 thật: trình giả lập không có Wi-Fi/Bluetooth, nên phần mạng chỉ chạy trên board thật.',
+      );
+    }
+  }
   else out.push('Bàn tự do.');
   return out.join(' ');
 }
@@ -709,7 +725,7 @@ class Assistant {
     const system = fingerprint(SYSTEM_CLI);
     const earlier = this.session && this.sessionSystem !== system ? recap(this.entries) : '';
     if (earlier) this.session = null;
-    if (check) question = `<check>\n${check}\n</check>\nĐề xuất mạch vừa rồi chưa hiện cho người dùng vì kiểm tra từng linh kiện thấy các lỗi trên. Gửi lại khối json circuit đã sửa đúng các lỗi đó (và khối cpp main.cpp nếu code phải đổi theo).`;
+    if (check) question = `<check>\n${check}\n</check>\nĐề xuất mạch vừa rồi chưa hiện cho người dùng (nên chưa có nút áp dụng) vì lab không ráp được hoặc kiểm tra từng linh kiện thấy các lỗi trên. Gửi lại khối json circuit đã sửa đúng các lỗi đó (và khối cpp main.cpp nếu code phải đổi theo).`;
     else this.entries.push({ kind: 'user', text: question });
     this.busy = true;
     this.waiting = true;
@@ -786,8 +802,14 @@ class Assistant {
         parsed = 'Khối json circuit không phải JSON hợp lệ.';
       }
       const proposal = typeof parsed === 'string' ? parsed : this.plan(parsed.summary, parsed.change);
-      if (typeof proposal === 'string') this.entries.push({ kind: 'error', text: `Đề xuất mạch không ráp được: ${proposal}` });
-      else if (!(fix = this.sendBack(proposal))) this.entries.push(proposal);
+      if (typeof proposal === 'string') {
+        // Not even laid out (a pin that is not there, bad JSON): Claude fixes it, the user sees it only if it cannot
+        if (this.fixes < FIXES) {
+          this.fixes++;
+          this.entries.push({ kind: 'tool', text: 'Lab không ráp được đề xuất mạch, nhờ trợ lý sửa lại' });
+          fix = `- Lab không ráp được khối json circuit: ${proposal}`;
+        } else this.entries.push({ kind: 'error', text: `Đề xuất mạch không ráp được: ${proposal}` });
+      } else if (!(fix = this.sendBack(proposal))) this.entries.push(proposal);
     }
     entry.text = t.trim();
     // Code written for a circuit sent back comes again with the fixed one

@@ -477,6 +477,7 @@ export class SimKernel {
         dt,
         t: this.now,
         pwm: (t) => this.pwmByNet.get(inst.nets[t]!),
+        avg: (t) => this.voltages[inst.nets[t]!] ?? 0,
       });
       if (!wasDamaged && inst.behavior.damaged) {
         // A part failing changes the circuit (LED goes open), so solve again

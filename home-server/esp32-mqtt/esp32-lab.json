@@ -1,0 +1,99 @@
+{
+  "title": "Công tắc MQTT cho Home Assistant",
+  "project": {
+    "schemaVersion": 1,
+    "name": "esp32-mqtt",
+    "board": {
+      "type": "esp32-devkit-v1",
+      "x": -14,
+      "y": -6
+    },
+    "breadboards": [],
+    "parts": [
+      {
+        "id": "soil1",
+        "type": "soil-moisture",
+        "props": {},
+        "placement": null,
+        "bench": {
+          "x": -25,
+          "y": 7,
+          "rot": 270
+        }
+      }
+    ],
+    "wires": [
+      {
+        "id": "wmvyuvjc4p0",
+        "a": {
+          "kind": "board",
+          "pin": "GND.L"
+        },
+        "b": {
+          "kind": "part",
+          "part": "soil1",
+          "terminal": "gnd"
+        },
+        "color": "#1f2023"
+      },
+      {
+        "id": "wmvyuvjc4p1",
+        "a": {
+          "kind": "board",
+          "pin": "3V3"
+        },
+        "b": {
+          "kind": "part",
+          "part": "soil1",
+          "terminal": "vcc"
+        },
+        "color": "#e5484d",
+        "points": [
+          {
+            "x": -2.5,
+            "y": 8
+          },
+          {
+            "x": -2.5,
+            "y": 12.5
+          },
+          {
+            "x": -15.5,
+            "y": 12.5
+          },
+          {
+            "x": -15.5,
+            "y": 6
+          }
+        ]
+      },
+      {
+        "id": "wmvyuvjc4p2",
+        "a": {
+          "kind": "board",
+          "pin": "D34"
+        },
+        "b": {
+          "kind": "part",
+          "part": "soil1",
+          "terminal": "aout"
+        },
+        "color": "#3e63dd",
+        "points": [
+          {
+            "x": -15.5,
+            "y": -3
+          },
+          {
+            "x": -15.5,
+            "y": 5
+          }
+        ]
+      }
+    ],
+    "firmware": {
+      "kind": "none"
+    },
+    "seed": 42
+  }
+}

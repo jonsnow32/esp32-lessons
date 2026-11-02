@@ -2,7 +2,7 @@ import { ESP32_PAD_NAMES } from '@esp32lab/mcu-esp32';
 import type { Project } from '@esp32lab/project-model';
 import { GROUND_KEY, keyOf, ScriptedMcu, SimKernel } from '@esp32lab/sim-core';
 import { describe, expect, it } from 'vitest';
-import { applyChange, autoPlug } from '../packages/app/src/lib/autoplug';
+import { applyChange, autoPlug, boardPinsNamed } from '../packages/app/src/lib/autoplug';
 import { BOARDS, BREADBOARDS, PARTS } from '../packages/app/src/lib/catalog';
 
 const kernel = (project: Project) =>
@@ -139,5 +139,34 @@ describe('a circuit change the AI assistant proposes', () => {
     const [vcc, gnd] = [n.net(keyOf.terminal('rl1', 'vcc')), n.net(keyOf.terminal('rl1', 'gnd'))];
     expect(vcc).not.toBe(gnd);
     expect(r.project.parts.filter((p) => p.id === 'rl1')).toHaveLength(1);
+  });
+});
+
+describe('board pins named the usual way', () => {
+  const devkit = BOARDS['esp32-devkit-v1']!;
+  const names = (n: string) => boardPinsNamed(devkit, n).map((p) => p.name);
+
+  it('finds the silkscreen label for GND, GPIO numbers, 3.3V and 5V', () => {
+    expect(names('D4')).toEqual(['D4']);
+    expect(names('GND')).toEqual(['GND.L', 'GND.R']);
+    expect(names('gnd')).toEqual(['GND.L', 'GND.R']);
+    expect(names('GPIO4')).toEqual(['D4']);
+    expect(names('4')).toEqual(['D4']);
+    expect(names('GPIO36')).toEqual(['VP']);
+    expect(names('3.3V')).toEqual(['3V3']);
+    expect(names('5V')).toEqual(['VIN']);
+    expect(names('D99')).toEqual([]);
+  });
+
+  it('wires a DHT to board:GND and board:GPIO4 as the assistant writes them', () => {
+    const r = applyChange(
+      bench(),
+      { parts: [{ id: 'dht1', type: 'dht' }], wires: [['dht1.vcc', 'board:3V3'], ['dht1.gnd', 'board:GND'], ['dht1.data', 'board:GPIO4']] },
+      kernel,
+    );
+    if (!r.ok) throw new Error(r.reason);
+    expect(joined(r.project, keyOf.terminal('dht1', 'gnd'), GROUND_KEY)).toBe(true);
+    expect(joined(r.project, keyOf.terminal('dht1', 'data'), keyOf.boardPin('D4'))).toBe(true);
+    expect(r.project.wires.every((w) => [w.a, w.b].every((e) => e.kind !== 'board' || devkit.pins.some((p) => p.name === e.pin)))).toBe(true);
   });
 });

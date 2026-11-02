@@ -70,6 +70,20 @@ export function variable(a: Pt, b: Pt, kind: 'light' | 'heat' | 'adjust', label?
   return along(a, b, 36, box + mark, label, sub);
 }
 
+/** Capacitor: two plates; `polar` curves the minus plate (at b) and marks + at a (electrolytic). */
+export function capacitor(a: Pt, b: Pt, label?: string, sub?: string, polar = false): string {
+  const minus = polar ? `<path class="sch-w" fill="none" d="M10.5,-10 Q5.5,0 10.5,10"/>` : `<path class="sch-w" d="M8,-10 V10"/>`;
+  const body = along(a, b, 8, `<path class="sch-w" d="M0,-10 V10"/>${minus}`, label, sub);
+  if (!polar) return body;
+  // + beside the plus plate, clear of the label (right of a vertical part, above and below a level one)
+  const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+  const len = Math.hypot(dx, dy) || 1;
+  const [ux, uy] = [dx / len, dy / len];
+  const [mx, my] = [(a[0] + b[0]) / 2 - ux * 10, (a[1] + b[1]) / 2 - uy * 10];
+  const vertical = Math.abs(dy) > Math.abs(dx);
+  return body + (vertical ? text(mx - 12, my + 4, '+', { size: 11 }) : text(mx - 4 * Math.sign(ux), my - 8, '+', { size: 11 }));
+}
+
 /** Diode from anode a to cathode b; `led` adds the two light arrows. */
 export function diode(a: Pt, b: Pt, opts: { led?: boolean; color?: string; label?: string; sub?: string } = {}): string {
   const fill = opts.color ? ` style="fill:${opts.color}"` : '';
@@ -146,4 +160,14 @@ export function num(n: number, digits = 1): string {
 /** 220 Ω, 4,7 kΩ, 1 MΩ. */
 export function ohm(r: number): string {
   return r >= 1e6 ? `${num(r / 1e6, 2)} MΩ` : r >= 1e3 ? `${num(r / 1e3, 2)} kΩ` : `${num(r, 0)} Ω`;
+}
+
+/** 22 pF, 100 nF, 4,7 µF. */
+export function farad(c: number): string {
+  return c >= 1e-6 ? `${num(c * 1e6, 2)} µF` : c >= 1e-9 ? `${num(c * 1e9, 2)} nF` : `${num(c * 1e12, 0)} pF`;
+}
+
+/** Time with a sensible unit: 12 µs, 3,3 ms, 1,5 s. */
+export function seconds(t: number): string {
+  return t >= 1 ? `${num(t, 2)} s` : t >= 1e-3 ? `${num(t * 1e3, 2)} ms` : `${num(t * 1e6, 1)} µs`;
 }

@@ -1,0 +1,54 @@
+{
+  "id": "capacitor",
+  "version": "0.1.0",
+  "name": "Tụ gốm (tụ không phân cực)",
+  "category": "passive",
+  "stock": [
+    "capacitance"
+  ],
+  "tags": [
+    "through-hole",
+    "capacitor",
+    "ceramic"
+  ],
+  "terminals": [
+    {
+      "name": "a",
+      "dx": 0,
+      "dy": 0
+    },
+    {
+      "name": "b",
+      "dx": 2,
+      "dy": 0
+    }
+  ],
+  "props": {
+    "capacitance": {
+      "type": "enum",
+      "default": "100nF",
+      "options": [
+        "22pF",
+        "100pF",
+        "1nF",
+        "10nF",
+        "100nF",
+        "1µF"
+      ]
+    }
+  },
+  "ratings": {},
+  "learn": {
+    "summary": "Tụ điện giữ điện tích giữa hai bản cực. Nó không cho dòng một chiều đi qua, nhưng điện áp hai đầu tụ không thể nhảy ngay: tụ phải nạp hoặc xả qua mạch, mất khoảng 5 × R × C mới xong. Tụ gốm nhỏ, không có chiều, cắm xuôi hay ngược đều được.",
+    "howToPlug": [
+      "Hai chân cắm vào hai cột khác nhau, nếu không tụ bị nối tắt.",
+      "Lọc nhiễu nguồn: tụ 100 nF (mã 104) cắm sát chân nguồn của module, một chân vào 3,3 V, một chân vào GND.",
+      "Chống dội phím: tụ 100 nF song song với nút nhấn, cùng điện trở kéo lên 10 kΩ."
+    ],
+    "tips": [
+      "Đọc mã trên thân như điện trở, đơn vị pF: 104 = 10 × 10⁴ pF = 100 nF, 103 = 10 nF, 102 = 1 nF.",
+      "R × C là hằng số thời gian τ: 10 kΩ × 100 nF = 1 ms. Sau τ tụ nạp được 63 %, sau 5τ coi như đầy.",
+      "Tụ gốm chịu được khoảng 50 V, dư sức cho mạch 3,3 V và 5 V."
+    ]
+  }
+}
